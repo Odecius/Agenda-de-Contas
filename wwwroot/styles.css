@@ -204,6 +204,12 @@ textarea:focus {
   outline: 3px solid rgba(20, 106, 93, 0.14);
 }
 
+input.is-invalid,
+textarea.is-invalid {
+  border-color: var(--danger);
+  outline: 3px solid rgba(180, 35, 24, 0.14);
+}
+
 textarea {
   resize: vertical;
 }
@@ -220,6 +226,24 @@ textarea {
 .hint {
   font-size: 13px;
   margin-bottom: 16px;
+}
+
+.form-feedback {
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 14px;
+  padding: 10px 12px;
+}
+
+.form-feedback.error {
+  background: #fee4e2;
+  color: var(--danger);
+}
+
+.form-feedback.info {
+  background: #e8f3f1;
+  color: var(--primary);
 }
 
 .actions,
@@ -252,6 +276,30 @@ textarea {
 .ghost {
   background: #edf4f2;
   color: var(--primary);
+}
+
+.account-filters {
+  align-items: center;
+  background: #eef2f6;
+  border-radius: 7px;
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+}
+
+.filter-button {
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+  min-height: 34px;
+  padding: 7px 10px;
+}
+
+.filter-button.active {
+  background: #ffffff;
+  color: var(--primary);
+  box-shadow: 0 1px 3px rgba(24, 33, 43, 0.12);
 }
 
 .due-list {
@@ -353,6 +401,31 @@ th {
   width: 100%;
 }
 
+.toast {
+  background: var(--ink);
+  border-radius: 7px;
+  bottom: 18px;
+  box-shadow: 0 14px 40px rgba(24, 33, 43, 0.22);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 800;
+  left: 50%;
+  max-width: min(420px, calc(100% - 28px));
+  padding: 13px 16px;
+  position: fixed;
+  text-align: center;
+  transform: translateX(-50%);
+  z-index: 20;
+}
+
+.toast.success {
+  background: var(--ok);
+}
+
+.toast.error {
+  background: var(--danger);
+}
+
 @media (min-width: 1280px) {
   .workspace {
     grid-template-columns: minmax(320px, 440px) 1fr;
@@ -412,6 +485,19 @@ th {
   .due-item {
     align-items: stretch;
     grid-template-columns: 1fr;
+  }
+
+  .section-title.row {
+    flex-direction: column;
+  }
+
+  .account-filters {
+    overflow-x: auto;
+    width: 100%;
+  }
+
+  .filter-button {
+    flex: 1 0 auto;
   }
 
   .due-item button,

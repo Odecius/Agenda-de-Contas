@@ -1,8 +1,11 @@
 const state = {
   accounts: [],
+  accountFilter: "all",
   today: [],
   vencimentos: []
 };
+
+let toastTimeoutId;
 
 const formatMoney = new Intl.NumberFormat("pt-PT", {
   style: "currency",
@@ -15,6 +18,7 @@ const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padS
 
 const selectors = {
   accountForm: document.querySelector("#accountForm"),
+  accountFilters: document.querySelectorAll("[data-filter]"),
   accountId: document.querySelector("#accountId"),
   accountsCaption: document.querySelector("#accountsCaption"),
   accountsTable: document.querySelector("#accountsTable"),
@@ -25,6 +29,7 @@ const selectors = {
   dueList: document.querySelector("#dueList"),
   duration: document.querySelector("#duration"),
   formTitle: document.querySelector("#formTitle"),
+  formFeedback: document.querySelector("#formFeedback"),
   monthCaption: document.querySelector("#monthCaption"),
   monthPaidCount: document.querySelector("#monthPaidCount"),
   monthPendingCount: document.querySelector("#monthPendingCount"),
@@ -38,7 +43,8 @@ const selectors = {
   startDate: document.querySelector("#startDate"),
   todayCount: document.querySelector("#todayCount"),
   todaySummary: document.querySelector("#todaySummary"),
-  todayTotal: document.querySelector("#todayTotal")
+  todayTotal: document.querySelector("#todayTotal"),
+  toast: document.querySelector("#toast")
 };
 
 selectors.startDate.value = today.toISOString().slice(0, 10);
@@ -48,6 +54,9 @@ selectors.accountForm.addEventListener("submit", saveAccount);
 selectors.cancelEdit.addEventListener("click", resetForm);
 selectors.refreshButton.addEventListener("click", loadAll);
 selectors.monthPicker.addEventListener("change", loadAll);
+selectors.accountFilters.forEach(button => {
+  button.addEventListener("click", () => changeAccountFilter(button.dataset.filter));
+});
 
 loadAll();
 
@@ -69,7 +78,7 @@ async function loadAll() {
     renderAccounts();
     renderVencimentos();
   } catch (error) {
-    alert(error.message || "Erro ao carregar dados.");
+    showToast(error.message || "Erro ao carregar dados.", "error");
   } finally {
     setLoading(false);
   }
@@ -118,28 +127,37 @@ async function saveAccount(event) {
 
   const id = selectors.accountId.value;
   const payload = {
-    nome: selectors.name.value,
+    nome: selectors.name.value.trim(),
     valor: Number(selectors.amount.value),
     diaVencimento: Number(selectors.dueDay.value),
     dataInicio: selectors.startDate.value,
     duracaoMeses: Number(selectors.duration.value),
-    observacoes: selectors.notes.value
+    observacoes: selectors.notes.value.trim()
   };
 
-  const response = await fetch(id ? `/api/contas/${id}` : "/api/contas", {
-    method: id ? "PUT" : "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
-  });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ erro: "Erro ao guardar conta." }));
-    alert(error.erro || "Erro ao guardar conta.");
+  if (!validateAccountPayload(payload)) {
     return;
   }
 
-  resetForm();
-  await loadAll();
+  try {
+    const response = await fetch(id ? `/api/contas/${id}` : "/api/contas", {
+      method: id ? "PUT" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ erro: "Erro ao guardar conta." }));
+      showFormFeedback(error.erro || "Erro ao guardar conta.", "error");
+      return;
+    }
+
+    resetForm();
+    showToast(id ? "Conta atualizada com sucesso." : "Conta cadastrada com sucesso.", "success");
+    await loadAll();
+  } catch (error) {
+    showFormFeedback(error.message || "Erro ao guardar conta.", "error");
+  }
 }
 
 function editAccount(id) {
@@ -155,6 +173,7 @@ function editAccount(id) {
   selectors.duration.value = account.duracaoMeses;
   selectors.notes.value = account.observacoes || "";
   selectors.cancelEdit.hidden = false;
+  showFormFeedback(`Editando ${account.nome}.`, "info");
   selectors.name.focus();
 }
 
@@ -166,40 +185,66 @@ function resetForm() {
   selectors.duration.value = 0;
   selectors.dueDay.value = 1;
   selectors.cancelEdit.hidden = true;
+  clearFieldStates();
+  hideFormFeedback();
 }
 
 async function toggleActive(id) {
-  await fetch(`/api/contas/${id}/alternar-ativa`, { method: "POST" });
+  const account = state.accounts.find(item => item.id === id);
+  const response = await fetch(`/api/contas/${id}/alternar-ativa`, { method: "POST" });
+
+  if (!response.ok) {
+    showToast("Nao foi possivel alterar o status da conta.", "error");
+    return;
+  }
+
+  showToast(account?.ativa ? "Conta pausada." : "Conta ativada.", "success");
   await loadAll();
 }
 
 async function deleteAccount(id) {
-  if (!confirm("Excluir esta conta?")) return;
+  const account = state.accounts.find(item => item.id === id);
+  const accountName = account ? ` "${account.nome}"` : "";
+
+  if (!confirm(`Excluir a conta${accountName}? Esta acao nao pode ser desfeita.`)) return;
+
   const response = await fetch(`/api/contas/${id}?confirm=true`, { method: "DELETE" });
   if (!response.ok) {
-    alert("Nao foi possivel excluir a conta.");
+    showToast("Nao foi possivel excluir a conta.", "error");
     return;
   }
 
+  showToast("Conta excluida com sucesso.", "success");
   await loadAll();
 }
 
 async function togglePayment(accountId, year, month, paid) {
-  await fetch(`/api/contas/${accountId}/pagamentos/${year}/${month}`, {
+  const response = await fetch(`/api/contas/${accountId}/pagamentos/${year}/${month}`, {
     method: paid ? "DELETE" : "POST"
   });
+
+  if (!response.ok) {
+    showToast("Nao foi possivel atualizar o pagamento.", "error");
+    return;
+  }
+
+  showToast(paid ? "Pagamento desmarcado." : "Pagamento marcado como pago.", "success");
   await loadAll();
 }
 
 function renderAccounts() {
   selectors.accountsTable.innerHTML = "";
+  updateFilterButtons();
 
-  if (state.accounts.length === 0) {
-    selectors.accountsTable.innerHTML = `<tr><td colspan="6" class="empty">Nenhuma conta cadastrada.</td></tr>`;
+  const accounts = filterAccounts(state.accounts);
+  selectors.accountsCaption.textContent = buildAccountsCaption(accounts.length);
+
+  if (accounts.length === 0) {
+    selectors.accountsTable.innerHTML = `<tr><td colspan="6" class="empty">${getEmptyAccountsMessage()}</td></tr>`;
     return;
   }
 
-  for (const account of state.accounts) {
+  for (const account of accounts) {
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td data-label="Conta">
@@ -220,6 +265,45 @@ function renderAccounts() {
     `;
     selectors.accountsTable.appendChild(tr);
   }
+}
+
+function changeAccountFilter(filter) {
+  state.accountFilter = filter;
+  renderAccounts();
+}
+
+function filterAccounts(accounts) {
+  if (state.accountFilter === "active") {
+    return accounts.filter(account => account.ativa);
+  }
+
+  if (state.accountFilter === "paused") {
+    return accounts.filter(account => !account.ativa);
+  }
+
+  return accounts;
+}
+
+function updateFilterButtons() {
+  selectors.accountFilters.forEach(button => {
+    const isActive = button.dataset.filter === state.accountFilter;
+    button.classList.toggle("active", isActive);
+    button.setAttribute("aria-pressed", String(isActive));
+  });
+}
+
+function buildAccountsCaption(visibleCount) {
+  const total = state.accounts.length;
+  const suffix = state.accountFilter === "all" ? "" : `, ${visibleCount} visivel(is) no filtro`;
+  return `${total} conta(s) cadastrada(s)${suffix}`;
+}
+
+function getEmptyAccountsMessage() {
+  if (state.accounts.length === 0) {
+    return "Nenhuma conta cadastrada.";
+  }
+
+  return "Nenhuma conta encontrada neste filtro.";
 }
 
 function renderVencimentos() {
@@ -267,6 +351,80 @@ function renderPaymentStatus(item) {
 function setLoading(isLoading) {
   selectors.refreshButton.disabled = isLoading;
   selectors.refreshButton.innerHTML = isLoading ? "..." : "&#8635;";
+}
+
+function validateAccountPayload(payload) {
+  clearFieldStates();
+
+  if (payload.nome.length < 2) {
+    markFieldError(selectors.name);
+    showFormFeedback("Informe um nome com pelo menos 2 caracteres.", "error");
+    selectors.name.focus();
+    return false;
+  }
+
+  if (!Number.isFinite(payload.valor) || payload.valor <= 0) {
+    markFieldError(selectors.amount);
+    showFormFeedback("Informe um valor maior que zero.", "error");
+    selectors.amount.focus();
+    return false;
+  }
+
+  if (!Number.isInteger(payload.diaVencimento) || payload.diaVencimento < 1 || payload.diaVencimento > 31) {
+    markFieldError(selectors.dueDay);
+    showFormFeedback("Informe um dia de vencimento entre 1 e 31.", "error");
+    selectors.dueDay.focus();
+    return false;
+  }
+
+  if (!payload.dataInicio) {
+    markFieldError(selectors.startDate);
+    showFormFeedback("Informe a data de inicio da conta.", "error");
+    selectors.startDate.focus();
+    return false;
+  }
+
+  if (!Number.isInteger(payload.duracaoMeses) || payload.duracaoMeses < 0) {
+    markFieldError(selectors.duration);
+    showFormFeedback("Informe uma duracao valida. Use 0 para contas sem fim definido.", "error");
+    selectors.duration.focus();
+    return false;
+  }
+
+  hideFormFeedback();
+  return true;
+}
+
+function markFieldError(field) {
+  field.classList.add("is-invalid");
+}
+
+function clearFieldStates() {
+  [selectors.name, selectors.amount, selectors.dueDay, selectors.startDate, selectors.duration].forEach(field => {
+    field.classList.remove("is-invalid");
+  });
+}
+
+function showFormFeedback(message, type) {
+  selectors.formFeedback.textContent = message;
+  selectors.formFeedback.className = `form-feedback ${type}`;
+  selectors.formFeedback.hidden = false;
+}
+
+function hideFormFeedback() {
+  selectors.formFeedback.hidden = true;
+  selectors.formFeedback.textContent = "";
+}
+
+function showToast(message, type = "info") {
+  clearTimeout(toastTimeoutId);
+  selectors.toast.textContent = message;
+  selectors.toast.className = `toast ${type}`;
+  selectors.toast.hidden = false;
+
+  toastTimeoutId = setTimeout(() => {
+    selectors.toast.hidden = true;
+  }, 3600);
 }
 
 function sum(items, selector) {

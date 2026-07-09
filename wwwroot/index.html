@@ -83,6 +83,7 @@
           </label>
 
           <p class="hint">Use 0 na duracao para contas sem fim definido.</p>
+          <p id="formFeedback" class="form-feedback" role="alert" hidden></p>
 
           <div class="actions">
             <button type="submit" class="primary">Guardar</button>
@@ -109,6 +110,11 @@
           <h2>Contas cadastradas</h2>
           <span id="accountsCaption" class="section-note">Carregando...</span>
         </div>
+        <div class="account-filters" role="group" aria-label="Filtrar contas">
+          <button type="button" class="filter-button active" data-filter="all" aria-pressed="true">Todas</button>
+          <button type="button" class="filter-button" data-filter="active" aria-pressed="false">Ativas</button>
+          <button type="button" class="filter-button" data-filter="paused" aria-pressed="false">Pausadas</button>
+        </div>
       </div>
       <div class="table-wrap">
         <table>
@@ -131,6 +137,8 @@
   <footer class="brand-footer" aria-label="Marca">
     <img src="/assets/abc-solutions-footer.png" alt="Developed by Abc Solutions - Built with quality and care">
   </footer>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
   <script src="/app.js"></script>
 </body>
