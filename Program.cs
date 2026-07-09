@@ -5,6 +5,8 @@ using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Logging.AddFilter("System.Net.Http.HttpClient.Telegram", LogLevel.Warning);
+
 if (builder.Environment.IsDevelopment())
 {
     builder.Configuration.AddUserSecrets<Program>(optional: true, reloadOnChange: true);
