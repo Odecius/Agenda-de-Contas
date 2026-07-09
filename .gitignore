@@ -1,9 +1,9 @@
-# Configuracoes locais
+# Configuracoes locais e segredos
 appsettings.Development.json
 appsettings.Local.json
 appsettings.*.local.json
+appsettings.*.Local.json
 
-# Segredos
 .env
 .env.*
 *.secret.json
@@ -17,19 +17,34 @@ data/
 # Banco SQLite
 *.db
 *.sqlite
+*.sqlite3
+*.db-shm
+*.db-wal
 
 # Logs
 logs/
 *.log
 
-# Build
-bin/
-obj/
+# Build .NET
+[Bb]in/
+[Oo]bj/
+artifacts/
+publish/
+TestResults/
+*.nupkg
+*.snupkg
 
-# Rider / VS Code
-.vscode/
+# Visual Studio / Rider / VS Code
+.vs/
 .idea/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.rsuser
 
 # Sistema
 .DS_Store
 Thumbs.db
+desktop.ini
