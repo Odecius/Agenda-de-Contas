@@ -202,15 +202,15 @@ function renderAccounts() {
   for (const account of state.accounts) {
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td>
+      <td data-label="Conta">
         <strong>${escapeHtml(account.nome)}</strong>
         ${account.observacoes ? `<div class="due-meta">${escapeHtml(account.observacoes)}</div>` : ""}
       </td>
-      <td>${formatMoney.format(account.valor)}</td>
-      <td>Dia ${account.diaVencimento}</td>
-      <td>${account.duracaoMeses === 0 ? "Indeterminada" : `${account.duracaoMeses} meses`}</td>
-      <td>${renderAccountStatus(account)}</td>
-      <td>
+      <td data-label="Valor">${formatMoney.format(account.valor)}</td>
+      <td data-label="Vencimento">Dia ${account.diaVencimento}</td>
+      <td data-label="Duracao">${account.duracaoMeses === 0 ? "Indeterminada" : `${account.duracaoMeses} meses`}</td>
+      <td data-label="Status">${renderAccountStatus(account)}</td>
+      <td data-label="Acoes">
         <div class="row-actions">
           <button class="ghost" onclick="editAccount('${account.id}')">Editar</button>
           <button class="secondary" onclick="toggleActive('${account.id}')">${account.ativa ? "Pausar" : "Ativar"}</button>
