@@ -7,11 +7,6 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Logging.AddFilter("System.Net.Http.HttpClient.Telegram", LogLevel.Warning);
 
-if (builder.Environment.IsDevelopment())
-{
-    builder.Configuration.AddUserSecrets<Program>(optional: true, reloadOnChange: true);
-}
-
 builder.Services
     .AddOptions<TelegramOptions>()
     .Bind(builder.Configuration.GetSection(TelegramOptions.SectionName))
@@ -71,8 +66,13 @@ app.MapPost("/api/contas/{id:guid}/alternar-ativa", async (Guid id, ContaStore s
     return await store.AlternarAtivaAsync(id) ? Results.NoContent() : Results.NotFound();
 });
 
-app.MapDelete("/api/contas/{id:guid}", async (Guid id, ContaStore store) =>
+app.MapDelete("/api/contas/{id:guid}", async (Guid id, bool confirm, ContaStore store) =>
 {
+    if (!confirm)
+    {
+        return Results.BadRequest(new { erro = "Confirme a exclusao usando confirm=true." });
+    }
+
     return await store.ExcluirContaAsync(id) ? Results.NoContent() : Results.NotFound();
 });
 
@@ -98,12 +98,14 @@ if (app.Environment.IsDevelopment())
         try
         {
             var testNumber = DateTimeOffset.Now.ToString("HH:mm - dd/MM/yy");
-            await notificationService.SendAsync($"Teste {testNumber} do Agendador de Contas", cancellationToken);
+            var sent = await notificationService.SendAsync($"Teste {testNumber} do Agendador de Contas", cancellationToken);
             return Results.Ok(new
             {
-                sucesso = true,
+                sucesso = sent,
                 numeroTeste = testNumber,
-                mensagem = $"Teste {testNumber} processado. Esta rota so existe em Development."
+                mensagem = sent
+                    ? $"Teste {testNumber} enviado. Esta rota so existe em Development."
+                    : $"Teste {testNumber} nao foi enviado porque o canal de notificacao esta desativado."
             });
         }
         catch (Exception ex)

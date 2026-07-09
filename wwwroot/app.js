@@ -175,7 +175,12 @@ async function toggleActive(id) {
 
 async function deleteAccount(id) {
   if (!confirm("Excluir esta conta?")) return;
-  await fetch(`/api/contas/${id}`, { method: "DELETE" });
+  const response = await fetch(`/api/contas/${id}?confirm=true`, { method: "DELETE" });
+  if (!response.ok) {
+    alert("Nao foi possivel excluir a conta.");
+    return;
+  }
+
   await loadAll();
 }
 

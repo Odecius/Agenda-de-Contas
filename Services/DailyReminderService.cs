@@ -59,9 +59,15 @@ public sealed class DailyReminderService : BackgroundService
         var notificationService = scope.ServiceProvider.GetRequiredService<INotificationService>();
         var message = messageBuilder.BuildDailyMessage(vencimentos, hoje);
 
-        await notificationService.SendAsync(message, cancellationToken);
+        var sent = await notificationService.SendAsync(message, cancellationToken);
+        if (!sent)
+        {
+            _logger.LogWarning("Lembrete diario nao foi marcado como enviado porque nenhuma notificacao foi enviada para {Data}.", hoje);
+            return;
+        }
+
         await store.RegistrarLembreteEnviadoAsync(hoje);
-        _logger.LogInformation("Lembrete diario processado para {Data}.", hoje);
+        _logger.LogInformation("Lembrete diario enviado e registrado para {Data}.", hoje);
     }
 
     private DateTime ObterAgoraLocal()

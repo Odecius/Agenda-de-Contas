@@ -23,12 +23,12 @@ public sealed class TelegramNotificationService : INotificationService
         _logger = logger;
     }
 
-    public async Task SendAsync(string message, CancellationToken cancellationToken = default)
+    public async Task<bool> SendAsync(string message, CancellationToken cancellationToken = default)
     {
         if (!_options.Enabled)
         {
             _logger.LogInformation("Telegram esta desativado. A notificacao nao sera enviada.");
-            return;
+            return false;
         }
 
         var httpClient = _httpClientFactory.CreateClient(HttpClientName);
@@ -39,7 +39,7 @@ public sealed class TelegramNotificationService : INotificationService
         if (response.IsSuccessStatusCode)
         {
             _logger.LogInformation("Mensagem enviada pelo Telegram com sucesso.");
-            return;
+            return true;
         }
 
         var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);

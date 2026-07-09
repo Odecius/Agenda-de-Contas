@@ -12,9 +12,11 @@ public sealed class ContaStore
 
     private readonly string _filePath;
     private readonly SemaphoreSlim _lock = new(1, 1);
+    private readonly ILogger<ContaStore> _logger;
 
-    public ContaStore(IConfiguration configuration, IWebHostEnvironment environment)
+    public ContaStore(IConfiguration configuration, IWebHostEnvironment environment, ILogger<ContaStore> logger)
     {
+        _logger = logger;
         var configuredPath = configuration["Data:FilePath"];
         _filePath = string.IsNullOrWhiteSpace(configuredPath)
             ? Path.Combine(environment.ContentRootPath, "data", "contas.json")
@@ -298,15 +300,48 @@ public sealed class ContaStore
             return new StoreData();
         }
 
-        await using var stream = File.OpenRead(_filePath);
-        return await JsonSerializer.DeserializeAsync<StoreData>(stream, JsonOptions) ?? new StoreData();
+        try
+        {
+            await using var stream = File.OpenRead(_filePath);
+            return await JsonSerializer.DeserializeAsync<StoreData>(stream, JsonOptions) ?? new StoreData();
+        }
+        catch (JsonException ex)
+        {
+            var backupPath = BackupCorruptedFile();
+            _logger.LogError(ex, "Arquivo de dados invalido. Um backup foi criado em {BackupPath}.", backupPath);
+            return new StoreData();
+        }
     }
 
     private async Task WriteAsync(StoreData db)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(_filePath)!);
-        await using var stream = File.Create(_filePath);
-        await JsonSerializer.SerializeAsync(stream, db, JsonOptions);
+        var directory = Path.GetDirectoryName(_filePath)!;
+        Directory.CreateDirectory(directory);
+
+        var tempPath = Path.Combine(directory, $"{Path.GetFileName(_filePath)}.{Guid.NewGuid():N}.tmp");
+        try
+        {
+            await using (var stream = File.Create(tempPath))
+            {
+                await JsonSerializer.SerializeAsync(stream, db, JsonOptions);
+            }
+
+            File.Move(tempPath, _filePath, overwrite: true);
+        }
+        finally
+        {
+            if (File.Exists(tempPath))
+            {
+                File.Delete(tempPath);
+            }
+        }
+    }
+
+    private string BackupCorruptedFile()
+    {
+        var backupPath = $"{_filePath}.corrupt.{DateTime.UtcNow:yyyyMMddHHmmss}";
+        File.Move(_filePath, backupPath);
+        return backupPath;
     }
 
     private sealed class StoreData
