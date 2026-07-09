@@ -55,8 +55,11 @@ public sealed class DailyReminderService : BackgroundService
         }
 
         var vencimentos = await store.ListarVencimentosDoDiaAsync(hoje);
+        var messageBuilder = scope.ServiceProvider.GetRequiredService<IReminderMessageBuilder>();
         var notificationService = scope.ServiceProvider.GetRequiredService<INotificationService>();
-        await notificationService.SendAsync(MontarMensagem(vencimentos, hoje), cancellationToken);
+        var message = messageBuilder.BuildDailyMessage(vencimentos, hoje);
+
+        await notificationService.SendAsync(message, cancellationToken);
         await store.RegistrarLembreteEnviadoAsync(hoje);
         _logger.LogInformation("Lembrete diario processado para {Data}.", hoje);
     }
@@ -79,22 +82,5 @@ public sealed class DailyReminderService : BackgroundService
             _logger.LogWarning("Time zone {TimeZoneId} nao encontrada. Usando horario local.", timeZoneId);
             return DateTime.Now;
         }
-    }
-
-    private static string MontarMensagem(IReadOnlyList<Models.ContaVencimento> vencimentos, DateOnly data)
-    {
-        if (vencimentos.Count == 0)
-        {
-            return $"Bom dia! Nao existem contas para pagar hoje ({data:dd/MM/yyyy}).";
-        }
-
-        var linhas = new List<string>
-        {
-            $"Bom dia! Existem {vencimentos.Count} conta(s) para pagar hoje ({data:dd/MM/yyyy}):",
-            string.Empty
-        };
-
-        linhas.AddRange(vencimentos.Select(v => $"- {v.Conta.Nome}: {v.Conta.Valor:C}"));
-        return string.Join(Environment.NewLine, linhas);
     }
 }

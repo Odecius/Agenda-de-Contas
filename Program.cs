@@ -20,6 +20,7 @@ builder.Services
 
 builder.Services.AddSingleton<IValidateOptions<TelegramOptions>, TelegramOptionsValidator>();
 builder.Services.AddSingleton<ContaStore>();
+builder.Services.AddSingleton<IReminderMessageBuilder, ReminderMessageBuilder>();
 builder.Services.AddSingleton<INotificationService, TelegramNotificationService>();
 builder.Services.AddHttpClient("Telegram", (serviceProvider, httpClient) =>
 {
