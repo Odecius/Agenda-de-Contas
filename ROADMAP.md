@@ -29,9 +29,10 @@
 
 ## Sprint 14 - Deploy Raspberry Pi
 
-- Testar em Raspberry real.
-- Validar runtime, systemd, variÃ¡veis de ambiente e logs.
-- Documentar processo final de atualizaÃ§Ã£o.
+- Preparar modelo `systemd`.
+- Preparar exemplo de variaveis de ambiente de producao.
+- Documentar instalacao, atualizacao, logs e backup manual.
+- Deixar validacao real pendente ate o Raspberry estar disponivel.
 
 ## Sprint 15 - ProteÃ§Ã£o de acesso
 

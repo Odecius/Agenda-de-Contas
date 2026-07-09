@@ -59,17 +59,19 @@ Depois acesse `http://localhost:5005/test-telegram`.
 
 ## Como fazer deploy
 
-O caminho planejado Ã© publicar para Linux/Raspberry Pi:
+O caminho planejado e publicar para Linux/Raspberry Pi:
 
 ```powershell
-dotnet publish -c Release -r linux-arm64 --self-contained false -o publish
+dotnet publish -c Release -r linux-arm64 --self-contained false -o "..\publish\agendador-contas-linux-arm64"
 ```
 
-No Raspberry, rodar com `systemd`, variÃ¡veis de ambiente e `ASPNETCORE_ENVIRONMENT=Production`.
+No Raspberry, rodar com `systemd`, variaveis de ambiente e `ASPNETCORE_ENVIRONMENT=Production`.
+
+Consulte o guia completo em `docs/deployment.md`. A pasta `deploy/` contem modelos de `systemd` e arquivo de ambiente sem segredos reais.
 
 ## Status atual
 
-AplicaÃ§Ã£o funcional com cadastro, listagem, ediÃ§Ã£o, exclusÃ£o, pausa/reativaÃ§Ã£o, vencimentos, marcaÃ§Ã£o de pagamentos, interface responsiva, resumo mensal, suporte inicial a paÃ­s/moeda por conta e envio Telegram. NÃ£o hÃ¡ banco externo nem autenticaÃ§Ã£o. A documentaÃ§Ã£o de Raspberry existe, mas o deploy real ainda precisa ser validado em hardware.
+AplicaÃ§Ã£o funcional com cadastro, listagem, ediÃ§Ã£o, exclusÃ£o, pausa/reativaÃ§Ã£o, vencimentos, marcaÃ§Ã£o de pagamentos, interface responsiva, resumo mensal, suporte inicial a paÃ­s/moeda por conta e envio Telegram. NÃ£o hÃ¡ banco externo nem autenticaÃ§Ã£o. O deploy Raspberry esta documentado e preparado com modelos de apoio, mas ainda precisa ser validado em hardware real.
 
 ## Paises e moedas
 

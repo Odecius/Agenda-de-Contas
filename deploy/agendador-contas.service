@@ -1,0 +1,24 @@
+[Unit]
+Description=Agendador de Contas
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=agendador
+Group=agendador
+WorkingDirectory=/opt/agendador-contas
+EnvironmentFile=/etc/agendador-contas/agendador-contas.env
+ExecStart=/usr/bin/dotnet /opt/agendador-contas/AgendadorContas.dll
+Restart=always
+RestartSec=10
+SyslogIdentifier=agendador-contas
+
+# Keep ReadWritePaths aligned with Data__FilePath.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/var/lib/agendador-contas
+
+[Install]
+WantedBy=multi-user.target

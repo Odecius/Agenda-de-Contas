@@ -2,6 +2,9 @@
 
 ## 2026-07-09
 
+- Preparado deploy Raspberry Pi com guia detalhado em `docs/deployment.md`.
+- Adicionados modelos `deploy/agendador-contas.service` e `deploy/agendador-contas.env.example`.
+- Documentados caminhos sugeridos para app, dados, segredos, logs, atualizacao e backup manual.
 - Adicionado suporte inicial a pais e moeda por conta.
 - Incluidos enums para `AccountCountry` e `AccountCurrency`.
 - Configurada serializacao de enums como texto na API e no arquivo JSON local.

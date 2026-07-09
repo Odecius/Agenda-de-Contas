@@ -3,7 +3,7 @@
 ## Alta prioridade
 
 - Remover token/chat id de `notas.txt` e limpar histÃ³rico Git se o segredo jÃ¡ tiver sido versionado.
-- Validar deploy real em Raspberry Pi.
+- Validar deploy real em Raspberry Pi quando o hardware estiver disponivel.
 - Adicionar autenticaÃ§Ã£o simples antes de expor o sistema em rede.
 
 ## MÃ©dia prioridade
@@ -30,4 +30,5 @@
 - Melhorias de UX no cadastro, edicao, exclusao, filtros e feedback visual.
 - Painel de resumo mensal.
 - Suporte inicial a pais e moeda por conta, sem conversao cambial.
+- Preparacao de deploy Raspberry Pi com systemd, ambiente, logs e checklist.
 - DocumentaÃ§Ã£o padronizada em 2026-07-09.

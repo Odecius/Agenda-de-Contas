@@ -20,7 +20,7 @@ O modelo de contas possui suporte inicial a pais e moeda por conta. Os paises su
 - `notas.txt` contÃ©m segredo histÃ³rico e precisa ser tratado.
 - JSON local precisa de backup.
 - NÃ£o hÃ¡ autenticaÃ§Ã£o.
-- Deploy Raspberry ainda nÃ£o foi validado em hardware real.
+- Deploy Raspberry esta preparado em documentacao e modelos, mas ainda nao foi validado em hardware real.
 - Contas antigas sem `country` e `currency` assumem `UnitedKingdom` e `GBP`.
 
 ## Arquivos importantes
@@ -41,6 +41,7 @@ O modelo de contas possui suporte inicial a pais e moeda por conta. Os paises su
 - Manter rota `/test-telegram` somente em `Development`.
 - Atualizar docs apÃ³s alterar rotas, configuraÃ§Ã£o, deploy ou regras de vencimento.
 - Preferir serviÃ§os pequenos e testÃ¡veis para regras de negÃ³cio.
+- Para deploy Raspberry, consultar `docs/deployment.md` e os modelos em `deploy/`.
 
 ## Onde continuar
 
