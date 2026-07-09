@@ -147,13 +147,23 @@ public sealed class ContaStore
         try
         {
             var db = await ReadAsync();
+            var pagamentosDoMes = db.Pagamentos
+                .Where(p => p.Ano == data.Year && p.Mes == data.Month)
+                .GroupBy(p => p.ContaId)
+                .ToDictionary(group => group.Key, group => group.OrderByDescending(p => p.PagoEm).First());
+
             return db.Contas
                 .Where(c => EstaAtivaNoMes(c, data))
-                .Select(c => new ContaVencimento
+                .Select(c =>
                 {
-                    Conta = c,
-                    DataVencimento = VencimentoNoMes(c, data),
-                    Pago = db.Pagamentos.Any(p => p.ContaId == c.Id && p.Ano == data.Year && p.Mes == data.Month)
+                    pagamentosDoMes.TryGetValue(c.Id, out var pagamento);
+                    return new ContaVencimento
+                    {
+                        Conta = c,
+                        DataVencimento = VencimentoNoMes(c, data),
+                        Pago = pagamento is not null,
+                        PagoEm = pagamento?.PagoEm
+                    };
                 })
                 .OrderBy(v => v.DataVencimento)
                 .ThenBy(v => v.Conta.Nome)

@@ -278,7 +278,8 @@ textarea {
   color: var(--primary);
 }
 
-.account-filters {
+.account-filters,
+.due-filters {
   align-items: center;
   background: #eef2f6;
   border-radius: 7px;
@@ -302,6 +303,18 @@ textarea {
   box-shadow: 0 1px 3px rgba(24, 33, 43, 0.12);
 }
 
+.due-controls {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.due-controls input {
+  width: 160px;
+}
+
 .due-list {
   display: grid;
   gap: 10px;
@@ -318,6 +331,14 @@ textarea {
   padding: 14px;
 }
 
+.due-item.paid {
+  background: #f6fbf8;
+}
+
+.due-item.pending {
+  background: #fffdfa;
+}
+
 .due-title {
   align-items: center;
   display: flex;
@@ -328,6 +349,13 @@ textarea {
 .due-meta {
   font-size: 13px;
   margin-top: 5px;
+}
+
+.payment-meta {
+  color: var(--ok);
+  font-size: 13px;
+  font-weight: 800;
+  margin-top: 6px;
 }
 
 .badge {
@@ -491,8 +519,18 @@ th {
     flex-direction: column;
   }
 
-  .account-filters {
+  .account-filters,
+  .due-filters {
     overflow-x: auto;
+    width: 100%;
+  }
+
+  .due-controls {
+    justify-content: stretch;
+    width: 100%;
+  }
+
+  .due-controls input {
     width: 100%;
   }
 

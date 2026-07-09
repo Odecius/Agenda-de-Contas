@@ -98,7 +98,14 @@
             <h2>Vencimentos do mes</h2>
             <span id="monthCaption" class="section-note">Carregando...</span>
           </div>
-          <input id="monthPicker" type="month" aria-label="Selecionar mes">
+          <div class="due-controls">
+            <div class="due-filters" role="group" aria-label="Filtrar vencimentos">
+              <button type="button" class="filter-button active" data-due-filter="all" aria-pressed="true">Todos</button>
+              <button type="button" class="filter-button" data-due-filter="pending" aria-pressed="false">Pendentes</button>
+              <button type="button" class="filter-button" data-due-filter="paid" aria-pressed="false">Pagos</button>
+            </div>
+            <input id="monthPicker" type="month" aria-label="Selecionar mes">
+          </div>
         </div>
         <div id="dueList" class="due-list"></div>
       </section>

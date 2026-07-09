@@ -31,6 +31,7 @@ public sealed class ContaVencimento
     public required Conta Conta { get; init; }
     public required DateOnly DataVencimento { get; init; }
     public required bool Pago { get; init; }
+    public DateTime? PagoEm { get; init; }
 }
 
 public sealed class ContaCreateRequest

@@ -1,6 +1,7 @@
 const state = {
   accounts: [],
   accountFilter: "all",
+  dueFilter: "all",
   today: [],
   vencimentos: []
 };
@@ -13,6 +14,10 @@ const formatMoney = new Intl.NumberFormat("pt-PT", {
 });
 
 const formatDate = new Intl.DateTimeFormat("pt-PT");
+const formatDateTime = new Intl.DateTimeFormat("pt-PT", {
+  dateStyle: "short",
+  timeStyle: "short"
+});
 const today = new Date();
 const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
 
@@ -26,6 +31,7 @@ const selectors = {
   amount: document.querySelector("#amount"),
   cancelEdit: document.querySelector("#cancelEdit"),
   dueDay: document.querySelector("#dueDay"),
+  dueFilters: document.querySelectorAll("[data-due-filter]"),
   dueList: document.querySelector("#dueList"),
   duration: document.querySelector("#duration"),
   formTitle: document.querySelector("#formTitle"),
@@ -56,6 +62,9 @@ selectors.refreshButton.addEventListener("click", loadAll);
 selectors.monthPicker.addEventListener("change", loadAll);
 selectors.accountFilters.forEach(button => {
   button.addEventListener("click", () => changeAccountFilter(button.dataset.filter));
+});
+selectors.dueFilters.forEach(button => {
+  button.addEventListener("click", () => changeDueFilter(button.dataset.dueFilter));
 });
 
 loadAll();
@@ -118,7 +127,6 @@ function renderDashboard() {
     ? "Hoje nao existem contas pendentes para pagar."
     : `Hoje existem ${state.today.length} conta(s) pendente(s), totalizando ${formatMoney.format(todayTotal)}.`;
 
-  selectors.monthCaption.textContent = `${state.vencimentos.length} vencimento(s) encontrados`;
   selectors.accountsCaption.textContent = `${state.accounts.length} conta(s) cadastradas`;
 }
 
@@ -308,16 +316,20 @@ function getEmptyAccountsMessage() {
 
 function renderVencimentos() {
   selectors.dueList.innerHTML = "";
+  updateDueFilterButtons();
 
-  if (state.vencimentos.length === 0) {
-    selectors.dueList.innerHTML = `<p class="empty">Nenhuma conta vence neste mes.</p>`;
+  const vencimentos = filterVencimentos(state.vencimentos);
+  selectors.monthCaption.textContent = buildVencimentosCaption(vencimentos.length);
+
+  if (vencimentos.length === 0) {
+    selectors.dueList.innerHTML = `<p class="empty">${getEmptyVencimentosMessage()}</p>`;
     return;
   }
 
-  for (const item of state.vencimentos) {
+  for (const item of vencimentos) {
     const date = new Date(`${item.dataVencimento}T00:00:00`);
     const card = document.createElement("div");
-    card.className = "due-item";
+    card.className = item.pago ? "due-item paid" : "due-item pending";
     card.innerHTML = `
       <div>
         <div class="due-title">
@@ -327,6 +339,7 @@ function renderVencimentos() {
         <div class="due-meta">
           Vence em ${formatDate.format(date)} - ${formatMoney.format(item.conta.valor)}
         </div>
+        ${renderPaymentDetails(item)}
       </div>
       <button class="${item.pago ? "secondary" : "primary"}" onclick="togglePayment('${item.conta.id}', ${date.getFullYear()}, ${date.getMonth() + 1}, ${item.pago})">
         ${item.pago ? "Desmarcar" : "Marcar pago"}
@@ -334,6 +347,47 @@ function renderVencimentos() {
     `;
     selectors.dueList.appendChild(card);
   }
+}
+
+function changeDueFilter(filter) {
+  state.dueFilter = filter;
+  renderVencimentos();
+}
+
+function filterVencimentos(vencimentos) {
+  if (state.dueFilter === "pending") {
+    return vencimentos.filter(item => !item.pago);
+  }
+
+  if (state.dueFilter === "paid") {
+    return vencimentos.filter(item => item.pago);
+  }
+
+  return vencimentos;
+}
+
+function updateDueFilterButtons() {
+  selectors.dueFilters.forEach(button => {
+    const isActive = button.dataset.dueFilter === state.dueFilter;
+    button.classList.toggle("active", isActive);
+    button.setAttribute("aria-pressed", String(isActive));
+  });
+}
+
+function buildVencimentosCaption(visibleCount) {
+  const total = state.vencimentos.length;
+  const paidCount = state.vencimentos.filter(item => item.pago).length;
+  const pendingCount = total - paidCount;
+  const suffix = state.dueFilter === "all" ? "" : `, ${visibleCount} visivel(is) no filtro`;
+  return `${total} vencimento(s): ${pendingCount} pendente(s), ${paidCount} pago(s)${suffix}`;
+}
+
+function getEmptyVencimentosMessage() {
+  if (state.vencimentos.length === 0) {
+    return "Nenhuma conta vence neste mes.";
+  }
+
+  return "Nenhum vencimento encontrado neste filtro.";
 }
 
 function renderAccountStatus(account) {
@@ -346,6 +400,15 @@ function renderPaymentStatus(item) {
   return item.pago
     ? `<span class="badge ok">Pago</span>`
     : `<span class="badge pending">Pendente</span>`;
+}
+
+function renderPaymentDetails(item) {
+  if (!item.pago || !item.pagoEm) {
+    return "";
+  }
+
+  const paidAt = new Date(item.pagoEm);
+  return `<div class="payment-meta">Pago em ${formatDateTime.format(paidAt)}</div>`;
 }
 
 function setLoading(isLoading) {
