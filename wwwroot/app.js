@@ -40,9 +40,15 @@ const selectors = {
   monthPaidCount: document.querySelector("#monthPaidCount"),
   monthPendingCount: document.querySelector("#monthPendingCount"),
   monthPendingTotal: document.querySelector("#monthPendingTotal"),
+  monthOverviewCaption: document.querySelector("#monthOverviewCaption"),
   monthPicker: document.querySelector("#monthPicker"),
+  monthProgressBar: document.querySelector("#monthProgressBar"),
+  monthProgressPercent: document.querySelector("#monthProgressPercent"),
   monthTotal: document.querySelector("#monthTotal"),
   name: document.querySelector("#name"),
+  overviewPaid: document.querySelector("#overviewPaid"),
+  overviewPending: document.querySelector("#overviewPending"),
+  overviewTotal: document.querySelector("#overviewTotal"),
   notes: document.querySelector("#notes"),
   pausedAccounts: document.querySelector("#pausedAccounts"),
   refreshButton: document.querySelector("#refreshButton"),
@@ -111,6 +117,9 @@ function renderDashboard() {
   const monthTotal = sum(state.vencimentos, item => item.conta.valor);
   const monthPending = state.vencimentos.filter(item => !item.pago);
   const monthPendingTotal = sum(monthPending, item => item.conta.valor);
+  const monthPaid = state.vencimentos.filter(item => item.pago);
+  const monthPaidTotal = sum(monthPaid, item => item.conta.valor);
+  const progressPercent = monthTotal === 0 ? 0 : Math.round((monthPaidTotal / monthTotal) * 100);
   const activeAccounts = state.accounts.filter(account => account.ativa);
   const pausedAccounts = state.accounts.length - activeAccounts.length;
 
@@ -119,9 +128,15 @@ function renderDashboard() {
   selectors.monthPendingCount.textContent = monthPending.length;
   selectors.monthPendingTotal.textContent = formatMoney.format(monthPendingTotal);
   selectors.monthTotal.textContent = formatMoney.format(monthTotal);
-  selectors.monthPaidCount.textContent = `${state.vencimentos.length - monthPending.length} pagas`;
+  selectors.monthPaidCount.textContent = `${monthPaid.length} pagas`;
   selectors.activeAccounts.textContent = activeAccounts.length;
   selectors.pausedAccounts.textContent = `${pausedAccounts} pausadas`;
+  selectors.overviewTotal.textContent = formatMoney.format(monthTotal);
+  selectors.overviewPaid.textContent = formatMoney.format(monthPaidTotal);
+  selectors.overviewPending.textContent = formatMoney.format(monthPendingTotal);
+  selectors.monthProgressPercent.textContent = `${progressPercent}%`;
+  selectors.monthProgressBar.style.width = `${progressPercent}%`;
+  selectors.monthOverviewCaption.textContent = buildMonthOverviewCaption(monthPending.length, monthPaid.length, monthTotal);
 
   selectors.todaySummary.textContent = state.today.length === 0
     ? "Hoje nao existem contas pendentes para pagar."
@@ -388,6 +403,18 @@ function getEmptyVencimentosMessage() {
   }
 
   return "Nenhum vencimento encontrado neste filtro.";
+}
+
+function buildMonthOverviewCaption(pendingCount, paidCount, monthTotal) {
+  if (monthTotal === 0) {
+    return "Sem vencimentos previstos para o mes selecionado.";
+  }
+
+  if (pendingCount === 0) {
+    return `Mes fechado: ${paidCount} vencimento(s) pago(s).`;
+  }
+
+  return `${pendingCount} vencimento(s) ainda pendente(s) neste mes.`;
 }
 
 function renderAccountStatus(account) {

@@ -40,6 +40,35 @@
       </article>
     </section>
 
+    <section class="panel month-overview" aria-label="Resumo financeiro do mes">
+      <div class="section-title row">
+        <div>
+          <h2>Resumo financeiro do mes</h2>
+          <span id="monthOverviewCaption" class="section-note">Carregando...</span>
+        </div>
+        <strong id="monthProgressPercent" class="progress-percent">0%</strong>
+      </div>
+
+      <div class="progress-track" aria-hidden="true">
+        <div id="monthProgressBar" class="progress-bar"></div>
+      </div>
+
+      <div class="month-breakdown">
+        <div>
+          <span class="metric-label">Previsto</span>
+          <strong id="overviewTotal">0,00 EUR</strong>
+        </div>
+        <div>
+          <span class="metric-label">Pago</span>
+          <strong id="overviewPaid">0,00 EUR</strong>
+        </div>
+        <div>
+          <span class="metric-label">Pendente</span>
+          <strong id="overviewPending">0,00 EUR</strong>
+        </div>
+      </div>
+    </section>
+
     <section class="workspace">
       <aside class="panel form-panel">
         <div class="section-title">

@@ -150,6 +150,53 @@ h2 {
   line-height: 1.1;
 }
 
+.month-overview {
+  display: grid;
+  gap: 16px;
+}
+
+.progress-percent {
+  color: var(--primary);
+  font-size: clamp(28px, 4vw, 42px);
+  line-height: 1;
+}
+
+.progress-track {
+  background: #e9eef2;
+  border-radius: 999px;
+  height: 14px;
+  overflow: hidden;
+}
+
+.progress-bar {
+  background: linear-gradient(90deg, var(--primary), #2f9f8b);
+  border-radius: inherit;
+  height: 100%;
+  transition: width 180ms ease;
+  width: 0;
+}
+
+.month-breakdown {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.month-breakdown > div {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 14px;
+}
+
+.month-breakdown strong {
+  font-size: 20px;
+  line-height: 1.2;
+}
+
 .workspace {
   align-items: start;
   display: grid;
@@ -505,6 +552,7 @@ th {
   }
 
   .summary-grid,
+  .month-breakdown,
   .two {
     grid-template-columns: 1fr;
   }
@@ -517,6 +565,10 @@ th {
 
   .section-title.row {
     flex-direction: column;
+  }
+
+  .progress-percent {
+    align-self: flex-start;
   }
 
   .account-filters,
