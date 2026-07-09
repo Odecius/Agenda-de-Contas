@@ -97,11 +97,13 @@ if (app.Environment.IsDevelopment())
     {
         try
         {
-            await notificationService.SendAsync("Teste do Agendador de Contas", cancellationToken);
+            var testNumber = DateTimeOffset.Now.ToString("yyyyMMddHHmmss");
+            await notificationService.SendAsync($"Teste #{testNumber} do Agendador de Contas", cancellationToken);
             return Results.Ok(new
             {
                 sucesso = true,
-                mensagem = "Teste de notificacao processado. Esta rota so existe em Development."
+                numeroTeste = testNumber,
+                mensagem = $"Teste #{testNumber} processado. Esta rota so existe em Development."
             });
         }
         catch (Exception ex)
