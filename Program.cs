@@ -91,25 +91,28 @@ app.MapGet("/api/vencimentos/hoje", async (ContaStore store) =>
     return Results.Ok(vencimentos);
 });
 
-app.MapGet("/test-telegram", async (INotificationService notificationService, CancellationToken cancellationToken) =>
+if (app.Environment.IsDevelopment())
 {
-    try
+    app.MapGet("/test-telegram", async (INotificationService notificationService, CancellationToken cancellationToken) =>
     {
-        await notificationService.SendAsync("Teste do Agendador de Contas", cancellationToken);
-        return Results.Ok(new
+        try
         {
-            sucesso = true,
-            mensagem = "Teste de notificacao processado. Verifique o Telegram ou os logs se Telegram:Enabled estiver false."
-        });
-    }
-    catch (Exception ex)
-    {
-        return Results.Problem(
-            title: "Erro ao testar notificacao Telegram",
-            detail: ex.Message,
-            statusCode: StatusCodes.Status502BadGateway);
-    }
-});
+            await notificationService.SendAsync("Teste do Agendador de Contas", cancellationToken);
+            return Results.Ok(new
+            {
+                sucesso = true,
+                mensagem = "Teste de notificacao processado. Esta rota so existe em Development."
+            });
+        }
+        catch (Exception ex)
+        {
+            return Results.Problem(
+                title: "Erro ao testar notificacao Telegram",
+                detail: ex.Message,
+                statusCode: StatusCodes.Status502BadGateway);
+        }
+    });
+}
 
 app.MapPost("/api/contas/{id:guid}/pagamentos/{ano:int}/{mes:int}", async (Guid id, int ano, int mes, ContaStore store) =>
 {
