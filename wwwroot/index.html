@@ -7,71 +7,109 @@
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <header class="topbar">
+  <header class="app-header">
     <div>
+      <p class="eyebrow">Controlo financeiro pessoal</p>
       <h1>Agendador de Contas</h1>
-      <p id="todaySummary">Carregando vencimentos de hoje...</p>
+      <p id="todaySummary" class="header-summary">Carregando vencimentos de hoje...</p>
     </div>
-    <button id="refreshButton" class="icon-button" title="Atualizar" aria-label="Atualizar">↻</button>
+    <button id="refreshButton" class="icon-button" title="Atualizar dados" aria-label="Atualizar dados">&#8635;</button>
   </header>
 
-  <main class="layout">
-    <section class="panel form-panel">
-      <h2 id="formTitle">Cadastrar conta</h2>
-      <form id="accountForm">
-        <input type="hidden" id="accountId">
-
-        <label>
-          Nome da conta
-          <input id="name" required maxlength="80" placeholder="Ex.: Energia">
-        </label>
-
-        <div class="grid two">
-          <label>
-            Valor
-            <input id="amount" required type="number" min="0.01" step="0.01" placeholder="0.00">
-          </label>
-          <label>
-            Dia de vencimento
-            <input id="dueDay" required type="number" min="1" max="31" value="1">
-          </label>
-        </div>
-
-        <div class="grid two">
-          <label>
-            Inicio
-            <input id="startDate" required type="date">
-          </label>
-          <label>
-            Duracao em meses
-            <input id="duration" required type="number" min="0" value="0">
-          </label>
-        </div>
-
-        <label>
-          Observacoes
-          <textarea id="notes" rows="3" maxlength="300" placeholder="Opcional"></textarea>
-        </label>
-
-        <p class="hint">Use 0 na duracao para contas sem fim definido.</p>
-
-        <div class="actions">
-          <button type="submit" class="primary">Guardar</button>
-          <button type="button" id="cancelEdit" class="secondary" hidden>Cancelar</button>
-        </div>
-      </form>
+  <main class="page">
+    <section class="summary-grid" aria-label="Resumo">
+      <article class="metric">
+        <span class="metric-label">Vencem hoje</span>
+        <strong id="todayCount">0</strong>
+        <span id="todayTotal">0,00 EUR</span>
+      </article>
+      <article class="metric">
+        <span class="metric-label">Pendentes no mes</span>
+        <strong id="monthPendingCount">0</strong>
+        <span id="monthPendingTotal">0,00 EUR</span>
+      </article>
+      <article class="metric">
+        <span class="metric-label">Total previsto no mes</span>
+        <strong id="monthTotal">0,00 EUR</strong>
+        <span id="monthPaidCount">0 pagas</span>
+      </article>
+      <article class="metric">
+        <span class="metric-label">Contas ativas</span>
+        <strong id="activeAccounts">0</strong>
+        <span id="pausedAccounts">0 pausadas</span>
+      </article>
     </section>
 
-    <section class="panel">
-      <div class="section-head">
-        <h2>Vencimentos do mes</h2>
-        <input id="monthPicker" type="month">
+    <section class="workspace">
+      <aside class="panel form-panel">
+        <div class="section-title">
+          <h2 id="formTitle">Cadastrar conta</h2>
+          <span class="section-note">Dados da conta</span>
+        </div>
+
+        <form id="accountForm">
+          <input type="hidden" id="accountId">
+
+          <label>
+            Nome da conta
+            <input id="name" required maxlength="80" placeholder="Ex.: Energia">
+          </label>
+
+          <div class="grid two">
+            <label>
+              Valor
+              <input id="amount" required type="number" min="0.01" step="0.01" placeholder="0.00">
+            </label>
+            <label>
+              Dia
+              <input id="dueDay" required type="number" min="1" max="31" value="1">
+            </label>
+          </div>
+
+          <div class="grid two">
+            <label>
+              Inicio
+              <input id="startDate" required type="date">
+            </label>
+            <label>
+              Duracao
+              <input id="duration" required type="number" min="0" value="0">
+            </label>
+          </div>
+
+          <label>
+            Observacoes
+            <textarea id="notes" rows="3" maxlength="300" placeholder="Opcional"></textarea>
+          </label>
+
+          <p class="hint">Use 0 na duracao para contas sem fim definido.</p>
+
+          <div class="actions">
+            <button type="submit" class="primary">Guardar</button>
+            <button type="button" id="cancelEdit" class="secondary" hidden>Cancelar</button>
+          </div>
+        </form>
+      </aside>
+
+      <section class="panel due-panel">
+        <div class="section-title row">
+          <div>
+            <h2>Vencimentos do mes</h2>
+            <span id="monthCaption" class="section-note">Carregando...</span>
+          </div>
+          <input id="monthPicker" type="month" aria-label="Selecionar mes">
+        </div>
+        <div id="dueList" class="due-list"></div>
+      </section>
+    </section>
+
+    <section class="panel accounts-panel">
+      <div class="section-title row">
+        <div>
+          <h2>Contas cadastradas</h2>
+          <span id="accountsCaption" class="section-note">Carregando...</span>
+        </div>
       </div>
-      <div id="dueList" class="due-list"></div>
-    </section>
-
-    <section class="panel wide">
-      <h2>Contas cadastradas</h2>
       <div class="table-wrap">
         <table>
           <thead>

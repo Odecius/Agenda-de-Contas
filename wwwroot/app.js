@@ -1,5 +1,6 @@
 const state = {
   accounts: [],
+  today: [],
   vencimentos: []
 };
 
@@ -8,62 +9,121 @@ const formatMoney = new Intl.NumberFormat("pt-PT", {
   currency: "EUR"
 });
 
+const formatDate = new Intl.DateTimeFormat("pt-PT");
 const today = new Date();
 const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
 
-document.querySelector("#startDate").value = today.toISOString().slice(0, 10);
-document.querySelector("#monthPicker").value = currentMonth;
+const selectors = {
+  accountForm: document.querySelector("#accountForm"),
+  accountId: document.querySelector("#accountId"),
+  accountsCaption: document.querySelector("#accountsCaption"),
+  accountsTable: document.querySelector("#accountsTable"),
+  activeAccounts: document.querySelector("#activeAccounts"),
+  amount: document.querySelector("#amount"),
+  cancelEdit: document.querySelector("#cancelEdit"),
+  dueDay: document.querySelector("#dueDay"),
+  dueList: document.querySelector("#dueList"),
+  duration: document.querySelector("#duration"),
+  formTitle: document.querySelector("#formTitle"),
+  monthCaption: document.querySelector("#monthCaption"),
+  monthPaidCount: document.querySelector("#monthPaidCount"),
+  monthPendingCount: document.querySelector("#monthPendingCount"),
+  monthPendingTotal: document.querySelector("#monthPendingTotal"),
+  monthPicker: document.querySelector("#monthPicker"),
+  monthTotal: document.querySelector("#monthTotal"),
+  name: document.querySelector("#name"),
+  notes: document.querySelector("#notes"),
+  pausedAccounts: document.querySelector("#pausedAccounts"),
+  refreshButton: document.querySelector("#refreshButton"),
+  startDate: document.querySelector("#startDate"),
+  todayCount: document.querySelector("#todayCount"),
+  todaySummary: document.querySelector("#todaySummary"),
+  todayTotal: document.querySelector("#todayTotal")
+};
 
-document.querySelector("#accountForm").addEventListener("submit", saveAccount);
-document.querySelector("#cancelEdit").addEventListener("click", resetForm);
-document.querySelector("#refreshButton").addEventListener("click", loadAll);
-document.querySelector("#monthPicker").addEventListener("change", loadVencimentos);
+selectors.startDate.value = today.toISOString().slice(0, 10);
+selectors.monthPicker.value = currentMonth;
+
+selectors.accountForm.addEventListener("submit", saveAccount);
+selectors.cancelEdit.addEventListener("click", resetForm);
+selectors.refreshButton.addEventListener("click", loadAll);
+selectors.monthPicker.addEventListener("change", loadAll);
 
 loadAll();
 
 async function loadAll() {
-  const [accountsResponse] = await Promise.all([
-    fetch("/api/contas"),
-    loadVencimentos(),
-    loadTodaySummary()
-  ]);
+  setLoading(true);
 
-  state.accounts = await accountsResponse.json();
-  renderAccounts();
+  try {
+    const [accountsResponse, vencimentosResponse, todayResponse] = await Promise.all([
+      fetch("/api/contas"),
+      fetchMonthVencimentos(),
+      fetch("/api/vencimentos/hoje")
+    ]);
+
+    state.accounts = await readJson(accountsResponse);
+    state.vencimentos = await readJson(vencimentosResponse);
+    state.today = await readJson(todayResponse);
+
+    renderDashboard();
+    renderAccounts();
+    renderVencimentos();
+  } catch (error) {
+    alert(error.message || "Erro ao carregar dados.");
+  } finally {
+    setLoading(false);
+  }
 }
 
-async function loadVencimentos() {
-  const [year, month] = document.querySelector("#monthPicker").value.split("-");
-  const response = await fetch(`/api/vencimentos?ano=${year}&mes=${Number(month)}`);
-  state.vencimentos = await response.json();
-  renderVencimentos();
+function fetchMonthVencimentos() {
+  const [year, month] = selectors.monthPicker.value.split("-");
+  return fetch(`/api/vencimentos?ano=${year}&mes=${Number(month)}`);
 }
 
-async function loadTodaySummary() {
-  const response = await fetch("/api/vencimentos/hoje");
-  const dueToday = await response.json();
-  const total = dueToday.reduce((sum, item) => sum + item.conta.valor, 0);
-  const summary = document.querySelector("#todaySummary");
-
-  if (dueToday.length === 0) {
-    summary.textContent = "Hoje nao existem contas pendentes para pagar.";
-    return;
+async function readJson(response) {
+  if (!response.ok) {
+    throw new Error("A API devolveu um erro ao carregar os dados.");
   }
 
-  summary.textContent = `Hoje existem ${dueToday.length} conta(s) pendente(s), totalizando ${formatMoney.format(total)}.`;
+  return response.json();
+}
+
+function renderDashboard() {
+  const todayTotal = sum(state.today, item => item.conta.valor);
+  const monthTotal = sum(state.vencimentos, item => item.conta.valor);
+  const monthPending = state.vencimentos.filter(item => !item.pago);
+  const monthPendingTotal = sum(monthPending, item => item.conta.valor);
+  const activeAccounts = state.accounts.filter(account => account.ativa);
+  const pausedAccounts = state.accounts.length - activeAccounts.length;
+
+  selectors.todayCount.textContent = state.today.length;
+  selectors.todayTotal.textContent = formatMoney.format(todayTotal);
+  selectors.monthPendingCount.textContent = monthPending.length;
+  selectors.monthPendingTotal.textContent = formatMoney.format(monthPendingTotal);
+  selectors.monthTotal.textContent = formatMoney.format(monthTotal);
+  selectors.monthPaidCount.textContent = `${state.vencimentos.length - monthPending.length} pagas`;
+  selectors.activeAccounts.textContent = activeAccounts.length;
+  selectors.pausedAccounts.textContent = `${pausedAccounts} pausadas`;
+
+  selectors.todaySummary.textContent = state.today.length === 0
+    ? "Hoje nao existem contas pendentes para pagar."
+    : `Hoje existem ${state.today.length} conta(s) pendente(s), totalizando ${formatMoney.format(todayTotal)}.`;
+
+  selectors.monthCaption.textContent = `${state.vencimentos.length} vencimento(s) encontrados`;
+  selectors.accountsCaption.textContent = `${state.accounts.length} conta(s) cadastradas`;
 }
 
 async function saveAccount(event) {
   event.preventDefault();
 
-  const id = document.querySelector("#accountId").value;
+  const id = selectors.accountId.value;
   const payload = {
-    nome: document.querySelector("#name").value,
-    valor: Number(document.querySelector("#amount").value),
-    diaVencimento: Number(document.querySelector("#dueDay").value),
-    dataInicio: document.querySelector("#startDate").value,
-    duracaoMeses: Number(document.querySelector("#duration").value),
-    observacoes: document.querySelector("#notes").value
+    nome: selectors.name.value,
+    valor: Number(selectors.amount.value),
+    diaVencimento: Number(selectors.dueDay.value),
+    dataInicio: selectors.startDate.value,
+    duracaoMeses: Number(selectors.duration.value),
+    observacoes: selectors.notes.value
   };
 
   const response = await fetch(id ? `/api/contas/${id}` : "/api/contas", {
@@ -86,25 +146,26 @@ function editAccount(id) {
   const account = state.accounts.find(item => item.id === id);
   if (!account) return;
 
-  document.querySelector("#formTitle").textContent = "Editar conta";
-  document.querySelector("#accountId").value = account.id;
-  document.querySelector("#name").value = account.nome;
-  document.querySelector("#amount").value = account.valor;
-  document.querySelector("#dueDay").value = account.diaVencimento;
-  document.querySelector("#startDate").value = account.dataInicio;
-  document.querySelector("#duration").value = account.duracaoMeses;
-  document.querySelector("#notes").value = account.observacoes || "";
-  document.querySelector("#cancelEdit").hidden = false;
+  selectors.formTitle.textContent = "Editar conta";
+  selectors.accountId.value = account.id;
+  selectors.name.value = account.nome;
+  selectors.amount.value = account.valor;
+  selectors.dueDay.value = account.diaVencimento;
+  selectors.startDate.value = account.dataInicio;
+  selectors.duration.value = account.duracaoMeses;
+  selectors.notes.value = account.observacoes || "";
+  selectors.cancelEdit.hidden = false;
+  selectors.name.focus();
 }
 
 function resetForm() {
-  document.querySelector("#formTitle").textContent = "Cadastrar conta";
-  document.querySelector("#accountForm").reset();
-  document.querySelector("#accountId").value = "";
-  document.querySelector("#startDate").value = today.toISOString().slice(0, 10);
-  document.querySelector("#duration").value = 0;
-  document.querySelector("#dueDay").value = 1;
-  document.querySelector("#cancelEdit").hidden = true;
+  selectors.formTitle.textContent = "Cadastrar conta";
+  selectors.accountForm.reset();
+  selectors.accountId.value = "";
+  selectors.startDate.value = today.toISOString().slice(0, 10);
+  selectors.duration.value = 0;
+  selectors.dueDay.value = 1;
+  selectors.cancelEdit.hidden = true;
 }
 
 async function toggleActive(id) {
@@ -122,15 +183,14 @@ async function togglePayment(accountId, year, month, paid) {
   await fetch(`/api/contas/${accountId}/pagamentos/${year}/${month}`, {
     method: paid ? "DELETE" : "POST"
   });
-  await Promise.all([loadVencimentos(), loadTodaySummary()]);
+  await loadAll();
 }
 
 function renderAccounts() {
-  const tbody = document.querySelector("#accountsTable");
-  tbody.innerHTML = "";
+  selectors.accountsTable.innerHTML = "";
 
   if (state.accounts.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="6" class="empty">Nenhuma conta cadastrada.</td></tr>`;
+    selectors.accountsTable.innerHTML = `<tr><td colspan="6" class="empty">Nenhuma conta cadastrada.</td></tr>`;
     return;
   }
 
@@ -144,7 +204,7 @@ function renderAccounts() {
       <td>${formatMoney.format(account.valor)}</td>
       <td>Dia ${account.diaVencimento}</td>
       <td>${account.duracaoMeses === 0 ? "Indeterminada" : `${account.duracaoMeses} meses`}</td>
-      <td><span class="badge ${account.ativa ? "ok" : "pending"}">${account.ativa ? "Ativa" : "Pausada"}</span></td>
+      <td>${renderAccountStatus(account)}</td>
       <td>
         <div class="row-actions">
           <button class="ghost" onclick="editAccount('${account.id}')">Editar</button>
@@ -153,16 +213,15 @@ function renderAccounts() {
         </div>
       </td>
     `;
-    tbody.appendChild(tr);
+    selectors.accountsTable.appendChild(tr);
   }
 }
 
 function renderVencimentos() {
-  const list = document.querySelector("#dueList");
-  list.innerHTML = "";
+  selectors.dueList.innerHTML = "";
 
   if (state.vencimentos.length === 0) {
-    list.innerHTML = `<p class="empty">Nenhuma conta vence neste mes.</p>`;
+    selectors.dueList.innerHTML = `<p class="empty">Nenhuma conta vence neste mes.</p>`;
     return;
   }
 
@@ -172,17 +231,41 @@ function renderVencimentos() {
     card.className = "due-item";
     card.innerHTML = `
       <div>
-        <strong>${escapeHtml(item.conta.nome)}</strong>
+        <div class="due-title">
+          <strong>${escapeHtml(item.conta.nome)}</strong>
+          ${renderPaymentStatus(item)}
+        </div>
         <div class="due-meta">
-          Vence em ${date.toLocaleDateString("pt-PT")} · ${formatMoney.format(item.conta.valor)}
+          Vence em ${formatDate.format(date)} - ${formatMoney.format(item.conta.valor)}
         </div>
       </div>
       <button class="${item.pago ? "secondary" : "primary"}" onclick="togglePayment('${item.conta.id}', ${date.getFullYear()}, ${date.getMonth() + 1}, ${item.pago})">
         ${item.pago ? "Desmarcar" : "Marcar pago"}
       </button>
     `;
-    list.appendChild(card);
+    selectors.dueList.appendChild(card);
   }
+}
+
+function renderAccountStatus(account) {
+  return account.ativa
+    ? `<span class="badge ok">Ativa</span>`
+    : `<span class="badge paused">Pausada</span>`;
+}
+
+function renderPaymentStatus(item) {
+  return item.pago
+    ? `<span class="badge ok">Pago</span>`
+    : `<span class="badge pending">Pendente</span>`;
+}
+
+function setLoading(isLoading) {
+  selectors.refreshButton.disabled = isLoading;
+  selectors.refreshButton.innerHTML = isLoading ? "..." : "&#8635;";
+}
+
+function sum(items, selector) {
+  return items.reduce((total, item) => total + selector(item), 0);
 }
 
 function escapeHtml(value) {
