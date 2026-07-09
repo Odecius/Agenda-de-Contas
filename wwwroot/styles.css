@@ -27,6 +27,7 @@ body {
 
 button,
 input,
+select,
 textarea {
   font: inherit;
 }
@@ -146,8 +147,15 @@ h2 {
 }
 
 .metric strong {
+  display: grid;
+  gap: 3px;
   font-size: clamp(24px, 3vw, 34px);
   line-height: 1.1;
+}
+
+.metric span[id$="Total"] {
+  display: grid;
+  gap: 3px;
 }
 
 .month-overview {
@@ -193,6 +201,8 @@ h2 {
 }
 
 .month-breakdown strong {
+  display: grid;
+  gap: 3px;
   font-size: 20px;
   line-height: 1.2;
 }
@@ -235,6 +245,7 @@ label {
 }
 
 input,
+select,
 textarea {
   background: #ffffff;
   border: 1px solid var(--line);
@@ -246,12 +257,14 @@ textarea {
 }
 
 input:focus,
+select:focus,
 textarea:focus {
   border-color: var(--primary);
   outline: 3px solid rgba(20, 106, 93, 0.14);
 }
 
 input.is-invalid,
+select.is-invalid,
 textarea.is-invalid {
   border-color: var(--danger);
   outline: 3px solid rgba(180, 35, 24, 0.14);
@@ -435,7 +448,7 @@ textarea {
 
 table {
   border-collapse: collapse;
-  min-width: 860px;
+  min-width: 1040px;
   width: 100%;
 }
 

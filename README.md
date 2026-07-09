@@ -69,16 +69,26 @@ No Raspberry, rodar com `systemd`, variÃ¡veis de ambiente e `ASPNETCORE_ENVIRO
 
 ## Status atual
 
-AplicaÃ§Ã£o funcional com cadastro, listagem, ediÃ§Ã£o, exclusÃ£o, pausa/reativaÃ§Ã£o, vencimentos, marcaÃ§Ã£o de pagamentos, interface responsiva e envio Telegram. NÃ£o hÃ¡ banco externo nem autenticaÃ§Ã£o. A documentaÃ§Ã£o de Raspberry existe, mas o deploy real ainda precisa ser validado em hardware.
+AplicaÃ§Ã£o funcional com cadastro, listagem, ediÃ§Ã£o, exclusÃ£o, pausa/reativaÃ§Ã£o, vencimentos, marcaÃ§Ã£o de pagamentos, interface responsiva, resumo mensal, suporte inicial a paÃ­s/moeda por conta e envio Telegram. NÃ£o hÃ¡ banco externo nem autenticaÃ§Ã£o. A documentaÃ§Ã£o de Raspberry existe, mas o deploy real ainda precisa ser validado em hardware.
+
+## Paises e moedas
+
+Cada conta possui um pais e uma moeda. Inicialmente, o projeto suporta:
+
+- United Kingdom / GBP
+- Portugal / EUR
+- Brazil / BRL
+
+Novas contas usam `UnitedKingdom` e `GBP` como padrao. Contas antigas salvas sem esses campos tambem assumem esses valores ao serem carregadas.
+
+O sistema ainda nao faz conversao cambial. Totais com moedas diferentes sao apresentados agrupados por moeda para evitar soma incorreta entre GBP, EUR e BRL.
 
 ## PrÃ³ximos passos
 
-- Melhorar validaÃ§Ãµes visuais e mensagens da interface.
-- Adicionar confirmaÃ§Ã£o clara antes de excluir.
-- Melhorar fluxo de ediÃ§Ã£o.
-- Criar filtros de contas.
 - Preparar autenticaÃ§Ã£o simples antes de expor na rede.
 - Validar deploy real em Raspberry Pi.
+- Avaliar conversao cambial futura com API externa.
+- Criar dashboard por pais e relatÃ³rios por moeda.
 
 ## SeguranÃ§a
 

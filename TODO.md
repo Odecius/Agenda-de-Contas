@@ -8,10 +8,9 @@
 
 ## MÃ©dia prioridade
 
-- Melhorar mensagens visuais de sucesso e erro.
-- Confirmar exclusÃ£o de contas com UX mais clara.
-- Melhorar fluxo de ediÃ§Ã£o.
-- Adicionar filtros: todas, ativas, pausadas, vencendo hoje.
+- Avaliar conversao cambial futura com API externa.
+- Criar dashboard por pais.
+- Criar relatorios por moeda.
 - Criar testes automatizados para regras de vencimento e mensagens.
 
 ## Baixa prioridade
@@ -28,4 +27,7 @@
 - Lembretes via Telegram.
 - Rota de teste em desenvolvimento.
 - Interface responsiva.
+- Melhorias de UX no cadastro, edicao, exclusao, filtros e feedback visual.
+- Painel de resumo mensal.
+- Suporte inicial a pais e moeda por conta, sem conversao cambial.
 - DocumentaÃ§Ã£o padronizada em 2026-07-09.

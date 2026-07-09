@@ -2,6 +2,12 @@
 
 ## 2026-07-09
 
+- Adicionado suporte inicial a pais e moeda por conta.
+- Incluidos enums para `AccountCountry` e `AccountCurrency`.
+- Configurada serializacao de enums como texto na API e no arquivo JSON local.
+- Atualizada a interface para cadastro, edicao e exibicao de pais/moeda.
+- Totais financeiros passaram a ser exibidos agrupados por moeda, sem conversao cambial.
+- Atualizado Telegram para mostrar valores na moeda original e totais agrupados por moeda.
 - Padronizada a documentaÃ§Ã£o do projeto em portuguÃªs.
 - Criados `CHANGELOG.md`, `TODO.md`, `ROADMAP.md`, `DECISIONS.md`, `AI_NOTES.md`, `AI_GUIDELINES.md`, `SECURITY.md` e documentaÃ§Ã£o em `docs/`.
 - Consolidado o estado atual registrado no README e em `notas.txt`.

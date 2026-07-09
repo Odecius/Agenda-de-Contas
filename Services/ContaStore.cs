@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using AgendadorContas.Models;
 
 namespace AgendadorContas.Services;
@@ -9,6 +10,11 @@ public sealed class ContaStore
     {
         WriteIndented = true
     };
+
+    static ContaStore()
+    {
+        JsonOptions.Converters.Add(new JsonStringEnumConverter());
+    }
 
     private readonly string _filePath;
     private readonly SemaphoreSlim _lock = new(1, 1);
@@ -50,6 +56,8 @@ public sealed class ContaStore
                 Id = Guid.NewGuid(),
                 Nome = request.Nome.Trim(),
                 Valor = request.Valor,
+                Country = request.Country,
+                Currency = request.Currency,
                 DiaVencimento = request.DiaVencimento,
                 DataInicio = request.DataInicio,
                 DuracaoMeses = request.DuracaoMeses,
@@ -83,6 +91,8 @@ public sealed class ContaStore
 
             conta.Nome = request.Nome.Trim();
             conta.Valor = request.Valor;
+            conta.Country = request.Country;
+            conta.Currency = request.Currency;
             conta.DiaVencimento = request.DiaVencimento;
             conta.DataInicio = request.DataInicio;
             conta.DuracaoMeses = request.DuracaoMeses;
@@ -268,6 +278,16 @@ public sealed class ContaStore
         if (request.Valor <= 0)
         {
             throw new ArgumentException("O valor deve ser maior que zero.");
+        }
+
+        if (!Enum.IsDefined(request.Country))
+        {
+            throw new ArgumentException("Informe um pais suportado.");
+        }
+
+        if (!Enum.IsDefined(request.Currency))
+        {
+            throw new ArgumentException("Informe uma moeda suportada.");
         }
 
         if (request.DiaVencimento is < 1 or > 31)

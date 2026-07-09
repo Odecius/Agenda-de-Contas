@@ -8,11 +8,6 @@ const state = {
 
 let toastTimeoutId;
 
-const formatMoney = new Intl.NumberFormat("pt-PT", {
-  style: "currency",
-  currency: "EUR"
-});
-
 const formatDate = new Intl.DateTimeFormat("pt-PT");
 const formatDateTime = new Intl.DateTimeFormat("pt-PT", {
   dateStyle: "short",
@@ -20,6 +15,18 @@ const formatDateTime = new Intl.DateTimeFormat("pt-PT", {
 });
 const today = new Date();
 const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+
+const currencyLocales = {
+  GBP: "en-GB",
+  EUR: "pt-PT",
+  BRL: "pt-BR"
+};
+
+const countryLabels = {
+  UnitedKingdom: "United Kingdom",
+  Portugal: "Portugal",
+  Brazil: "Brazil"
+};
 
 const selectors = {
   accountForm: document.querySelector("#accountForm"),
@@ -30,6 +37,8 @@ const selectors = {
   activeAccounts: document.querySelector("#activeAccounts"),
   amount: document.querySelector("#amount"),
   cancelEdit: document.querySelector("#cancelEdit"),
+  country: document.querySelector("#country"),
+  currency: document.querySelector("#currency"),
   dueDay: document.querySelector("#dueDay"),
   dueFilters: document.querySelectorAll("[data-due-filter]"),
   dueList: document.querySelector("#dueList"),
@@ -113,34 +122,36 @@ async function readJson(response) {
 }
 
 function renderDashboard() {
-  const todayTotal = sum(state.today, item => item.conta.valor);
-  const monthTotal = sum(state.vencimentos, item => item.conta.valor);
+  const todayTotals = groupTotalsByCurrency(state.today);
+  const monthTotals = groupTotalsByCurrency(state.vencimentos);
   const monthPending = state.vencimentos.filter(item => !item.pago);
-  const monthPendingTotal = sum(monthPending, item => item.conta.valor);
+  const monthPendingTotals = groupTotalsByCurrency(monthPending);
   const monthPaid = state.vencimentos.filter(item => item.pago);
-  const monthPaidTotal = sum(monthPaid, item => item.conta.valor);
-  const progressPercent = monthTotal === 0 ? 0 : Math.round((monthPaidTotal / monthTotal) * 100);
+  const monthPaidTotals = groupTotalsByCurrency(monthPaid);
+  const progressPercent = state.vencimentos.length === 0
+    ? 0
+    : Math.round((monthPaid.length / state.vencimentos.length) * 100);
   const activeAccounts = state.accounts.filter(account => account.ativa);
   const pausedAccounts = state.accounts.length - activeAccounts.length;
 
   selectors.todayCount.textContent = state.today.length;
-  selectors.todayTotal.textContent = formatMoney.format(todayTotal);
+  selectors.todayTotal.innerHTML = formatCurrencyTotals(todayTotals);
   selectors.monthPendingCount.textContent = monthPending.length;
-  selectors.monthPendingTotal.textContent = formatMoney.format(monthPendingTotal);
-  selectors.monthTotal.textContent = formatMoney.format(monthTotal);
+  selectors.monthPendingTotal.innerHTML = formatCurrencyTotals(monthPendingTotals);
+  selectors.monthTotal.innerHTML = formatCurrencyTotals(monthTotals);
   selectors.monthPaidCount.textContent = `${monthPaid.length} pagas`;
   selectors.activeAccounts.textContent = activeAccounts.length;
   selectors.pausedAccounts.textContent = `${pausedAccounts} pausadas`;
-  selectors.overviewTotal.textContent = formatMoney.format(monthTotal);
-  selectors.overviewPaid.textContent = formatMoney.format(monthPaidTotal);
-  selectors.overviewPending.textContent = formatMoney.format(monthPendingTotal);
+  selectors.overviewTotal.innerHTML = formatCurrencyTotals(monthTotals);
+  selectors.overviewPaid.innerHTML = formatCurrencyTotals(monthPaidTotals);
+  selectors.overviewPending.innerHTML = formatCurrencyTotals(monthPendingTotals);
   selectors.monthProgressPercent.textContent = `${progressPercent}%`;
   selectors.monthProgressBar.style.width = `${progressPercent}%`;
-  selectors.monthOverviewCaption.textContent = buildMonthOverviewCaption(monthPending.length, monthPaid.length, monthTotal);
+  selectors.monthOverviewCaption.textContent = buildMonthOverviewCaption(monthPending.length, monthPaid.length, state.vencimentos.length);
 
   selectors.todaySummary.textContent = state.today.length === 0
     ? "Hoje nao existem contas pendentes para pagar."
-    : `Hoje existem ${state.today.length} conta(s) pendente(s), totalizando ${formatMoney.format(todayTotal)}.`;
+    : `Hoje existem ${state.today.length} conta(s) pendente(s), totalizando ${formatCurrencyTotalsText(todayTotals)}.`;
 
   selectors.accountsCaption.textContent = `${state.accounts.length} conta(s) cadastradas`;
 }
@@ -152,6 +163,8 @@ async function saveAccount(event) {
   const payload = {
     nome: selectors.name.value.trim(),
     valor: Number(selectors.amount.value),
+    country: selectors.country.value,
+    currency: selectors.currency.value,
     diaVencimento: Number(selectors.dueDay.value),
     dataInicio: selectors.startDate.value,
     duracaoMeses: Number(selectors.duration.value),
@@ -191,6 +204,8 @@ function editAccount(id) {
   selectors.accountId.value = account.id;
   selectors.name.value = account.nome;
   selectors.amount.value = account.valor;
+  selectors.country.value = account.country || "UnitedKingdom";
+  selectors.currency.value = account.currency || "GBP";
   selectors.dueDay.value = account.diaVencimento;
   selectors.startDate.value = account.dataInicio;
   selectors.duration.value = account.duracaoMeses;
@@ -207,6 +222,8 @@ function resetForm() {
   selectors.startDate.value = today.toISOString().slice(0, 10);
   selectors.duration.value = 0;
   selectors.dueDay.value = 1;
+  selectors.country.value = "UnitedKingdom";
+  selectors.currency.value = "GBP";
   selectors.cancelEdit.hidden = true;
   clearFieldStates();
   hideFormFeedback();
@@ -263,7 +280,7 @@ function renderAccounts() {
   selectors.accountsCaption.textContent = buildAccountsCaption(accounts.length);
 
   if (accounts.length === 0) {
-    selectors.accountsTable.innerHTML = `<tr><td colspan="6" class="empty">${getEmptyAccountsMessage()}</td></tr>`;
+    selectors.accountsTable.innerHTML = `<tr><td colspan="8" class="empty">${getEmptyAccountsMessage()}</td></tr>`;
     return;
   }
 
@@ -274,7 +291,9 @@ function renderAccounts() {
         <strong>${escapeHtml(account.nome)}</strong>
         ${account.observacoes ? `<div class="due-meta">${escapeHtml(account.observacoes)}</div>` : ""}
       </td>
-      <td data-label="Valor">${formatMoney.format(account.valor)}</td>
+      <td data-label="Valor">${formatCurrency(account.valor, account.currency)}</td>
+      <td data-label="Pais">${formatCountry(account.country)}</td>
+      <td data-label="Moeda">${escapeHtml(account.currency || "GBP")}</td>
       <td data-label="Vencimento">Dia ${account.diaVencimento}</td>
       <td data-label="Duracao">${account.duracaoMeses === 0 ? "Indeterminada" : `${account.duracaoMeses} meses`}</td>
       <td data-label="Status">${renderAccountStatus(account)}</td>
@@ -352,7 +371,7 @@ function renderVencimentos() {
           ${renderPaymentStatus(item)}
         </div>
         <div class="due-meta">
-          Vence em ${formatDate.format(date)} - ${formatMoney.format(item.conta.valor)}
+          Vence em ${formatDate.format(date)} - ${formatCurrency(item.conta.valor, item.conta.currency)}
         </div>
         ${renderPaymentDetails(item)}
       </div>
@@ -405,8 +424,8 @@ function getEmptyVencimentosMessage() {
   return "Nenhum vencimento encontrado neste filtro.";
 }
 
-function buildMonthOverviewCaption(pendingCount, paidCount, monthTotal) {
-  if (monthTotal === 0) {
+function buildMonthOverviewCaption(pendingCount, paidCount, totalCount) {
+  if (totalCount === 0) {
     return "Sem vencimentos previstos para o mes selecionado.";
   }
 
@@ -415,6 +434,49 @@ function buildMonthOverviewCaption(pendingCount, paidCount, monthTotal) {
   }
 
   return `${pendingCount} vencimento(s) ainda pendente(s) neste mes.`;
+}
+
+function groupTotalsByCurrency(items) {
+  return items.reduce((totals, item) => {
+    const currency = item.conta.currency || "GBP";
+    totals[currency] = (totals[currency] || 0) + item.conta.valor;
+    return totals;
+  }, {});
+}
+
+function formatCurrencyTotals(totals) {
+  const entries = Object.entries(totals);
+  if (entries.length === 0) {
+    return formatCurrency(0, "GBP");
+  }
+
+  return entries
+    .sort(([currencyA], [currencyB]) => currencyA.localeCompare(currencyB))
+    .map(([currency, amount]) => `<span>${formatCurrency(amount, currency)}</span>`)
+    .join("");
+}
+
+function formatCurrencyTotalsText(totals) {
+  const entries = Object.entries(totals);
+  if (entries.length === 0) {
+    return formatCurrency(0, "GBP");
+  }
+
+  return entries
+    .sort(([currencyA], [currencyB]) => currencyA.localeCompare(currencyB))
+    .map(([currency, amount]) => formatCurrency(amount, currency))
+    .join(", ");
+}
+
+function formatCurrency(value, currency = "GBP") {
+  return new Intl.NumberFormat(currencyLocales[currency] || "en-GB", {
+    style: "currency",
+    currency
+  }).format(value);
+}
+
+function formatCountry(country = "UnitedKingdom") {
+  return countryLabels[country] || country;
 }
 
 function renderAccountStatus(account) {
@@ -460,6 +522,20 @@ function validateAccountPayload(payload) {
     return false;
   }
 
+  if (!countryLabels[payload.country]) {
+    markFieldError(selectors.country);
+    showFormFeedback("Selecione um pais suportado.", "error");
+    selectors.country.focus();
+    return false;
+  }
+
+  if (!currencyLocales[payload.currency]) {
+    markFieldError(selectors.currency);
+    showFormFeedback("Selecione uma moeda suportada.", "error");
+    selectors.currency.focus();
+    return false;
+  }
+
   if (!Number.isInteger(payload.diaVencimento) || payload.diaVencimento < 1 || payload.diaVencimento > 31) {
     markFieldError(selectors.dueDay);
     showFormFeedback("Informe um dia de vencimento entre 1 e 31.", "error");
@@ -490,7 +566,7 @@ function markFieldError(field) {
 }
 
 function clearFieldStates() {
-  [selectors.name, selectors.amount, selectors.dueDay, selectors.startDate, selectors.duration].forEach(field => {
+  [selectors.name, selectors.amount, selectors.country, selectors.currency, selectors.dueDay, selectors.startDate, selectors.duration].forEach(field => {
     field.classList.remove("is-invalid");
   });
 }
@@ -515,10 +591,6 @@ function showToast(message, type = "info") {
   toastTimeoutId = setTimeout(() => {
     selectors.toast.hidden = true;
   }, 3600);
-}
-
-function sum(items, selector) {
-  return items.reduce((total, item) => total + selector(item), 0);
 }
 
 function escapeHtml(value) {

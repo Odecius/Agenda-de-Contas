@@ -1,11 +1,17 @@
 using AgendadorContas.Models;
 using AgendadorContas.Options;
 using AgendadorContas.Services;
+using System.Text.Json.Serialization;
 using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Logging.AddFilter("System.Net.Http.HttpClient.Telegram", LogLevel.Warning);
+
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+});
 
 builder.Services
     .AddOptions<TelegramOptions>()
@@ -15,6 +21,7 @@ builder.Services
 
 builder.Services.AddSingleton<IValidateOptions<TelegramOptions>, TelegramOptionsValidator>();
 builder.Services.AddSingleton<ContaStore>();
+builder.Services.AddSingleton<IMoneyFormatter, MoneyFormatter>();
 builder.Services.AddSingleton<IReminderMessageBuilder, ReminderMessageBuilder>();
 builder.Services.AddSingleton<INotificationService, TelegramNotificationService>();
 builder.Services.AddHttpClient("Telegram", (serviceProvider, httpClient) =>

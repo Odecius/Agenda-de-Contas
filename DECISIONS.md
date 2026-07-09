@@ -49,3 +49,13 @@
 **Alternativas consideradas:** Remover rota ou proteger por autenticaÃ§Ã£o.
 
 **Impacto:** Testes de produÃ§Ã£o devem usar logs e fluxo real.
+
+## 2026-07-09 - Preparar suporte a pais e moeda por conta
+
+**Descricao:** Cada conta passa a ter `Country` e `Currency`, usando enums para os paises e moedas inicialmente suportados.
+
+**Motivo:** O projeto pode evoluir para uso em multiplos paises, dashboards por pais e conversao cambial futura.
+
+**Alternativas consideradas:** Manter moeda fixa em EUR/GBP ou usar strings livres.
+
+**Impacto:** Valores devem ser sempre exibidos com a moeda da conta. Totais com moedas diferentes devem ser agrupados por moeda enquanto nao houver servico de conversao cambial.

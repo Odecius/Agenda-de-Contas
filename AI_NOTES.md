@@ -4,6 +4,8 @@
 
 Agendador de Contas Ã© uma aplicaÃ§Ã£o ASP.NET Core .NET 8 com frontend estÃ¡tico em `wwwroot`, APIs mÃ­nimas em `Program.cs`, armazenamento local em JSON e lembretes diÃ¡rios via Hosted Service.
 
+O modelo de contas possui suporte inicial a pais e moeda por conta. Os paises suportados sao `UnitedKingdom`, `Portugal` e `Brazil`; as moedas suportadas sao `GBP`, `EUR` e `BRL`. O sistema nao faz conversao cambial. Totais com moedas diferentes devem ser agrupados por moeda.
+
 ## Fluxo do sistema
 
 1. UsuÃ¡rio acessa a interface em `wwwroot/index.html`.
@@ -19,6 +21,7 @@ Agendador de Contas Ã© uma aplicaÃ§Ã£o ASP.NET Core .NET 8 com frontend es
 - JSON local precisa de backup.
 - NÃ£o hÃ¡ autenticaÃ§Ã£o.
 - Deploy Raspberry ainda nÃ£o foi validado em hardware real.
+- Contas antigas sem `country` e `currency` assumem `UnitedKingdom` e `GBP`.
 
 ## Arquivos importantes
 
@@ -41,4 +44,4 @@ Agendador de Contas Ã© uma aplicaÃ§Ã£o ASP.NET Core .NET 8 com frontend es
 
 ## Onde continuar
 
-PrÃ³ximo foco sugerido: Sprint 10, melhorando UX de cadastro/ediÃ§Ã£o, mensagens e filtros.
+PrÃ³ximo foco sugerido: deploy Raspberry Pi ou protecao de acesso antes de expor o sistema em rede.

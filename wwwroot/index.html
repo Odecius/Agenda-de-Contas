@@ -21,16 +21,16 @@
       <article class="metric">
         <span class="metric-label">Vencem hoje</span>
         <strong id="todayCount">0</strong>
-        <span id="todayTotal">0,00 EUR</span>
+        <span id="todayTotal">£0.00</span>
       </article>
       <article class="metric">
         <span class="metric-label">Pendentes no mes</span>
         <strong id="monthPendingCount">0</strong>
-        <span id="monthPendingTotal">0,00 EUR</span>
+        <span id="monthPendingTotal">£0.00</span>
       </article>
       <article class="metric">
         <span class="metric-label">Total previsto no mes</span>
-        <strong id="monthTotal">0,00 EUR</strong>
+        <strong id="monthTotal">£0.00</strong>
         <span id="monthPaidCount">0 pagas</span>
       </article>
       <article class="metric">
@@ -56,15 +56,15 @@
       <div class="month-breakdown">
         <div>
           <span class="metric-label">Previsto</span>
-          <strong id="overviewTotal">0,00 EUR</strong>
+          <strong id="overviewTotal">£0.00</strong>
         </div>
         <div>
           <span class="metric-label">Pago</span>
-          <strong id="overviewPaid">0,00 EUR</strong>
+          <strong id="overviewPaid">£0.00</strong>
         </div>
         <div>
           <span class="metric-label">Pendente</span>
-          <strong id="overviewPending">0,00 EUR</strong>
+          <strong id="overviewPending">£0.00</strong>
         </div>
       </div>
     </section>
@@ -92,6 +92,25 @@
             <label>
               Dia
               <input id="dueDay" required type="number" min="1" max="31" value="1">
+            </label>
+          </div>
+
+          <div class="grid two">
+            <label>
+              Pais
+              <select id="country" required>
+                <option value="UnitedKingdom">United Kingdom</option>
+                <option value="Portugal">Portugal</option>
+                <option value="Brazil">Brazil</option>
+              </select>
+            </label>
+            <label>
+              Moeda
+              <select id="currency" required>
+                <option value="GBP">GBP</option>
+                <option value="EUR">EUR</option>
+                <option value="BRL">BRL</option>
+              </select>
             </label>
           </div>
 
@@ -158,6 +177,8 @@
             <tr>
               <th>Conta</th>
               <th>Valor</th>
+              <th>Pais</th>
+              <th>Moeda</th>
               <th>Vencimento</th>
               <th>Duracao</th>
               <th>Status</th>

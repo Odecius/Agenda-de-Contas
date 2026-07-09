@@ -20,13 +20,20 @@
 - Exibir total previsto, pago e pendente.
 - Destacar contas vencendo hoje.
 
-## Sprint 13 - Deploy Raspberry Pi
+## Sprint 13 - Pais e moeda
+
+- Adicionar pais e moeda por conta.
+- Exibir valores com GBP, EUR ou BRL.
+- Agrupar totais por moeda sem conversao cambial.
+- Preparar caminho para conversao futura.
+
+## Sprint 14 - Deploy Raspberry Pi
 
 - Testar em Raspberry real.
 - Validar runtime, systemd, variÃ¡veis de ambiente e logs.
 - Documentar processo final de atualizaÃ§Ã£o.
 
-## Sprint 14 - ProteÃ§Ã£o de acesso
+## Sprint 15 - ProteÃ§Ã£o de acesso
 
 - Adicionar autenticaÃ§Ã£o simples.
 - Revisar autorizaÃ§Ã£o das rotas.

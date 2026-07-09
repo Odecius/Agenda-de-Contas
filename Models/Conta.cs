@@ -1,10 +1,26 @@
 namespace AgendadorContas.Models;
 
+public enum AccountCountry
+{
+    UnitedKingdom = 0,
+    Portugal = 1,
+    Brazil = 2
+}
+
+public enum AccountCurrency
+{
+    GBP = 0,
+    EUR = 1,
+    BRL = 2
+}
+
 public sealed class Conta
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public string Nome { get; set; } = string.Empty;
     public decimal Valor { get; set; }
+    public AccountCountry Country { get; set; } = AccountCountry.UnitedKingdom;
+    public AccountCurrency Currency { get; set; } = AccountCurrency.GBP;
     public int DiaVencimento { get; set; }
     public DateOnly DataInicio { get; set; } = DateOnly.FromDateTime(DateTime.Today);
     public int DuracaoMeses { get; set; }
@@ -38,6 +54,8 @@ public sealed class ContaCreateRequest
 {
     public string Nome { get; set; } = string.Empty;
     public decimal Valor { get; set; }
+    public AccountCountry Country { get; set; } = AccountCountry.UnitedKingdom;
+    public AccountCurrency Currency { get; set; } = AccountCurrency.GBP;
     public int DiaVencimento { get; set; }
     public DateOnly DataInicio { get; set; } = DateOnly.FromDateTime(DateTime.Today);
     public int DuracaoMeses { get; set; }
