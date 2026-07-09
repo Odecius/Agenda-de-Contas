@@ -4,7 +4,7 @@
 
 - Remover token/chat id de `notas.txt` e limpar histÃ³rico Git se o segredo jÃ¡ tiver sido versionado.
 - Validar deploy real em Raspberry Pi quando o hardware estiver disponivel.
-- Adicionar autenticaÃ§Ã£o simples antes de expor o sistema em rede.
+- Validar login em Raspberry Pi real antes de expor o sistema em rede.
 
 ## MÃ©dia prioridade
 
@@ -31,4 +31,5 @@
 - Painel de resumo mensal.
 - Suporte inicial a pais e moeda por conta, sem conversao cambial.
 - Preparacao de deploy Raspberry Pi com systemd, ambiente, logs e checklist.
+- Protecao opcional de acesso por cookie.
 - DocumentaÃ§Ã£o padronizada em 2026-07-09.

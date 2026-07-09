@@ -2,6 +2,9 @@
 
 ## 2026-07-09
 
+- Adicionada protecao opcional de acesso por cookie.
+- Criada tela de login e endpoint de logout.
+- Documentadas variaveis `AccessProtection__*` para producao/Raspberry Pi.
 - Preparado deploy Raspberry Pi com guia detalhado em `docs/deployment.md`.
 - Adicionados modelos `deploy/agendador-contas.service` e `deploy/agendador-contas.env.example`.
 - Documentados caminhos sugeridos para app, dados, segredos, logs, atualizacao e backup manual.

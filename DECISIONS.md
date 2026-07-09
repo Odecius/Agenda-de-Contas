@@ -59,3 +59,13 @@
 **Alternativas consideradas:** Manter moeda fixa em EUR/GBP ou usar strings livres.
 
 **Impacto:** Valores devem ser sempre exibidos com a moeda da conta. Totais com moedas diferentes devem ser agrupados por moeda enquanto nao houver servico de conversao cambial.
+
+## 2026-07-09 - Protecao simples por cookie
+
+**Descricao:** A aplicacao usa uma protecao opcional por cookie, ativada por configuracao `AccessProtection`.
+
+**Motivo:** Antes de expor o sistema na rede local, e necessario impedir acesso direto a interface e APIs.
+
+**Alternativas consideradas:** Sem autenticacao, Basic Auth, Identity completo.
+
+**Impacto:** Credenciais devem ser configuradas por User Secrets ou variaveis de ambiente. Para exposicao fora da rede local, ainda sera necessario avaliar HTTPS, reverse proxy e autenticacao mais robusta.

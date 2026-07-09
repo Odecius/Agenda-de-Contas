@@ -68,6 +68,11 @@ ASPNETCORE_URLS=http://0.0.0.0:5005
 
 Data__FilePath=/var/lib/agendador-contas/contas.json
 
+AccessProtection__Enabled=true
+AccessProtection__Username=admin
+AccessProtection__Password=SENHA_FORTE
+AccessProtection__SessionHours=12
+
 Reminder__Hour=8
 Reminder__Minute=0
 Reminder__TimeZoneId=Europe/London
@@ -145,6 +150,7 @@ Uma sprint futura deve automatizar backup e restauracao.
 - Confirmar arquitetura do Raspberry: `linux-arm64` ou `linux-arm`.
 - Confirmar instalacao do .NET Runtime 8.
 - Confirmar acesso pela rede local em outro aparelho.
+- Confirmar login com `AccessProtection__Enabled=true`.
 - Confirmar envio real de Telegram em `Production`.
 - Confirmar timezone final (`Europe/London`, `Europe/Lisbon` ou outro).
 - Confirmar reinicio automatico apos reboot.

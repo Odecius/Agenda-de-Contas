@@ -22,6 +22,7 @@ O modelo de contas possui suporte inicial a pais e moeda por conta. Os paises su
 - NÃ£o hÃ¡ autenticaÃ§Ã£o.
 - Deploy Raspberry esta preparado em documentacao e modelos, mas ainda nao foi validado em hardware real.
 - Contas antigas sem `country` e `currency` assumem `UnitedKingdom` e `GBP`.
+- Protecao de acesso por cookie existe, mas deve ser ativada por configuracao `AccessProtection` em producao.
 
 ## Arquivos importantes
 
@@ -42,6 +43,7 @@ O modelo de contas possui suporte inicial a pais e moeda por conta. Os paises su
 - Atualizar docs apÃ³s alterar rotas, configuraÃ§Ã£o, deploy ou regras de vencimento.
 - Preferir serviÃ§os pequenos e testÃ¡veis para regras de negÃ³cio.
 - Para deploy Raspberry, consultar `docs/deployment.md` e os modelos em `deploy/`.
+- Para proteger acesso, configurar `AccessProtection__Enabled=true`, usuario e senha por User Secrets ou variaveis de ambiente.
 
 ## Onde continuar
 

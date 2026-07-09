@@ -91,6 +91,23 @@ h2 {
   margin-top: 8px;
 }
 
+.header-actions {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+.header-button {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  font-weight: 800;
+}
+
+.header-button:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
 .icon-button {
   flex: 0 0 auto;
   align-items: center;
@@ -535,6 +552,14 @@ th {
     align-items: flex-start;
     min-height: auto;
     padding: 22px 16px;
+  }
+
+  .header-actions {
+    width: 100%;
+  }
+
+  .header-button {
+    flex: 1 1 auto;
   }
 
   h1 {

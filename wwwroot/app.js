@@ -45,6 +45,7 @@ const selectors = {
   duration: document.querySelector("#duration"),
   formTitle: document.querySelector("#formTitle"),
   formFeedback: document.querySelector("#formFeedback"),
+  logoutButton: document.querySelector("#logoutButton"),
   monthCaption: document.querySelector("#monthCaption"),
   monthPaidCount: document.querySelector("#monthPaidCount"),
   monthPendingCount: document.querySelector("#monthPendingCount"),
@@ -73,6 +74,7 @@ selectors.monthPicker.value = currentMonth;
 
 selectors.accountForm.addEventListener("submit", saveAccount);
 selectors.cancelEdit.addEventListener("click", resetForm);
+selectors.logoutButton.addEventListener("click", logout);
 selectors.refreshButton.addEventListener("click", loadAll);
 selectors.monthPicker.addEventListener("change", loadAll);
 selectors.accountFilters.forEach(button => {
@@ -82,7 +84,27 @@ selectors.dueFilters.forEach(button => {
   button.addEventListener("click", () => changeDueFilter(button.dataset.dueFilter));
 });
 
-loadAll();
+initialize();
+
+async function initialize() {
+  await loadAuthStatus();
+  await loadAll();
+}
+
+async function loadAuthStatus() {
+  const response = await fetch("/api/auth/status");
+  if (!response.ok) {
+    window.location.href = "/login.html";
+    return;
+  }
+
+  const status = await response.json();
+  selectors.logoutButton.hidden = !status.enabled;
+
+  if (status.enabled && !status.authenticated) {
+    window.location.href = "/login.html";
+  }
+}
 
 async function loadAll() {
   setLoading(true);
@@ -114,11 +136,21 @@ function fetchMonthVencimentos() {
 }
 
 async function readJson(response) {
+  if (response.status === 401) {
+    window.location.href = "/login.html";
+    throw new Error("Sessao expirada.");
+  }
+
   if (!response.ok) {
     throw new Error("A API devolveu um erro ao carregar os dados.");
   }
 
   return response.json();
+}
+
+async function logout() {
+  await fetch("/api/auth/logout", { method: "POST" });
+  window.location.href = "/login.html";
 }
 
 function renderDashboard() {

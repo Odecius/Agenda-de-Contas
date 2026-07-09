@@ -14,6 +14,7 @@ Controlar contas recorrentes ou com duraÃ§Ã£o definida, mostrando vencimento
 - Armazenamento local em JSON via `ContaStore`.
 - Telegram Bot API via `HttpClientFactory`.
 - Options Pattern, validaÃ§Ã£o de configuraÃ§Ã£o e User Secrets em desenvolvimento.
+- Protecao de acesso opcional por cookie.
 
 ## Estrutura do projeto
 
@@ -94,4 +95,13 @@ O sistema ainda nao faz conversao cambial. Totais com moedas diferentes sao apre
 
 ## SeguranÃ§a
 
-Segredos do Telegram devem ficar fora do Git, em User Secrets no desenvolvimento e variÃ¡veis de ambiente em produÃ§Ã£o. O arquivo `notas.txt` contÃ©m histÃ³rico sensÃ­vel e deve ser limpo/removido do histÃ³rico antes de compartilhar o repositÃ³rio.
+Segredos do Telegram e senha de acesso devem ficar fora do Git, em User Secrets no desenvolvimento e variÃ¡veis de ambiente em produÃ§Ã£o. O arquivo `notas.txt` contÃ©m histÃ³rico sensÃ­vel e deve ser limpo/removido do histÃ³rico antes de compartilhar o repositÃ³rio.
+
+Para ativar login em producao:
+
+```text
+AccessProtection__Enabled=true
+AccessProtection__Username=admin
+AccessProtection__Password=SENHA_FORTE
+AccessProtection__SessionHours=12
+```
