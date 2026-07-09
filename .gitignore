@@ -1,0 +1,35 @@
+# Configuracoes locais
+appsettings.Development.json
+appsettings.Local.json
+appsettings.*.local.json
+
+# Segredos
+.env
+.env.*
+*.secret.json
+secrets.json
+usersecrets.json
+notas.txt
+
+# Dados locais da aplicacao
+data/
+
+# Banco SQLite
+*.db
+*.sqlite
+
+# Logs
+logs/
+*.log
+
+# Build
+bin/
+obj/
+
+# Rider / VS Code
+.vscode/
+.idea/
+
+# Sistema
+.DS_Store
+Thumbs.db

@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="pt">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Agendador de Contas</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>Agendador de Contas</h1>
+      <p id="todaySummary">Carregando vencimentos de hoje...</p>
+    </div>
+    <button id="refreshButton" class="icon-button" title="Atualizar" aria-label="Atualizar">↻</button>
+  </header>
+
+  <main class="layout">
+    <section class="panel form-panel">
+      <h2 id="formTitle">Cadastrar conta</h2>
+      <form id="accountForm">
+        <input type="hidden" id="accountId">
+
+        <label>
+          Nome da conta
+          <input id="name" required maxlength="80" placeholder="Ex.: Energia">
+        </label>
+
+        <div class="grid two">
+          <label>
+            Valor
+            <input id="amount" required type="number" min="0.01" step="0.01" placeholder="0.00">
+          </label>
+          <label>
+            Dia de vencimento
+            <input id="dueDay" required type="number" min="1" max="31" value="1">
+          </label>
+        </div>
+
+        <div class="grid two">
+          <label>
+            Inicio
+            <input id="startDate" required type="date">
+          </label>
+          <label>
+            Duracao em meses
+            <input id="duration" required type="number" min="0" value="0">
+          </label>
+        </div>
+
+        <label>
+          Observacoes
+          <textarea id="notes" rows="3" maxlength="300" placeholder="Opcional"></textarea>
+        </label>
+
+        <p class="hint">Use 0 na duracao para contas sem fim definido.</p>
+
+        <div class="actions">
+          <button type="submit" class="primary">Guardar</button>
+          <button type="button" id="cancelEdit" class="secondary" hidden>Cancelar</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel">
+      <div class="section-head">
+        <h2>Vencimentos do mes</h2>
+        <input id="monthPicker" type="month">
+      </div>
+      <div id="dueList" class="due-list"></div>
+    </section>
+
+    <section class="panel wide">
+      <h2>Contas cadastradas</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Conta</th>
+              <th>Valor</th>
+              <th>Vencimento</th>
+              <th>Duracao</th>
+              <th>Status</th>
+              <th class="actions-col">Acoes</th>
+            </tr>
+          </thead>
+          <tbody id="accountsTable"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>
