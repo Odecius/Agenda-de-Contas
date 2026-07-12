@@ -2,6 +2,8 @@
 
 ## 2026-07-09
 
+- Adicionada exportacao CSV dos vencimentos do mes selecionado.
+- O CSV inclui data, conta, pais, moeda, valor, valor formatado, status e observacoes.
 - Adicionado resumo por pais e moeda na interface, sem conversao cambial.
 - Adicionados filtros de contas por pais e moeda.
 - Mantida exibicao de totais separados por moeda para evitar soma indevida entre GBP, EUR e BRL.

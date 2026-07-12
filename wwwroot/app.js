@@ -51,6 +51,7 @@ const selectors = {
   dueFilters: document.querySelectorAll("[data-due-filter]"),
   dueList: document.querySelector("#dueList"),
   duration: document.querySelector("#duration"),
+  exportReportButton: document.querySelector("#exportReportButton"),
   formTitle: document.querySelector("#formTitle"),
   formFeedback: document.querySelector("#formFeedback"),
   logoutButton: document.querySelector("#logoutButton"),
@@ -85,6 +86,7 @@ selectors.monthPicker.value = currentMonth;
 selectors.accountForm.addEventListener("submit", saveAccount);
 selectors.cancelEdit.addEventListener("click", resetForm);
 selectors.createBackupButton.addEventListener("click", createBackup);
+selectors.exportReportButton.addEventListener("click", exportMonthlyReportCsv);
 selectors.logoutButton.addEventListener("click", logout);
 selectors.refreshButton.addEventListener("click", loadAll);
 selectors.monthPicker.addEventListener("change", loadAll);
@@ -476,6 +478,51 @@ function renderVencimentos() {
   }
 }
 
+function exportMonthlyReportCsv() {
+  if (state.vencimentos.length === 0) {
+    showToast("Nao ha vencimentos para exportar neste mes.", "info");
+    return;
+  }
+
+  const [year, month] = selectors.monthPicker.value.split("-");
+  const csv = buildMonthlyReportCsv(state.vencimentos, year, month);
+  const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = `agendador-contas-${year}-${month}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+
+  showToast("Relatorio CSV exportado.", "success");
+}
+
+function buildMonthlyReportCsv(vencimentos, year, month) {
+  const rows = [
+    ["mes", "data_vencimento", "conta", "pais", "moeda", "valor", "valor_formatado", "status", "observacoes"]
+  ];
+
+  for (const item of vencimentos) {
+    const currency = item.conta.currency || "GBP";
+    rows.push([
+      `${year}-${month}`,
+      item.dataVencimento,
+      item.conta.nome,
+      formatCountry(item.conta.country),
+      currency,
+      formatCsvNumber(item.conta.valor),
+      formatCurrency(item.conta.valor, currency),
+      item.pago ? "Pago" : "Pendente",
+      item.conta.observacoes || ""
+    ]);
+  }
+
+  return rows.map(row => row.map(escapeCsvValue).join(",")).join("\r\n");
+}
+
 function renderBackups() {
   selectors.backupList.innerHTML = "";
   selectors.backupsCaption.textContent = `${state.backups.length} backup(s) disponivel(is)`;
@@ -692,6 +739,10 @@ function formatBytes(value) {
   return `${(value / 1024).toFixed(1)} KB`;
 }
 
+function formatCsvNumber(value) {
+  return Number(value || 0).toFixed(2);
+}
+
 function renderAccountStatus(account) {
   return account.ativa
     ? `<span class="badge ok">Ativa</span>`
@@ -813,4 +864,9 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function escapeCsvValue(value) {
+  const text = String(value ?? "");
+  return `"${text.replaceAll('"', '""')}"`;
 }

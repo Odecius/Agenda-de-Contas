@@ -79,3 +79,13 @@
 **Alternativas consideradas:** Somar todos os valores em uma moeda principal ou criar conversao cambial nesta sprint.
 
 **Impacto:** O dashboard melhora a leitura operacional agora e preserva um ponto claro para futura integracao com servico de cambio.
+
+## 2026-07-09 - Exportar relatorio mensal no navegador
+
+**Descricao:** A interface gera um CSV dos vencimentos do mes selecionado usando os dados ja carregados no navegador.
+
+**Motivo:** O usuario ganha um relatorio simples para Excel/Sheets sem aumentar a complexidade da API.
+
+**Alternativas consideradas:** Criar endpoint backend de exportacao ou gerar PDF.
+
+**Impacto:** A exportacao fica rapida e simples. Relatorios oficiais ou PDFs podem ser adicionados depois se houver necessidade.

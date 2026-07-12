@@ -59,3 +59,10 @@
 - Filtrar contas cadastradas por pais e moeda.
 - Manter valores separados por moeda, sem conversao cambial.
 - Preparar base visual para relatorios por pais/moeda em sprint futura.
+
+## Sprint 19 - Exportacao CSV mensal
+
+- Exportar vencimentos do mes selecionado em CSV.
+- Incluir pais, moeda, valor, status e observacoes.
+- Manter exportacao sem conversao cambial.
+- Preparar base para relatorios mais completos por pais e moeda.

@@ -461,6 +461,10 @@ textarea {
   width: 160px;
 }
 
+.due-controls button {
+  min-height: 42px;
+}
+
 .due-list,
 .backup-list {
   display: grid;
@@ -703,7 +707,8 @@ th {
     width: 100%;
   }
 
-  .due-controls input {
+  .due-controls input,
+  .due-controls button {
     width: 100%;
   }
 

@@ -8,6 +8,8 @@ O modelo de contas possui suporte inicial a pais e moeda por conta. Os paises su
 
 A interface possui resumo por pais e moeda baseado nos vencimentos do mes selecionado. Esse resumo e apenas demonstrativo/operacional: ele separa os valores por moeda e nao calcula conversao.
 
+A exportacao CSV mensal e feita no navegador a partir de `state.vencimentos`. Ela nao chama endpoint proprio e nao faz conversao cambial.
+
 ## Fluxo do sistema
 
 1. Usuário acessa a interface em `wwwroot/index.html`.
@@ -52,4 +54,4 @@ A interface possui resumo por pais e moeda baseado nos vencimentos do mes seleci
 
 ## Onde continuar
 
-Próximo foco sugerido: validar acesso em rede local, melhorar relatorios por moeda ou preparar automacao de backups.
+Próximo foco sugerido: validar acesso em rede local, melhorar relatorios por moeda/pais ou preparar automacao de backups.
