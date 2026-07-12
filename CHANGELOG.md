@@ -2,6 +2,8 @@
 
 ## 2026-07-09
 
+- Criado projeto `tests/AgendadorContas.Tests` com test runner automatizado.
+- Adicionados testes para defaults de pais/moeda, vencimento, pagamento, backup/restauracao e lembrete por moeda.
 - Adicionados backups manuais do arquivo de dados local.
 - Criada listagem de backups e restauracao com confirmacao.
 - A restauracao cria backup `pre-restore` antes de substituir os dados atuais.

@@ -47,6 +47,7 @@ Acesse `http://localhost:5005`.
 
 ```powershell
 dotnet build
+dotnet run --project tests\AgendadorContas.Tests\AgendadorContas.Tests.csproj
 ```
 
 Em desenvolvimento, com User Secrets configurado:

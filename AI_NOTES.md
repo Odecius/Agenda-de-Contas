@@ -24,6 +24,7 @@ O modelo de contas possui suporte inicial a pais e moeda por conta. Os paises su
 - Contas antigas sem `country` e `currency` assumem `UnitedKingdom` e `GBP`.
 - Protecao de acesso por cookie existe, mas deve ser ativada por configuracao `AccessProtection` em producao.
 - Backups manuais ficam em uma pasta `backups` ao lado do arquivo `Data:FilePath`; restauracao cria backup `pre-restore`.
+- Testes automatizados ficam em `tests/AgendadorContas.Tests` e rodam com `dotnet run --project tests\AgendadorContas.Tests\AgendadorContas.Tests.csproj`.
 
 ## Arquivos importantes
 
@@ -40,6 +41,7 @@ O modelo de contas possui suporte inicial a pais e moeda por conta. Os paises su
 ## Boas práticas específicas
 
 - Rodar `dotnet build` antes de finalizar.
+- Rodar o test runner automatizado antes de finalizar mudanças de regra de negocio.
 - Manter rota `/test-telegram` somente em `Development`.
 - Atualizar docs após alterar rotas, configuração, deploy ou regras de vencimento.
 - Preferir serviços pequenos e testáveis para regras de negócio.

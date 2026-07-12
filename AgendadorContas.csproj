@@ -7,4 +7,10 @@
     <UserSecretsId>77df87d6-336f-4877-9981-ef9d6c13813f</UserSecretsId>
   </PropertyGroup>
 
+  <ItemGroup>
+    <Compile Remove="tests\**\*.cs" />
+    <Content Remove="tests\**\*" />
+    <None Remove="tests\**\*" />
+  </ItemGroup>
+
 </Project>

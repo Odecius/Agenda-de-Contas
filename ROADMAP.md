@@ -49,4 +49,6 @@
 
 ## Sprint 17 - Testes automatizados
 
-- Criar testes para vencimentos, pagamentos, Telegram, autenticação e backups.
+- Criar test runner automatizado sem dependencias externas.
+- Testar vencimentos, pagamentos, lembretes, pais/moeda e backups.
+- Manter autenticacao e endpoints completos para uma proxima rodada de testes.

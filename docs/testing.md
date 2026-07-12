@@ -2,12 +2,13 @@
 
 ## Testes atuais
 
-Não há projeto de testes automatizados.
+Existe um test runner automatizado em `tests/AgendadorContas.Tests`.
 
 ## Verificações mínimas
 
 ```powershell
 dotnet build
+dotnet run --project tests\AgendadorContas.Tests\AgendadorContas.Tests.csproj
 ```
 
 ## Teste manual
@@ -26,8 +27,8 @@ dotnet build
 
 ## Testes recomendados
 
-- Criar testes unitários para `ContaStore`.
-- Testar cálculo de vencimentos.
-- Testar `ReminderMessageBuilder`.
+- Expandir testes unitários para `ContaStore`.
+- Cobrir mais cenários de cálculo de vencimentos.
 - Testar validação de `TelegramOptions`.
-- Testar criação, listagem e restauração de backups.
+- Testar validação de `AccessProtectionOptions`.
+- Testar endpoints de autenticação com servidor em memória futuramente.
