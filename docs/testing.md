@@ -17,6 +17,8 @@ dotnet build
 - Editar conta.
 - Pausar e reativar.
 - Marcar/desmarcar pagamento.
+- Criar backup manual.
+- Restaurar backup com confirmação.
 - Consultar vencimentos do mês.
 - Verificar vencimentos de hoje.
 - Testar `/test-telegram` em `Development`.
@@ -28,3 +30,4 @@ dotnet build
 - Testar cálculo de vencimentos.
 - Testar `ReminderMessageBuilder`.
 - Testar validação de `TelegramOptions`.
+- Testar criação, listagem e restauração de backups.

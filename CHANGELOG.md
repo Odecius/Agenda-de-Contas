@@ -2,6 +2,9 @@
 
 ## 2026-07-09
 
+- Adicionados backups manuais do arquivo de dados local.
+- Criada listagem de backups e restauracao com confirmacao.
+- A restauracao cria backup `pre-restore` antes de substituir os dados atuais.
 - Adicionada protecao opcional de acesso por cookie.
 - Criada tela de login e endpoint de logout.
 - Documentadas variaveis `AccessProtection__*` para producao/Raspberry Pi.

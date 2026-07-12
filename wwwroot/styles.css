@@ -392,12 +392,14 @@ textarea {
   width: 160px;
 }
 
-.due-list {
+.due-list,
+.backup-list {
   display: grid;
   gap: 10px;
 }
 
-.due-item {
+.due-item,
+.backup-item {
   align-items: center;
   background: var(--surface-soft);
   border: 1px solid var(--line);
@@ -596,7 +598,8 @@ th {
   }
 
   .section-title.row,
-  .due-item {
+  .due-item,
+  .backup-item {
     align-items: stretch;
     grid-template-columns: 1fr;
   }
@@ -629,6 +632,7 @@ th {
   }
 
   .due-item button,
+  .backup-item button,
   .actions button,
   .row-actions button {
     flex: 1 1 100%;

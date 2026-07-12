@@ -1,6 +1,7 @@
 const state = {
   accounts: [],
   accountFilter: "all",
+  backups: [],
   dueFilter: "all",
   today: [],
   vencimentos: []
@@ -36,7 +37,10 @@ const selectors = {
   accountsTable: document.querySelector("#accountsTable"),
   activeAccounts: document.querySelector("#activeAccounts"),
   amount: document.querySelector("#amount"),
+  backupList: document.querySelector("#backupList"),
+  backupsCaption: document.querySelector("#backupsCaption"),
   cancelEdit: document.querySelector("#cancelEdit"),
+  createBackupButton: document.querySelector("#createBackupButton"),
   country: document.querySelector("#country"),
   currency: document.querySelector("#currency"),
   dueDay: document.querySelector("#dueDay"),
@@ -74,6 +78,7 @@ selectors.monthPicker.value = currentMonth;
 
 selectors.accountForm.addEventListener("submit", saveAccount);
 selectors.cancelEdit.addEventListener("click", resetForm);
+selectors.createBackupButton.addEventListener("click", createBackup);
 selectors.logoutButton.addEventListener("click", logout);
 selectors.refreshButton.addEventListener("click", loadAll);
 selectors.monthPicker.addEventListener("change", loadAll);
@@ -110,19 +115,22 @@ async function loadAll() {
   setLoading(true);
 
   try {
-    const [accountsResponse, vencimentosResponse, todayResponse] = await Promise.all([
+    const [accountsResponse, vencimentosResponse, todayResponse, backupsResponse] = await Promise.all([
       fetch("/api/contas"),
       fetchMonthVencimentos(),
-      fetch("/api/vencimentos/hoje")
+      fetch("/api/vencimentos/hoje"),
+      fetch("/api/backups")
     ]);
 
     state.accounts = await readJson(accountsResponse);
     state.vencimentos = await readJson(vencimentosResponse);
     state.today = await readJson(todayResponse);
+    state.backups = await readJson(backupsResponse);
 
     renderDashboard();
     renderAccounts();
     renderVencimentos();
+    renderBackups();
   } catch (error) {
     showToast(error.message || "Erro ao carregar dados.", "error");
   } finally {
@@ -151,6 +159,43 @@ async function readJson(response) {
 async function logout() {
   await fetch("/api/auth/logout", { method: "POST" });
   window.location.href = "/login.html";
+}
+
+async function createBackup() {
+  selectors.createBackupButton.disabled = true;
+
+  try {
+    const response = await fetch("/api/backups", { method: "POST" });
+    if (!response.ok) {
+      throw new Error("Nao foi possivel criar backup.");
+    }
+
+    showToast("Backup criado com sucesso.", "success");
+    await loadAll();
+  } catch (error) {
+    showToast(error.message || "Erro ao criar backup.", "error");
+  } finally {
+    selectors.createBackupButton.disabled = false;
+  }
+}
+
+async function restoreBackup(fileName) {
+  const backupFileName = decodeURIComponent(fileName);
+  if (!confirm(`Restaurar o backup ${backupFileName}? Os dados atuais serao substituidos.`)) {
+    return;
+  }
+
+  const response = await fetch(`/api/backups/${encodeURIComponent(backupFileName)}/restaurar?confirm=true`, {
+    method: "POST"
+  });
+
+  if (!response.ok) {
+    showToast("Nao foi possivel restaurar o backup.", "error");
+    return;
+  }
+
+  showToast("Backup restaurado com sucesso.", "success");
+  await loadAll();
 }
 
 function renderDashboard() {
@@ -415,6 +460,32 @@ function renderVencimentos() {
   }
 }
 
+function renderBackups() {
+  selectors.backupList.innerHTML = "";
+  selectors.backupsCaption.textContent = `${state.backups.length} backup(s) disponivel(is)`;
+
+  if (state.backups.length === 0) {
+    selectors.backupList.innerHTML = `<p class="empty">Nenhum backup criado ainda.</p>`;
+    return;
+  }
+
+  for (const backup of state.backups) {
+    const item = document.createElement("div");
+    const createdAt = new Date(backup.createdAtUtc);
+    item.className = "backup-item";
+    item.innerHTML = `
+      <div>
+        <strong>${escapeHtml(backup.fileName)}</strong>
+        <div class="due-meta">
+          ${formatDateTime.format(createdAt)} - ${formatBytes(backup.sizeBytes)}
+        </div>
+      </div>
+      <button class="secondary" type="button" onclick="restoreBackup('${encodeURIComponent(backup.fileName)}')">Restaurar</button>
+    `;
+    selectors.backupList.appendChild(item);
+  }
+}
+
 function changeDueFilter(filter) {
   state.dueFilter = filter;
   renderVencimentos();
@@ -509,6 +580,14 @@ function formatCurrency(value, currency = "GBP") {
 
 function formatCountry(country = "UnitedKingdom") {
   return countryLabels[country] || country;
+}
+
+function formatBytes(value) {
+  if (value < 1024) {
+    return `${value} B`;
+  }
+
+  return `${(value / 1024).toFixed(1)} KB`;
 }
 
 function renderAccountStatus(account) {

@@ -39,3 +39,14 @@
 - Adicionar autenticação simples.
 - Revisar autorização das rotas.
 - Avaliar HTTPS/reverse proxy se exposto fora da rede local.
+
+## Sprint 16 - Backup e recuperação
+
+- Criar backup manual dos dados locais.
+- Listar backups disponíveis.
+- Restaurar backup com confirmação.
+- Criar backup `pre-restore` antes de substituir dados atuais.
+
+## Sprint 17 - Testes automatizados
+
+- Criar testes para vencimentos, pagamentos, Telegram, autenticação e backups.

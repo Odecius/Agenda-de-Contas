@@ -137,6 +137,12 @@ O arquivo principal fica em:
 /var/lib/agendador-contas/contas.json
 ```
 
+Backups manuais criados pela interface ficam em:
+
+```text
+/var/lib/agendador-contas/backups/
+```
+
 Backup manual:
 
 ```bash

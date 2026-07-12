@@ -72,7 +72,13 @@ Consulte o guia completo em `docs/deployment.md`. A pasta `deploy/` contem model
 
 ## Status atual
 
-Aplicação funcional com cadastro, listagem, edição, exclusão, pausa/reativação, vencimentos, marcação de pagamentos, interface responsiva, resumo mensal, suporte inicial a país/moeda por conta e envio Telegram. Não há banco externo nem autenticação. O deploy Raspberry esta documentado e preparado com modelos de apoio, mas ainda precisa ser validado em hardware real.
+Aplicação funcional com cadastro, listagem, edição, exclusão, pausa/reativação, vencimentos, marcação de pagamentos, backups manuais, interface responsiva, resumo mensal, suporte inicial a país/moeda por conta e envio Telegram. Não há banco externo. O deploy Raspberry esta documentado e preparado com modelos de apoio, mas ainda precisa ser validado em hardware real.
+
+## Backups
+
+O sistema permite criar backups manuais do arquivo de dados local e restaurar um backup pela interface. Antes de restaurar, a aplicação cria automaticamente um backup `pre-restore` dos dados atuais.
+
+Os backups ficam na pasta `backups` ao lado do arquivo configurado em `Data:FilePath`. Como `data/` esta no `.gitignore`, os backups locais não são enviados ao GitHub.
 
 ## Paises e moedas
 

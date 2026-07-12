@@ -8,6 +8,7 @@
 
 ## Média prioridade
 
+- Automatizar backups periódicos e política de retenção.
 - Avaliar conversao cambial futura com API externa.
 - Criar dashboard por pais.
 - Criar relatorios por moeda.
@@ -32,4 +33,5 @@
 - Suporte inicial a pais e moeda por conta, sem conversao cambial.
 - Preparacao de deploy Raspberry Pi com systemd, ambiente, logs e checklist.
 - Protecao opcional de acesso por cookie.
+- Backup manual e restauração com backup `pre-restore`.
 - Documentação padronizada em 2026-07-09.

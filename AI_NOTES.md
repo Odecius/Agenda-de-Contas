@@ -23,6 +23,7 @@ O modelo de contas possui suporte inicial a pais e moeda por conta. Os paises su
 - Deploy Raspberry esta preparado em documentacao e modelos, mas ainda nao foi validado em hardware real.
 - Contas antigas sem `country` e `currency` assumem `UnitedKingdom` e `GBP`.
 - Protecao de acesso por cookie existe, mas deve ser ativada por configuracao `AccessProtection` em producao.
+- Backups manuais ficam em uma pasta `backups` ao lado do arquivo `Data:FilePath`; restauracao cria backup `pre-restore`.
 
 ## Arquivos importantes
 

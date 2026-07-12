@@ -268,6 +268,77 @@ public sealed class ContaStore
         }
     }
 
+    public async Task<BackupInfo> CriarBackupAsync()
+    {
+        await _lock.WaitAsync();
+        try
+        {
+            var db = await ReadAsync();
+            return await WriteBackupAsync(db, "manual");
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
+    public Task<IReadOnlyList<BackupInfo>> ListarBackupsAsync()
+    {
+        var backupDirectory = GetBackupDirectory();
+        if (!Directory.Exists(backupDirectory))
+        {
+            return Task.FromResult<IReadOnlyList<BackupInfo>>([]);
+        }
+
+        IReadOnlyList<BackupInfo> backups = Directory
+            .EnumerateFiles(backupDirectory, "*.json")
+            .Select(path => new BackupInfo
+            {
+                FileName = Path.GetFileName(path),
+                CreatedAtUtc = File.GetCreationTimeUtc(path),
+                SizeBytes = new FileInfo(path).Length
+            })
+            .OrderByDescending(backup => backup.CreatedAtUtc)
+            .ToList();
+
+        return Task.FromResult(backups);
+    }
+
+    public async Task<bool> RestaurarBackupAsync(string fileName)
+    {
+        if (!IsValidBackupFileName(fileName))
+        {
+            return false;
+        }
+
+        await _lock.WaitAsync();
+        try
+        {
+            var backupPath = Path.Combine(GetBackupDirectory(), fileName);
+            if (!File.Exists(backupPath))
+            {
+                return false;
+            }
+
+            await using (var stream = File.OpenRead(backupPath))
+            {
+                _ = await JsonSerializer.DeserializeAsync<StoreData>(stream, JsonOptions) ?? new StoreData();
+            }
+
+            var current = await ReadAsync();
+            await WriteBackupAsync(current, "pre-restore");
+
+            var directory = Path.GetDirectoryName(_filePath)!;
+            Directory.CreateDirectory(directory);
+            File.Copy(backupPath, _filePath, overwrite: true);
+            return true;
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
     private static void Validar(ContaCreateRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.Nome))
@@ -365,6 +436,41 @@ public sealed class ContaStore
                 File.Delete(tempPath);
             }
         }
+    }
+
+    private async Task<BackupInfo> WriteBackupAsync(StoreData db, string reason)
+    {
+        var backupDirectory = GetBackupDirectory();
+        Directory.CreateDirectory(backupDirectory);
+
+        var fileName = $"contas.{reason}.{DateTime.UtcNow:yyyyMMddHHmmss}.json";
+        var backupPath = Path.Combine(backupDirectory, fileName);
+
+        await using (var stream = File.Create(backupPath))
+        {
+            await JsonSerializer.SerializeAsync(stream, db, JsonOptions);
+        }
+
+        return new BackupInfo
+        {
+            FileName = fileName,
+            CreatedAtUtc = File.GetCreationTimeUtc(backupPath),
+            SizeBytes = new FileInfo(backupPath).Length
+        };
+    }
+
+    private string GetBackupDirectory()
+    {
+        var directory = Path.GetDirectoryName(_filePath)!;
+        return Path.Combine(directory, "backups");
+    }
+
+    private static bool IsValidBackupFileName(string fileName)
+    {
+        return !string.IsNullOrWhiteSpace(fileName)
+            && Path.GetFileName(fileName) == fileName
+            && fileName.StartsWith("contas.", StringComparison.Ordinal)
+            && fileName.EndsWith(".json", StringComparison.OrdinalIgnoreCase);
     }
 
     private string BackupCorruptedFile()

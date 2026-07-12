@@ -186,6 +186,30 @@ app.MapGet("/api/vencimentos/hoje", async (ContaStore store) =>
     return Results.Ok(vencimentos);
 });
 
+app.MapGet("/api/backups", async (ContaStore store) =>
+{
+    var backups = await store.ListarBackupsAsync();
+    return Results.Ok(backups);
+});
+
+app.MapPost("/api/backups", async (ContaStore store) =>
+{
+    var backup = await store.CriarBackupAsync();
+    return Results.Created($"/api/backups/{backup.FileName}", backup);
+});
+
+app.MapPost("/api/backups/{fileName}/restaurar", async (string fileName, bool confirm, ContaStore store) =>
+{
+    if (!confirm)
+    {
+        return Results.BadRequest(new { erro = "Confirme a restauracao usando confirm=true." });
+    }
+
+    return await store.RestaurarBackupAsync(fileName)
+        ? Results.Ok(new { sucesso = true })
+        : Results.NotFound(new { erro = "Backup nao encontrado ou invalido." });
+});
+
 if (app.Environment.IsDevelopment())
 {
     app.MapGet("/test-telegram", async (INotificationService notificationService, CancellationToken cancellationToken) =>
