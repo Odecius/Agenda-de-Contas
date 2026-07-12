@@ -21,6 +21,8 @@ dotnet run --project tests\AgendadorContas.Tests\AgendadorContas.Tests.csproj
 - Criar backup manual.
 - Restaurar backup com confirmação.
 - Consultar vencimentos do mês.
+- Conferir o resumo por pais e moeda no mes selecionado.
+- Filtrar contas por pais e moeda.
 - Verificar vencimentos de hoje.
 - Testar `/test-telegram` em `Development`.
 - Confirmar que `/test-telegram` não existe em `Production`.

@@ -2,6 +2,8 @@ const state = {
   accounts: [],
   accountFilter: "all",
   backups: [],
+  countryFilter: "all",
+  currencyFilter: "all",
   dueFilter: "all",
   today: [],
   vencimentos: []
@@ -42,7 +44,9 @@ const selectors = {
   cancelEdit: document.querySelector("#cancelEdit"),
   createBackupButton: document.querySelector("#createBackupButton"),
   country: document.querySelector("#country"),
+  countryFilter: document.querySelector("#countryFilter"),
   currency: document.querySelector("#currency"),
+  currencyFilter: document.querySelector("#currencyFilter"),
   dueDay: document.querySelector("#dueDay"),
   dueFilters: document.querySelectorAll("[data-due-filter]"),
   dueList: document.querySelector("#dueList"),
@@ -66,6 +70,8 @@ const selectors = {
   notes: document.querySelector("#notes"),
   pausedAccounts: document.querySelector("#pausedAccounts"),
   refreshButton: document.querySelector("#refreshButton"),
+  regionalCaption: document.querySelector("#regionalCaption"),
+  regionalSummary: document.querySelector("#regionalSummary"),
   startDate: document.querySelector("#startDate"),
   todayCount: document.querySelector("#todayCount"),
   todaySummary: document.querySelector("#todaySummary"),
@@ -87,6 +93,14 @@ selectors.accountFilters.forEach(button => {
 });
 selectors.dueFilters.forEach(button => {
   button.addEventListener("click", () => changeDueFilter(button.dataset.dueFilter));
+});
+selectors.countryFilter.addEventListener("change", () => {
+  state.countryFilter = selectors.countryFilter.value;
+  renderAccounts();
+});
+selectors.currencyFilter.addEventListener("change", () => {
+  state.currencyFilter = selectors.currencyFilter.value;
+  renderAccounts();
 });
 
 initialize();
@@ -128,6 +142,7 @@ async function loadAll() {
     state.backups = await readJson(backupsResponse);
 
     renderDashboard();
+    renderRegionalSummary();
     renderAccounts();
     renderVencimentos();
     renderBackups();
@@ -392,15 +407,15 @@ function changeAccountFilter(filter) {
 }
 
 function filterAccounts(accounts) {
-  if (state.accountFilter === "active") {
-    return accounts.filter(account => account.ativa);
-  }
+  return accounts.filter(account => {
+    const matchesStatus = state.accountFilter === "all"
+      || (state.accountFilter === "active" && account.ativa)
+      || (state.accountFilter === "paused" && !account.ativa);
+    const matchesCountry = state.countryFilter === "all" || (account.country || "UnitedKingdom") === state.countryFilter;
+    const matchesCurrency = state.currencyFilter === "all" || (account.currency || "GBP") === state.currencyFilter;
 
-  if (state.accountFilter === "paused") {
-    return accounts.filter(account => !account.ativa);
-  }
-
-  return accounts;
+    return matchesStatus && matchesCountry && matchesCurrency;
+  });
 }
 
 function updateFilterButtons() {
@@ -413,7 +428,8 @@ function updateFilterButtons() {
 
 function buildAccountsCaption(visibleCount) {
   const total = state.accounts.length;
-  const suffix = state.accountFilter === "all" ? "" : `, ${visibleCount} visivel(is) no filtro`;
+  const hasFilter = state.accountFilter !== "all" || state.countryFilter !== "all" || state.currencyFilter !== "all";
+  const suffix = hasFilter ? `, ${visibleCount} visivel(is) no filtro` : "";
   return `${total} conta(s) cadastrada(s)${suffix}`;
 }
 
@@ -484,6 +500,92 @@ function renderBackups() {
     `;
     selectors.backupList.appendChild(item);
   }
+}
+
+function renderRegionalSummary() {
+  const groups = buildRegionalSummaryGroups();
+  selectors.regionalSummary.innerHTML = "";
+
+  if (groups.length === 0) {
+    selectors.regionalCaption.textContent = "Sem vencimentos no mes selecionado.";
+    selectors.regionalSummary.innerHTML = `<p class="empty">Nenhum resumo regional disponivel.</p>`;
+    return;
+  }
+
+  selectors.regionalCaption.textContent = `${groups.length} grupo(s), sem misturar moedas`;
+
+  for (const group of groups) {
+    const card = document.createElement("article");
+    card.className = "regional-card";
+    card.innerHTML = `
+      <div class="regional-card-header">
+        <div>
+          <strong>${formatCountry(group.country)}</strong>
+          <span>${group.currency}</span>
+        </div>
+        <span class="badge ${group.pendingCount === 0 ? "ok" : "pending"}">${group.pendingCount === 0 ? "Fechado" : "Aberto"}</span>
+      </div>
+      <div class="regional-values">
+        <div>
+          <span class="metric-label">Previsto</span>
+          <strong>${formatCurrency(group.total, group.currency)}</strong>
+          <small>${group.count} vencimento(s)</small>
+        </div>
+        <div>
+          <span class="metric-label">Pago</span>
+          <strong>${formatCurrency(group.paidTotal, group.currency)}</strong>
+          <small>${group.paidCount} pago(s)</small>
+        </div>
+        <div>
+          <span class="metric-label">Pendente</span>
+          <strong>${formatCurrency(group.pendingTotal, group.currency)}</strong>
+          <small>${group.pendingCount} pendente(s)</small>
+        </div>
+      </div>
+    `;
+    selectors.regionalSummary.appendChild(card);
+  }
+}
+
+function buildRegionalSummaryGroups() {
+  const groups = new Map();
+
+  for (const item of state.vencimentos) {
+    const country = item.conta.country || "UnitedKingdom";
+    const currency = item.conta.currency || "GBP";
+    const key = `${country}|${currency}`;
+
+    if (!groups.has(key)) {
+      groups.set(key, {
+        country,
+        currency,
+        count: 0,
+        paidCount: 0,
+        pendingCount: 0,
+        paidTotal: 0,
+        pendingTotal: 0,
+        total: 0
+      });
+    }
+
+    const group = groups.get(key);
+    const value = item.conta.valor || 0;
+    group.count += 1;
+    group.total += value;
+
+    if (item.pago) {
+      group.paidCount += 1;
+      group.paidTotal += value;
+    } else {
+      group.pendingCount += 1;
+      group.pendingTotal += value;
+    }
+  }
+
+  return Array.from(groups.values()).sort((a, b) => {
+    const countryOrder = formatCountry(a.country).localeCompare(formatCountry(b.country));
+    return countryOrder || a.currency.localeCompare(b.currency);
+  });
 }
 
 function changeDueFilter(filter) {

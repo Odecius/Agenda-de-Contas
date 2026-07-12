@@ -6,6 +6,8 @@ Agendador de Contas é uma aplicação ASP.NET Core .NET 8 com frontend estátic
 
 O modelo de contas possui suporte inicial a pais e moeda por conta. Os paises suportados sao `UnitedKingdom`, `Portugal` e `Brazil`; as moedas suportadas sao `GBP`, `EUR` e `BRL`. O sistema nao faz conversao cambial. Totais com moedas diferentes devem ser agrupados por moeda.
 
+A interface possui resumo por pais e moeda baseado nos vencimentos do mes selecionado. Esse resumo e apenas demonstrativo/operacional: ele separa os valores por moeda e nao calcula conversao.
+
 ## Fluxo do sistema
 
 1. Usuário acessa a interface em `wwwroot/index.html`.
@@ -19,7 +21,7 @@ O modelo de contas possui suporte inicial a pais e moeda por conta. Os paises su
 - Segredos Telegram nunca devem ficar em código, Git ou documentação pública.
 - `notas.txt` contém segredo histórico e precisa ser tratado.
 - JSON local precisa de backup.
-- Não há autenticação.
+- Ha protecao opcional de acesso por cookie, ativada por configuracao `AccessProtection`.
 - Deploy Raspberry esta preparado em documentacao e modelos, mas ainda nao foi validado em hardware real.
 - Contas antigas sem `country` e `currency` assumem `UnitedKingdom` e `GBP`.
 - Protecao de acesso por cookie existe, mas deve ser ativada por configuracao `AccessProtection` em producao.
@@ -50,4 +52,4 @@ O modelo de contas possui suporte inicial a pais e moeda por conta. Os paises su
 
 ## Onde continuar
 
-Próximo foco sugerido: deploy Raspberry Pi ou protecao de acesso antes de expor o sistema em rede.
+Próximo foco sugerido: validar acesso em rede local, melhorar relatorios por moeda ou preparar automacao de backups.

@@ -52,3 +52,10 @@
 - Criar test runner automatizado sem dependencias externas.
 - Testar vencimentos, pagamentos, lembretes, pais/moeda e backups.
 - Manter autenticacao e endpoints completos para uma proxima rodada de testes.
+
+## Sprint 18 - Dashboard por pais e moeda
+
+- Criar resumo visual agrupado por pais e moeda.
+- Filtrar contas cadastradas por pais e moeda.
+- Manter valores separados por moeda, sem conversao cambial.
+- Preparar base visual para relatorios por pais/moeda em sprint futura.

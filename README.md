@@ -73,7 +73,7 @@ Consulte o guia completo em `docs/deployment.md`. A pasta `deploy/` contem model
 
 ## Status atual
 
-Aplicação funcional com cadastro, listagem, edição, exclusão, pausa/reativação, vencimentos, marcação de pagamentos, backups manuais, interface responsiva, resumo mensal, suporte inicial a país/moeda por conta e envio Telegram. Não há banco externo. O deploy Raspberry esta documentado e preparado com modelos de apoio, mas ainda precisa ser validado em hardware real.
+Aplicação funcional com cadastro, listagem, edição, exclusão, pausa/reativação, vencimentos, marcação de pagamentos, backups manuais, interface responsiva, resumo mensal, dashboard por país/moeda, suporte inicial a país/moeda por conta e envio Telegram. Não há banco externo. O deploy Raspberry esta documentado e preparado com modelos de apoio, mas ainda precisa ser validado em hardware real.
 
 ## Backups
 
@@ -91,14 +91,13 @@ Cada conta possui um pais e uma moeda. Inicialmente, o projeto suporta:
 
 Novas contas usam `UnitedKingdom` e `GBP` como padrao. Contas antigas salvas sem esses campos tambem assumem esses valores ao serem carregadas.
 
-O sistema ainda nao faz conversao cambial. Totais com moedas diferentes sao apresentados agrupados por moeda para evitar soma incorreta entre GBP, EUR e BRL.
+O sistema ainda nao faz conversao cambial. Totais com moedas diferentes sao apresentados agrupados por moeda para evitar soma incorreta entre GBP, EUR e BRL. A interface tambem possui um resumo por pais e moeda para o mes selecionado.
 
 ## Próximos passos
 
-- Preparar autenticação simples antes de expor na rede.
 - Validar deploy real em Raspberry Pi.
 - Avaliar conversao cambial futura com API externa.
-- Criar dashboard por pais e relatórios por moeda.
+- Criar relatorios por moeda.
 
 ## Segurança
 

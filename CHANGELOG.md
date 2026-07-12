@@ -2,6 +2,9 @@
 
 ## 2026-07-09
 
+- Adicionado resumo por pais e moeda na interface, sem conversao cambial.
+- Adicionados filtros de contas por pais e moeda.
+- Mantida exibicao de totais separados por moeda para evitar soma indevida entre GBP, EUR e BRL.
 - Criado projeto `tests/AgendadorContas.Tests` com test runner automatizado.
 - Adicionados testes para defaults de pais/moeda, vencimento, pagamento, backup/restauracao e lembrete por moeda.
 - Adicionados backups manuais do arquivo de dados local.

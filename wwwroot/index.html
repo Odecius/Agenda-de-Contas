@@ -72,6 +72,14 @@
       </div>
     </section>
 
+    <section class="panel regional-overview" aria-label="Resumo por pais e moeda">
+      <div class="section-title">
+        <h2>Resumo por pais e moeda</h2>
+        <span id="regionalCaption" class="section-note">Carregando...</span>
+      </div>
+      <div id="regionalSummary" class="regional-grid"></div>
+    </section>
+
     <section class="workspace">
       <aside class="panel form-panel">
         <div class="section-title">
@@ -168,10 +176,24 @@
           <h2>Contas cadastradas</h2>
           <span id="accountsCaption" class="section-note">Carregando...</span>
         </div>
-        <div class="account-filters" role="group" aria-label="Filtrar contas">
-          <button type="button" class="filter-button active" data-filter="all" aria-pressed="true">Todas</button>
-          <button type="button" class="filter-button" data-filter="active" aria-pressed="false">Ativas</button>
-          <button type="button" class="filter-button" data-filter="paused" aria-pressed="false">Pausadas</button>
+        <div class="account-controls">
+          <div class="account-filters" role="group" aria-label="Filtrar contas">
+            <button type="button" class="filter-button active" data-filter="all" aria-pressed="true">Todas</button>
+            <button type="button" class="filter-button" data-filter="active" aria-pressed="false">Ativas</button>
+            <button type="button" class="filter-button" data-filter="paused" aria-pressed="false">Pausadas</button>
+          </div>
+          <select id="countryFilter" aria-label="Filtrar contas por pais">
+            <option value="all">Todos os paises</option>
+            <option value="UnitedKingdom">United Kingdom</option>
+            <option value="Portugal">Portugal</option>
+            <option value="Brazil">Brazil</option>
+          </select>
+          <select id="currencyFilter" aria-label="Filtrar contas por moeda">
+            <option value="all">Todas as moedas</option>
+            <option value="GBP">GBP</option>
+            <option value="EUR">EUR</option>
+            <option value="BRL">BRL</option>
+          </select>
         </div>
       </div>
       <div class="table-wrap">

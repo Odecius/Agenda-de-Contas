@@ -380,6 +380,75 @@ textarea {
   box-shadow: 0 1px 3px rgba(24, 33, 43, 0.12);
 }
 
+.account-controls {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.account-controls select {
+  min-height: 42px;
+  width: 170px;
+}
+
+.regional-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.regional-card {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+}
+
+.regional-card-header {
+  align-items: start;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.regional-card-header strong {
+  display: block;
+  font-size: 16px;
+}
+
+.regional-card-header span:not(.badge) {
+  color: var(--muted);
+  display: block;
+  font-size: 13px;
+  font-weight: 800;
+  margin-top: 3px;
+}
+
+.regional-values {
+  display: grid;
+  gap: 10px;
+}
+
+.regional-values > div {
+  display: grid;
+  gap: 3px;
+}
+
+.regional-values strong {
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+.regional-values small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .due-controls {
   align-items: center;
   display: flex;
@@ -593,6 +662,7 @@ th {
 
   .summary-grid,
   .month-breakdown,
+  .regional-grid,
   .two {
     grid-template-columns: 1fr;
   }
@@ -612,10 +682,20 @@ th {
     align-self: flex-start;
   }
 
+  .account-controls,
+  .account-filters,
+  .due-filters {
+    width: 100%;
+  }
+
   .account-filters,
   .due-filters {
     overflow-x: auto;
-    width: 100%;
+  }
+
+  .account-controls select {
+    flex: 1 1 160px;
+    min-width: 0;
   }
 
   .due-controls {

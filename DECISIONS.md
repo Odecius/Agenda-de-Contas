@@ -69,3 +69,13 @@
 **Alternativas consideradas:** Sem autenticacao, Basic Auth, Identity completo.
 
 **Impacto:** Credenciais devem ser configuradas por User Secrets ou variaveis de ambiente. Para exposicao fora da rede local, ainda sera necessario avaliar HTTPS, reverse proxy e autenticacao mais robusta.
+
+## 2026-07-09 - Dashboard por pais e moeda sem conversao
+
+**Descricao:** A interface agrupa os vencimentos do mes selecionado por pais e moeda.
+
+**Motivo:** O usuario precisa enxergar a distribuicao das contas por pais sem misturar moedas diferentes.
+
+**Alternativas consideradas:** Somar todos os valores em uma moeda principal ou criar conversao cambial nesta sprint.
+
+**Impacto:** O dashboard melhora a leitura operacional agora e preserva um ponto claro para futura integracao com servico de cambio.
