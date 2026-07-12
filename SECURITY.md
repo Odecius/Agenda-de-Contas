@@ -1,23 +1,23 @@
 ﻿# SECURITY
 
-## Checklist de seguranÃ§a
+## Checklist de segurança
 
-- [ ] HTTPS se o sistema for exposto fora da mÃ¡quina local.
-- [ ] Segredos fora do cÃ³digo.
+- [ ] HTTPS se o sistema for exposto fora da máquina local.
+- [ ] Segredos fora do código.
 - [x] User Secrets previsto para desenvolvimento.
-- [ ] VariÃ¡veis de ambiente configuradas em produÃ§Ã£o.
+- [ ] Variáveis de ambiente configuradas em produção.
 - [ ] `.env`, `data/` e notas locais fora do Git.
-- [ ] Token/chat id removidos de `notas.txt` e do histÃ³rico se jÃ¡ foram versionados.
-- [ ] ValidaÃ§Ã£o de entrada em rotas de criaÃ§Ã£o/ediÃ§Ã£o.
-- [ ] ProteÃ§Ã£o contra SQL Injection nÃ£o aplicÃ¡vel enquanto nÃ£o houver SQL.
+- [ ] Token/chat id removidos de `notas.txt` e do histórico se já foram versionados.
+- [ ] Validação de entrada em rotas de criação/edição.
+- [ ] Proteção contra SQL Injection não aplicável enquanto não houver SQL.
 - [ ] Rate limiting se exposto em rede.
-- [ ] CSP e cabeÃ§alhos de seguranÃ§a se publicado via servidor/reverse proxy.
-- [ ] AutenticaÃ§Ã£o antes de uso em rede.
-- [ ] AutorizaÃ§Ã£o apÃ³s autenticaÃ§Ã£o.
+- [ ] CSP e cabeçalhos de segurança se publicado via servidor/reverse proxy.
+- [ ] Autenticação antes de uso em rede.
+- [ ] Autorização após autenticação.
 - [ ] Backups do arquivo JSON de dados.
 - [ ] Logs sem segredos.
 - [ ] LGPD/GDPR avaliados se dados pessoais forem cadastrados.
 
 ## Risco atual
 
-`notas.txt` contÃ©m token/chat id do Telegram em texto claro. A correÃ§Ã£o recomendada Ã© revogar o token, gerar outro no BotFather, remover o segredo do arquivo e limpar o histÃ³rico Git se ele tiver sido commitado.
+`notas.txt` contém token/chat id do Telegram em texto claro. A correção recomendada é revogar o token, gerar outro no BotFather, remover o segredo do arquivo e limpar o histórico Git se ele tiver sido commitado.

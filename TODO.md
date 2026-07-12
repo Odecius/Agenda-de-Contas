@@ -2,11 +2,11 @@
 
 ## Alta prioridade
 
-- Remover token/chat id de `notas.txt` e limpar histÃ³rico Git se o segredo jÃ¡ tiver sido versionado.
+- Remover token/chat id de `notas.txt` e limpar histórico Git se o segredo já tiver sido versionado.
 - Validar deploy real em Raspberry Pi quando o hardware estiver disponivel.
 - Validar login em Raspberry Pi real antes de expor o sistema em rede.
 
-## MÃ©dia prioridade
+## Média prioridade
 
 - Avaliar conversao cambial futura com API externa.
 - Criar dashboard por pais.
@@ -16,13 +16,13 @@
 ## Baixa prioridade
 
 - Avaliar banco leve, como SQLite, se o JSON deixar de ser suficiente.
-- Criar painel mensal com mÃ©tricas.
-- Avaliar novos canais de notificaÃ§Ã£o.
+- Criar painel mensal com métricas.
+- Avaliar novos canais de notificação.
 
-## ConcluÃ­do
+## Concluído
 
 - Cadastro e listagem de contas.
-- MarcaÃ§Ã£o/desmarcaÃ§Ã£o de pagamentos.
+- Marcação/desmarcação de pagamentos.
 - Pausar, reativar, editar e excluir contas.
 - Lembretes via Telegram.
 - Rota de teste em desenvolvimento.
@@ -32,4 +32,4 @@
 - Suporte inicial a pais e moeda por conta, sem conversao cambial.
 - Preparacao de deploy Raspberry Pi com systemd, ambiente, logs e checklist.
 - Protecao opcional de acesso por cookie.
-- DocumentaÃ§Ã£o padronizada em 2026-07-09.
+- Documentação padronizada em 2026-07-09.

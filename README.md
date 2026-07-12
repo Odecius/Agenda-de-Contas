@@ -1,37 +1,37 @@
 ﻿# Agendador de Contas
 
-AplicaÃ§Ã£o web em .NET 8 para cadastrar contas, acompanhar vencimentos mensais, marcar pagamentos e enviar lembretes diÃ¡rios via Telegram.
+Aplicação web em .NET 8 para cadastrar contas, acompanhar vencimentos mensais, marcar pagamentos e enviar lembretes diários via Telegram.
 
 ## Objetivo do projeto
 
-Controlar contas recorrentes ou com duraÃ§Ã£o definida, mostrando vencimentos por mÃªs e enviando alertas automÃ¡ticos para evitar atrasos. O projeto foi pensado para rodar localmente e, futuramente, 24/7 em Raspberry Pi.
+Controlar contas recorrentes ou com duração definida, mostrando vencimentos por mês e enviando alertas automáticos para evitar atrasos. O projeto foi pensado para rodar localmente e, futuramente, 24/7 em Raspberry Pi.
 
 ## Tecnologias utilizadas
 
 - .NET 8 / ASP.NET Core Minimal API.
-- Hosted Service para lembretes diÃ¡rios.
+- Hosted Service para lembretes diários.
 - HTML, CSS e JavaScript em `wwwroot`.
 - Armazenamento local em JSON via `ContaStore`.
 - Telegram Bot API via `HttpClientFactory`.
-- Options Pattern, validaÃ§Ã£o de configuraÃ§Ã£o e User Secrets em desenvolvimento.
+- Options Pattern, validação de configuração e User Secrets em desenvolvimento.
 - Protecao de acesso opcional por cookie.
 
 ## Estrutura do projeto
 
 ```text
 .
-â”œâ”€â”€ Program.cs
-â”œâ”€â”€ AgendadorContas.csproj
-â”œâ”€â”€ Models/
-â”œâ”€â”€ Options/
-â”œâ”€â”€ Services/
-â”œâ”€â”€ Properties/
-â”œâ”€â”€ wwwroot/
-â”‚   â”œâ”€â”€ index.html
-â”‚   â”œâ”€â”€ app.js
-â”‚   â”œâ”€â”€ styles.css
-â”‚   â””â”€â”€ assets/
-â””â”€â”€ docs/
+├── Program.cs
+├── AgendadorContas.csproj
+├── Models/
+├── Options/
+├── Services/
+├── Properties/
+├── wwwroot/
+│   ├── index.html
+│   ├── app.js
+│   ├── styles.css
+│   └── assets/
+└── docs/
 ```
 
 ## Como executar
@@ -72,7 +72,7 @@ Consulte o guia completo em `docs/deployment.md`. A pasta `deploy/` contem model
 
 ## Status atual
 
-AplicaÃ§Ã£o funcional com cadastro, listagem, ediÃ§Ã£o, exclusÃ£o, pausa/reativaÃ§Ã£o, vencimentos, marcaÃ§Ã£o de pagamentos, interface responsiva, resumo mensal, suporte inicial a paÃ­s/moeda por conta e envio Telegram. NÃ£o hÃ¡ banco externo nem autenticaÃ§Ã£o. O deploy Raspberry esta documentado e preparado com modelos de apoio, mas ainda precisa ser validado em hardware real.
+Aplicação funcional com cadastro, listagem, edição, exclusão, pausa/reativação, vencimentos, marcação de pagamentos, interface responsiva, resumo mensal, suporte inicial a país/moeda por conta e envio Telegram. Não há banco externo nem autenticação. O deploy Raspberry esta documentado e preparado com modelos de apoio, mas ainda precisa ser validado em hardware real.
 
 ## Paises e moedas
 
@@ -86,16 +86,16 @@ Novas contas usam `UnitedKingdom` e `GBP` como padrao. Contas antigas salvas sem
 
 O sistema ainda nao faz conversao cambial. Totais com moedas diferentes sao apresentados agrupados por moeda para evitar soma incorreta entre GBP, EUR e BRL.
 
-## PrÃ³ximos passos
+## Próximos passos
 
-- Preparar autenticaÃ§Ã£o simples antes de expor na rede.
+- Preparar autenticação simples antes de expor na rede.
 - Validar deploy real em Raspberry Pi.
 - Avaliar conversao cambial futura com API externa.
-- Criar dashboard por pais e relatÃ³rios por moeda.
+- Criar dashboard por pais e relatórios por moeda.
 
-## SeguranÃ§a
+## Segurança
 
-Segredos do Telegram e senha de acesso devem ficar fora do Git, em User Secrets no desenvolvimento e variÃ¡veis de ambiente em produÃ§Ã£o. O arquivo `notas.txt` contÃ©m histÃ³rico sensÃ­vel e deve ser limpo/removido do histÃ³rico antes de compartilhar o repositÃ³rio.
+Segredos do Telegram e senha de acesso devem ficar fora do Git, em User Secrets no desenvolvimento e variáveis de ambiente em produção. O arquivo `notas.txt` contém histórico sensível e deve ser limpo/removido do histórico antes de compartilhar o repositório.
 
 Para ativar login em producao:
 

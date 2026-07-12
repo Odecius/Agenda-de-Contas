@@ -1,17 +1,17 @@
 ﻿# ROADMAP
 
-## Sprint 10 - ExperiÃªncia de cadastro e ediÃ§Ã£o
+## Sprint 10 - Experiência de cadastro e edição
 
-- Melhorar validaÃ§Ãµes visuais.
+- Melhorar validações visuais.
 - Exibir mensagens claras.
-- Confirmar exclusÃµes.
-- Melhorar ediÃ§Ã£o.
+- Confirmar exclusões.
+- Melhorar edição.
 - Adicionar filtros simples.
 
-## Sprint 11 - HistÃ³rico e pagamentos
+## Sprint 11 - Histórico e pagamentos
 
-- Refinar histÃ³rico de pagamentos.
-- Melhorar visualizaÃ§Ã£o de meses pagos e pendentes.
+- Refinar histórico de pagamentos.
+- Melhorar visualização de meses pagos e pendentes.
 - Criar testes das regras de pagamento.
 
 ## Sprint 12 - Resumo mensal
@@ -34,8 +34,8 @@
 - Documentar instalacao, atualizacao, logs e backup manual.
 - Deixar validacao real pendente ate o Raspberry estar disponivel.
 
-## Sprint 15 - ProteÃ§Ã£o de acesso
+## Sprint 15 - Proteção de acesso
 
-- Adicionar autenticaÃ§Ã£o simples.
-- Revisar autorizaÃ§Ã£o das rotas.
+- Adicionar autenticação simples.
+- Revisar autorização das rotas.
 - Avaliar HTTPS/reverse proxy se exposto fora da rede local.

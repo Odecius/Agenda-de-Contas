@@ -2,37 +2,37 @@
 
 ## 2026-07-09 - Usar .NET 8 com Minimal API
 
-**DescriÃ§Ã£o:** O backend usa ASP.NET Core Minimal API em `Program.cs`.
+**Descrição:** O backend usa ASP.NET Core Minimal API em `Program.cs`.
 
-**Motivo:** O escopo Ã© pequeno e as rotas sÃ£o diretas.
+**Motivo:** O escopo é pequeno e as rotas são diretas.
 
 **Alternativas consideradas:** MVC, Razor Pages, SPA com backend separado.
 
-**Impacto:** Manter rotas simples e extrair serviÃ§os quando a regra crescer.
+**Impacto:** Manter rotas simples e extrair serviços quando a regra crescer.
 
 ## 2026-07-09 - Armazenar dados localmente em JSON
 
-**DescriÃ§Ã£o:** `ContaStore` mantÃ©m os dados em arquivo JSON local.
+**Descrição:** `ContaStore` mantém os dados em arquivo JSON local.
 
-**Motivo:** O projeto ainda Ã© de uso pessoal/local e nÃ£o exige banco externo.
+**Motivo:** O projeto ainda é de uso pessoal/local e não exige banco externo.
 
 **Alternativas consideradas:** SQLite, PostgreSQL, LiteDB.
 
-**Impacto:** Simplicidade maior, mas exige atenÃ§Ã£o a backup, concorrÃªncia e migraÃ§Ã£o futura.
+**Impacto:** Simplicidade maior, mas exige atenção a backup, concorrência e migração futura.
 
-## 2026-07-09 - Enviar notificaÃ§Ãµes via Telegram
+## 2026-07-09 - Enviar notificações via Telegram
 
-**DescriÃ§Ã£o:** `TelegramNotificationService` implementa `INotificationService`.
+**Descrição:** `TelegramNotificationService` implementa `INotificationService`.
 
-**Motivo:** Telegram Ã© simples para alertas pessoais e funciona bem em automaÃ§Ã£o.
+**Motivo:** Telegram é simples para alertas pessoais e funciona bem em automação.
 
 **Alternativas consideradas:** Email, WhatsApp, push notification.
 
-**Impacto:** Segredos devem ficar fora do cÃ³digo e a interface permite novos canais no futuro.
+**Impacto:** Segredos devem ficar fora do código e a interface permite novos canais no futuro.
 
 ## 2026-07-09 - Usar User Secrets no desenvolvimento
 
-**DescriÃ§Ã£o:** Tokens e chat id devem ser configurados por User Secrets em desenvolvimento.
+**Descrição:** Tokens e chat id devem ser configurados por User Secrets em desenvolvimento.
 
 **Motivo:** Evitar segredos no Git.
 
@@ -42,13 +42,13 @@
 
 ## 2026-07-09 - Restringir `/test-telegram` a Development
 
-**DescriÃ§Ã£o:** A rota de teste existe somente em ambiente de desenvolvimento.
+**Descrição:** A rota de teste existe somente em ambiente de desenvolvimento.
 
-**Motivo:** Evitar endpoint operacional exposto em produÃ§Ã£o.
+**Motivo:** Evitar endpoint operacional exposto em produção.
 
-**Alternativas consideradas:** Remover rota ou proteger por autenticaÃ§Ã£o.
+**Alternativas consideradas:** Remover rota ou proteger por autenticação.
 
-**Impacto:** Testes de produÃ§Ã£o devem usar logs e fluxo real.
+**Impacto:** Testes de produção devem usar logs e fluxo real.
 
 ## 2026-07-09 - Preparar suporte a pais e moeda por conta
 

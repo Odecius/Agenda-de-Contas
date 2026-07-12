@@ -2,9 +2,9 @@
 
 ## Testes atuais
 
-NÃ£o hÃ¡ projeto de testes automatizados.
+Não há projeto de testes automatizados.
 
-## VerificaÃ§Ãµes mÃ­nimas
+## Verificações mínimas
 
 ```powershell
 dotnet build
@@ -12,19 +12,19 @@ dotnet build
 
 ## Teste manual
 
-- Criar conta com duraÃ§Ã£o definida.
-- Criar conta sem fim definido usando duraÃ§Ã£o `0`.
+- Criar conta com duração definida.
+- Criar conta sem fim definido usando duração `0`.
 - Editar conta.
 - Pausar e reativar.
 - Marcar/desmarcar pagamento.
-- Consultar vencimentos do mÃªs.
+- Consultar vencimentos do mês.
 - Verificar vencimentos de hoje.
 - Testar `/test-telegram` em `Development`.
-- Confirmar que `/test-telegram` nÃ£o existe em `Production`.
+- Confirmar que `/test-telegram` não existe em `Production`.
 
 ## Testes recomendados
 
-- Criar testes unitÃ¡rios para `ContaStore`.
-- Testar cÃ¡lculo de vencimentos.
+- Criar testes unitários para `ContaStore`.
+- Testar cálculo de vencimentos.
 - Testar `ReminderMessageBuilder`.
-- Testar validaÃ§Ã£o de `TelegramOptions`.
+- Testar validação de `TelegramOptions`.

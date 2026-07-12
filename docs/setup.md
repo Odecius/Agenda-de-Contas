@@ -1,11 +1,11 @@
 ﻿# Setup
 
-## PrÃ©-requisitos
+## Pré-requisitos
 
 - .NET SDK 8.
-- Opcional: bot Telegram para testar notificaÃ§Ãµes.
+- Opcional: bot Telegram para testar notificações.
 
-## InstalaÃ§Ã£o
+## Instalação
 
 ```powershell
 cd "C:\Projetos\Abc\Agendador de contas"
