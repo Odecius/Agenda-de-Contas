@@ -26,6 +26,7 @@ dotnet run --project tests\AgendadorContas.Tests\AgendadorContas.Tests.csproj
 - Conferir o resumo por pais e moeda no mes selecionado.
 - Filtrar contas por pais e moeda.
 - Exportar CSV do mes selecionado e conferir colunas de pais, moeda, valor e status.
+- Verificar `/health` e confirmar que nao retorna dados sensiveis.
 - Verificar vencimentos de hoje.
 - Testar `/test-telegram` em `Development`.
 - Confirmar que `/test-telegram` não existe em `Production`.

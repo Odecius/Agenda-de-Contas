@@ -73,3 +73,9 @@
 - Configurar `Backup__*` por appsettings/variaveis de ambiente.
 - Aplicar retencao apenas em backups automaticos antigos.
 - Preservar backups manuais e `pre-restore`.
+
+## Sprint 21 - Saude operacional
+
+- Criar endpoint `/health` para verificacao rapida.
+- Manter resposta sem segredos ou caminhos locais.
+- Documentar teste do endpoint no deploy Raspberry.

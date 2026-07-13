@@ -82,6 +82,17 @@ app.UseAccessProtection();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
+app.MapGet("/health", (IHostEnvironment environment) =>
+{
+    return Results.Ok(new
+    {
+        status = "ok",
+        application = "AgendadorContas",
+        environment = environment.EnvironmentName,
+        checkedAtUtc = DateTimeOffset.UtcNow
+    });
+});
+
 app.MapGet("/api/auth/status", (HttpContext httpContext, IOptions<AccessProtectionOptions> options) =>
 {
     return Results.Ok(new

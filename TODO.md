@@ -32,6 +32,7 @@
 - Dashboard por pais e moeda, sem conversao cambial.
 - Exportacao CSV mensal de vencimentos.
 - Backup automatico configuravel e retencao segura de backups automaticos.
+- Endpoint `/health` para verificacao operacional.
 - Preparacao de deploy Raspberry Pi com systemd, ambiente, logs e checklist.
 - Protecao opcional de acesso por cookie.
 - Backup manual e restauração com backup `pre-restore`.

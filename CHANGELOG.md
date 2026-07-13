@@ -2,6 +2,8 @@
 
 ## 2026-07-09
 
+- Adicionado endpoint `/health` para verificacao operacional simples.
+- Liberado `/health` sem login por nao retornar dados sensiveis.
 - Adicionado backup automatico configuravel por `Backup__*`.
 - Adicionada retencao segura que remove apenas backups automaticos antigos.
 - Atualizado nome de backup para incluir milissegundos e evitar colisao no mesmo segundo.

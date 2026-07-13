@@ -3,20 +3,24 @@
 ## Checklist de segurança
 
 - [ ] HTTPS se o sistema for exposto fora da máquina local.
-- [ ] Segredos fora do código.
+- [x] Segredos fora do código.
 - [x] User Secrets previsto para desenvolvimento.
-- [ ] Variáveis de ambiente configuradas em produção.
-- [ ] `.env`, `data/` e notas locais fora do Git.
+- [x] Variáveis de ambiente documentadas para produção.
+- [x] `.env`, `data/` e notas locais fora do Git.
 - [ ] Token/chat id removidos de `notas.txt` e do histórico se já foram versionados.
-- [ ] Validação de entrada em rotas de criação/edição.
+- [x] Validação de entrada em rotas de criação/edição.
 - [ ] Proteção contra SQL Injection não aplicável enquanto não houver SQL.
 - [ ] Rate limiting se exposto em rede.
 - [ ] CSP e cabeçalhos de segurança se publicado via servidor/reverse proxy.
-- [ ] Autenticação antes de uso em rede.
-- [ ] Autorização após autenticação.
-- [ ] Backups do arquivo JSON de dados.
-- [ ] Logs sem segredos.
+- [x] Autenticação opcional antes de uso em rede.
+- [x] Autorização básica aplicada pelo middleware de proteção.
+- [x] Backups do arquivo JSON de dados.
+- [x] Logs sem segredos conhecidos.
 - [ ] LGPD/GDPR avaliados se dados pessoais forem cadastrados.
+
+## Saúde operacional
+
+O endpoint `/health` retorna apenas status, nome da aplicação, ambiente e horário UTC. Ele nao deve incluir caminhos locais, tokens, chat id, usuario, senha ou dados de contas.
 
 ## Risco atual
 

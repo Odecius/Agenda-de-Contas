@@ -112,6 +112,7 @@ Se o arquivo `deploy/agendador-contas.service` for copiado manualmente, confira 
 systemctl status agendador-contas
 journalctl -u agendador-contas -f
 curl http://localhost:5005/
+curl http://localhost:5005/health
 curl http://localhost:5005/api/contas
 ```
 
@@ -175,6 +176,7 @@ sudo cp /var/lib/agendador-contas/contas.json /var/lib/agendador-contas/contas.j
 - Confirmar arquitetura do Raspberry: `linux-arm64` ou `linux-arm`.
 - Confirmar instalacao do .NET Runtime 8.
 - Confirmar acesso pela rede local em outro aparelho.
+- Confirmar `/health` retornando `status=ok`.
 - Confirmar login com `AccessProtection__Enabled=true`.
 - Confirmar envio real de Telegram em `Production`.
 - Confirmar timezone final (`Europe/London`, `Europe/Lisbon` ou outro).

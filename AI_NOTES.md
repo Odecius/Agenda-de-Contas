@@ -29,6 +29,7 @@ A exportacao CSV mensal e feita no navegador a partir de `state.vencimentos`. El
 - Protecao de acesso por cookie existe, mas deve ser ativada por configuracao `AccessProtection` em producao.
 - Backups manuais, automaticos e `pre-restore` ficam em uma pasta `backups` ao lado do arquivo `Data:FilePath`.
 - Retencao automatica remove apenas `contas.auto.*.json`; nao remover backups manuais nem `pre-restore`.
+- `/health` e anonimo e deve continuar sem dados sensiveis.
 - Testes automatizados ficam em `tests/AgendadorContas.Tests` e rodam com `dotnet run --project tests\AgendadorContas.Tests\AgendadorContas.Tests.csproj`.
 
 ## Arquivos importantes

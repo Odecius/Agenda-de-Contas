@@ -35,6 +35,7 @@ public static class AccessProtectionMiddlewareExtensions
     private static bool IsAnonymousPath(PathString path)
     {
         return path.Equals("/login.html", StringComparison.OrdinalIgnoreCase)
+            || path.Equals("/health", StringComparison.OrdinalIgnoreCase)
             || path.Equals("/api/auth/login", StringComparison.OrdinalIgnoreCase)
             || path.Equals("/api/auth/status", StringComparison.OrdinalIgnoreCase)
             || path.Equals("/favicon.ico", StringComparison.OrdinalIgnoreCase);

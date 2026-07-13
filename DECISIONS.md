@@ -99,3 +99,13 @@
 **Alternativas consideradas:** Aplicar retencao a todos os backups ou deixar limpeza totalmente manual.
 
 **Impacto:** A pasta de backups fica controlada em producao sem risco de apagar pontos de recuperacao escolhidos pelo usuario.
+
+## 2026-07-09 - Health check anonimo e minimo
+
+**Descricao:** `/health` retorna apenas status operacional basico.
+
+**Motivo:** Em Raspberry Pi e systemd, e util ter um endpoint simples para confirmar que a aplicacao esta respondendo.
+
+**Alternativas consideradas:** Expor diagnostico detalhado ou manter apenas logs.
+
+**Impacto:** Facilita verificacao operacional sem expor contas, caminhos locais ou segredos.

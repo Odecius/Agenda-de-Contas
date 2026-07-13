@@ -71,6 +71,8 @@ No Raspberry, rodar com `systemd`, variaveis de ambiente e `ASPNETCORE_ENVIRONME
 
 Consulte o guia completo em `docs/deployment.md`. A pasta `deploy/` contem modelos de `systemd` e arquivo de ambiente sem segredos reais.
 
+O endpoint `/health` pode ser usado para confirmar rapidamente se a aplicacao esta respondendo.
+
 ## Status atual
 
 Aplicação funcional com cadastro, listagem, edição, exclusão, pausa/reativação, vencimentos, marcação de pagamentos, backups manuais e automáticos, interface responsiva, resumo mensal, dashboard por país/moeda, exportação CSV mensal, suporte inicial a país/moeda por conta e envio Telegram. Não há banco externo. O deploy Raspberry esta documentado e preparado com modelos de apoio, mas ainda precisa ser validado em hardware real.
