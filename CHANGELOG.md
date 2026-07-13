@@ -2,6 +2,7 @@
 
 ## 2026-07-09
 
+- Adicionado indicador de ultima atualizacao no cabecalho da interface.
 - Ampliados testes automatizados para protecao de acesso e validacao de senha obrigatoria.
 - Criado checklist final em `docs/final-checklist.md`.
 - Adicionado endpoint `/health` para verificacao operacional simples.

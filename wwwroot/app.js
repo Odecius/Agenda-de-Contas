@@ -54,6 +54,7 @@ const selectors = {
   exportReportButton: document.querySelector("#exportReportButton"),
   formTitle: document.querySelector("#formTitle"),
   formFeedback: document.querySelector("#formFeedback"),
+  lastUpdated: document.querySelector("#lastUpdated"),
   logoutButton: document.querySelector("#logoutButton"),
   monthCaption: document.querySelector("#monthCaption"),
   monthPaidCount: document.querySelector("#monthPaidCount"),
@@ -148,6 +149,7 @@ async function loadAll() {
     renderAccounts();
     renderVencimentos();
     renderBackups();
+    updateLastUpdated();
   } catch (error) {
     showToast(error.message || "Erro ao carregar dados.", "error");
   } finally {
@@ -762,6 +764,10 @@ function renderPaymentDetails(item) {
 
   const paidAt = new Date(item.pagoEm);
   return `<div class="payment-meta">Pago em ${formatDateTime.format(paidAt)}</div>`;
+}
+
+function updateLastUpdated() {
+  selectors.lastUpdated.textContent = `Atualizado em ${formatDateTime.format(new Date())}`;
 }
 
 function setLoading(isLoading) {

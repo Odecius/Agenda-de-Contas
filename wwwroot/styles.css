@@ -91,6 +91,13 @@ h2 {
   margin-top: 8px;
 }
 
+.last-updated {
+  color: #b9c7cf;
+  font-size: 13px;
+  font-weight: 700;
+  margin-top: 6px;
+}
+
 .header-actions {
   align-items: center;
   display: flex;

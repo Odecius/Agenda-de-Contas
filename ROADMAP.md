@@ -92,3 +92,9 @@
 - Cobrir rotas anonimas permitidas pela protecao de acesso.
 - Confirmar que APIs e pagina principal nao entram na lista anonima.
 - Confirmar que protecao ativa exige senha configurada.
+
+## Sprint 24 - Visibilidade de sincronizacao
+
+- Exibir ultima atualizacao dos dados no cabecalho.
+- Atualizar timestamp apos carregamento bem-sucedido.
+- Melhorar confianca de uso quando a tela fica aberta por muito tempo.
