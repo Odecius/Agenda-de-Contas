@@ -2,6 +2,8 @@
 
 ## 2026-07-09
 
+- Removidos handlers `onclick` inline da tela principal.
+- Centralizada acoes da interface principal por delegacao de eventos em `wwwroot/app.js`.
 - Adicionados cabeçalhos HTTP básicos de segurança.
 - Configurada CSP compatível com a interface atual, ainda permitindo inline enquanto a tela de login nao for externalizada.
 - Adicionado indicador de ultima atualizacao no cabecalho da interface.

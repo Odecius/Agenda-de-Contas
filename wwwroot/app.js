@@ -85,8 +85,11 @@ selectors.startDate.value = today.toISOString().slice(0, 10);
 selectors.monthPicker.value = currentMonth;
 
 selectors.accountForm.addEventListener("submit", saveAccount);
+selectors.accountsTable.addEventListener("click", handleAccountTableClick);
+selectors.backupList.addEventListener("click", handleBackupListClick);
 selectors.cancelEdit.addEventListener("click", resetForm);
 selectors.createBackupButton.addEventListener("click", createBackup);
+selectors.dueList.addEventListener("click", handleDueListClick);
 selectors.exportReportButton.addEventListener("click", exportMonthlyReportCsv);
 selectors.logoutButton.addEventListener("click", logout);
 selectors.refreshButton.addEventListener("click", loadAll);
@@ -368,6 +371,46 @@ async function togglePayment(accountId, year, month, paid) {
   await loadAll();
 }
 
+async function handleAccountTableClick(event) {
+  const button = event.target.closest("[data-account-action]");
+  if (!button) return;
+
+  const accountId = button.dataset.accountId;
+  if (!accountId) return;
+
+  if (button.dataset.accountAction === "edit") {
+    editAccount(accountId);
+    return;
+  }
+
+  if (button.dataset.accountAction === "toggle") {
+    await toggleActive(accountId);
+    return;
+  }
+
+  if (button.dataset.accountAction === "delete") {
+    await deleteAccount(accountId);
+  }
+}
+
+async function handleDueListClick(event) {
+  const button = event.target.closest("[data-due-action='toggle-payment']");
+  if (!button) return;
+
+  await togglePayment(
+    button.dataset.accountId,
+    Number(button.dataset.year),
+    Number(button.dataset.month),
+    button.dataset.paid === "true");
+}
+
+async function handleBackupListClick(event) {
+  const button = event.target.closest("[data-backup-action='restore']");
+  if (!button || !button.dataset.backupFile) return;
+
+  await restoreBackup(button.dataset.backupFile);
+}
+
 function renderAccounts() {
   selectors.accountsTable.innerHTML = "";
   updateFilterButtons();
@@ -395,9 +438,9 @@ function renderAccounts() {
       <td data-label="Status">${renderAccountStatus(account)}</td>
       <td data-label="Acoes">
         <div class="row-actions">
-          <button class="ghost" onclick="editAccount('${account.id}')">Editar</button>
-          <button class="secondary" onclick="toggleActive('${account.id}')">${account.ativa ? "Pausar" : "Ativar"}</button>
-          <button class="danger" onclick="deleteAccount('${account.id}')">Excluir</button>
+          <button class="ghost" type="button" data-account-action="edit" data-account-id="${account.id}">Editar</button>
+          <button class="secondary" type="button" data-account-action="toggle" data-account-id="${account.id}">${account.ativa ? "Pausar" : "Ativar"}</button>
+          <button class="danger" type="button" data-account-action="delete" data-account-id="${account.id}">Excluir</button>
         </div>
       </td>
     `;
@@ -472,7 +515,14 @@ function renderVencimentos() {
         </div>
         ${renderPaymentDetails(item)}
       </div>
-      <button class="${item.pago ? "secondary" : "primary"}" onclick="togglePayment('${item.conta.id}', ${date.getFullYear()}, ${date.getMonth() + 1}, ${item.pago})">
+      <button
+        class="${item.pago ? "secondary" : "primary"}"
+        type="button"
+        data-due-action="toggle-payment"
+        data-account-id="${item.conta.id}"
+        data-year="${date.getFullYear()}"
+        data-month="${date.getMonth() + 1}"
+        data-paid="${item.pago}">
         ${item.pago ? "Desmarcar" : "Marcar pago"}
       </button>
     `;
@@ -545,7 +595,7 @@ function renderBackups() {
           ${formatDateTime.format(createdAt)} - ${formatBytes(backup.sizeBytes)}
         </div>
       </div>
-      <button class="secondary" type="button" onclick="restoreBackup('${encodeURIComponent(backup.fileName)}')">Restaurar</button>
+      <button class="secondary" type="button" data-backup-action="restore" data-backup-file="${escapeHtml(encodeURIComponent(backup.fileName))}">Restaurar</button>
     `;
     selectors.backupList.appendChild(item);
   }

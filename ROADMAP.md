@@ -105,3 +105,9 @@
 - Reduzir risco de MIME sniffing, clickjacking e vazamento de referencia.
 - Configurar CSP compatível com a interface atual.
 - Registrar que CSP estrita depende de remover scripts/handlers inline.
+
+## Sprint 26 - Remover inline handlers da tela principal
+
+- Trocar `onclick` gerado no dashboard por delegacao de eventos.
+- Centralizar acoes de contas, vencimentos e backups em handlers JavaScript.
+- Deixar a tela principal preparada para CSP mais rigida.
