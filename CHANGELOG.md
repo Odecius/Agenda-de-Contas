@@ -2,6 +2,7 @@
 
 ## 2026-07-09
 
+- Adicionado rate limiting ao endpoint `/api/auth/login`.
 - Externalizados CSS e JavaScript da tela de login.
 - Removido `unsafe-inline` da Content Security Policy.
 - Removidos handlers `onclick` inline da tela principal.

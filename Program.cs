@@ -5,8 +5,10 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Serialization;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -73,12 +75,24 @@ builder.Services
         };
     });
 builder.Services.AddAuthorization();
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddFixedWindowLimiter("login", limiterOptions =>
+    {
+        limiterOptions.PermitLimit = 5;
+        limiterOptions.Window = TimeSpan.FromMinutes(1);
+        limiterOptions.QueueLimit = 0;
+        limiterOptions.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+    });
+});
 
 var app = builder.Build();
 
 app.UseSecurityHeaders();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 app.UseAccessProtection();
 app.UseDefaultFiles();
 app.UseStaticFiles();
@@ -136,7 +150,7 @@ app.MapPost("/api/auth/login", async (LoginRequest request, HttpContext httpCont
         });
 
     return Results.Ok(new { sucesso = true });
-});
+}).RequireRateLimiting("login");
 
 app.MapPost("/api/auth/logout", async (HttpContext httpContext) =>
 {

@@ -31,7 +31,8 @@ A exportacao CSV mensal e feita no navegador a partir de `state.vencimentos`. El
 - Retencao automatica remove apenas `contas.auto.*.json`; nao remover backups manuais nem `pre-restore`.
 - `/health` e anonimo e deve continuar sem dados sensiveis.
 - Cabeçalhos HTTP de seguranca sao aplicados por `UseSecurityHeaders`.
-- CSP ainda permite `unsafe-inline`; remover inline antes de endurecer.
+- CSP nao permite `unsafe-inline`; manter CSS/JS em arquivos externos.
+- `/api/auth/login` possui rate limiting fixo de 5 tentativas por minuto.
 - Testes automatizados ficam em `tests/AgendadorContas.Tests` e rodam com `dotnet run --project tests\AgendadorContas.Tests\AgendadorContas.Tests.csproj`.
 
 ## Arquivos importantes

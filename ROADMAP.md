@@ -117,3 +117,9 @@
 - Externalizar CSS e JavaScript da tela de login.
 - Remover `unsafe-inline` da Content Security Policy.
 - Confirmar paginas sem scripts, estilos ou handlers inline.
+
+## Sprint 28 - Rate limiting no login
+
+- Aplicar limite de tentativas em `/api/auth/login`.
+- Retornar HTTP 429 quando o limite for excedido.
+- Reduzir risco de tentativa automatizada de senha.

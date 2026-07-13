@@ -10,7 +10,7 @@
 - [ ] Token/chat id removidos de `notas.txt` e do histórico se já foram versionados.
 - [x] Validação de entrada em rotas de criação/edição.
 - [ ] Proteção contra SQL Injection não aplicável enquanto não houver SQL.
-- [ ] Rate limiting se exposto em rede.
+- [x] Rate limiting no endpoint de login.
 - [x] Cabeçalhos HTTP básicos de segurança aplicados pela aplicação.
 - [x] CSP estrita sem `unsafe-inline`.
 - [x] Autenticação opcional antes de uso em rede.
