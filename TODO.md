@@ -10,7 +10,7 @@
 
 - Avaliar conversao cambial futura com API externa.
 - Melhorar relatorios por moeda e pais.
-- Criar testes automatizados para regras de vencimento e mensagens.
+- Expandir testes automatizados para endpoints e autenticacao.
 
 ## Baixa prioridade
 
@@ -33,6 +33,7 @@
 - Exportacao CSV mensal de vencimentos.
 - Backup automatico configuravel e retencao segura de backups automaticos.
 - Endpoint `/health` para verificacao operacional.
+- Checklist final em `docs/final-checklist.md`.
 - Preparacao de deploy Raspberry Pi com systemd, ambiente, logs e checklist.
 - Protecao opcional de acesso por cookie.
 - Backup manual e restauração com backup `pre-restore`.

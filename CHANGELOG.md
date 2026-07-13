@@ -2,6 +2,7 @@
 
 ## 2026-07-09
 
+- Criado checklist final em `docs/final-checklist.md`.
 - Adicionado endpoint `/health` para verificacao operacional simples.
 - Liberado `/health` sem login por nao retornar dados sensiveis.
 - Adicionado backup automatico configuravel por `Backup__*`.

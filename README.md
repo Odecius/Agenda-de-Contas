@@ -73,6 +73,8 @@ Consulte o guia completo em `docs/deployment.md`. A pasta `deploy/` contem model
 
 O endpoint `/health` pode ser usado para confirmar rapidamente se a aplicacao esta respondendo.
 
+Para fechamento e preparação de produção, consulte `docs/final-checklist.md`.
+
 ## Status atual
 
 Aplicação funcional com cadastro, listagem, edição, exclusão, pausa/reativação, vencimentos, marcação de pagamentos, backups manuais e automáticos, interface responsiva, resumo mensal, dashboard por país/moeda, exportação CSV mensal, suporte inicial a país/moeda por conta e envio Telegram. Não há banco externo. O deploy Raspberry esta documentado e preparado com modelos de apoio, mas ainda precisa ser validado em hardware real.

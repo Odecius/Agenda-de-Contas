@@ -79,3 +79,10 @@
 - Criar endpoint `/health` para verificacao rapida.
 - Manter resposta sem segredos ou caminhos locais.
 - Documentar teste do endpoint no deploy Raspberry.
+
+## Sprint 22 - Fechamento operacional
+
+- Criar checklist final do projeto.
+- Consolidar comandos de validacao local.
+- Registrar pendencias que dependem de Raspberry real.
+- Manter proximas evolucoes como melhorias, nao bloqueios do MVP.

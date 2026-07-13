@@ -53,8 +53,9 @@ A exportacao CSV mensal e feita no navegador a partir de `state.vencimentos`. El
 - Atualizar docs após alterar rotas, configuração, deploy ou regras de vencimento.
 - Preferir serviços pequenos e testáveis para regras de negócio.
 - Para deploy Raspberry, consultar `docs/deployment.md` e os modelos em `deploy/`.
+- Para fechamento operacional, consultar `docs/final-checklist.md`.
 - Para proteger acesso, configurar `AccessProtection__Enabled=true`, usuario e senha por User Secrets ou variaveis de ambiente.
 
 ## Onde continuar
 
-Próximo foco sugerido: validar acesso em rede local, revisar checklist final de producao ou melhorar relatorios por moeda/pais.
+Próximo foco sugerido: validar no Raspberry real quando o hardware estiver disponivel ou iniciar melhorias opcionais como relatorios avancados e conversao cambial.
