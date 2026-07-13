@@ -11,7 +11,8 @@
 - [x] Validação de entrada em rotas de criação/edição.
 - [ ] Proteção contra SQL Injection não aplicável enquanto não houver SQL.
 - [ ] Rate limiting se exposto em rede.
-- [ ] CSP e cabeçalhos de segurança se publicado via servidor/reverse proxy.
+- [x] Cabeçalhos HTTP básicos de segurança aplicados pela aplicação.
+- [ ] CSP estrita sem `unsafe-inline`.
 - [x] Autenticação opcional antes de uso em rede.
 - [x] Autorização básica aplicada pelo middleware de proteção.
 - [x] Backups do arquivo JSON de dados.
@@ -21,6 +22,12 @@
 ## Saúde operacional
 
 O endpoint `/health` retorna apenas status, nome da aplicação, ambiente e horário UTC. Ele nao deve incluir caminhos locais, tokens, chat id, usuario, senha ou dados de contas.
+
+## Cabeçalhos HTTP
+
+A aplicação aplica cabeçalhos como `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, `Cross-Origin-Opener-Policy` e `Content-Security-Policy`.
+
+A CSP atual ainda permite `unsafe-inline` porque a tela de login usa script/estilo inline e a interface principal ainda possui alguns handlers inline gerados pelo JavaScript. Para endurecer a CSP, primeiro remover esses usos inline.
 
 ## Risco atual
 

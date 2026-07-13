@@ -109,3 +109,13 @@
 **Alternativas consideradas:** Expor diagnostico detalhado ou manter apenas logs.
 
 **Impacto:** Facilita verificacao operacional sem expor contas, caminhos locais ou segredos.
+
+## 2026-07-09 - CSP compativel antes de CSP estrita
+
+**Descricao:** A aplicacao aplica cabeçalhos HTTP de seguranca e uma CSP compativel com a interface atual.
+
+**Motivo:** A tela de login ainda tem script/estilo inline e a interface principal ainda usa handlers inline gerados por JavaScript.
+
+**Alternativas consideradas:** Forcar CSP estrita imediatamente ou deixar todos os cabeçalhos para o reverse proxy.
+
+**Impacto:** O app ganha protecoes basicas agora sem quebrar a interface. Uma sprint futura deve remover inline para permitir CSP sem `unsafe-inline`.

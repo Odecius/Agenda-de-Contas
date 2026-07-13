@@ -76,6 +76,7 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
+app.UseSecurityHeaders();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseAccessProtection();

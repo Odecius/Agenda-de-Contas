@@ -2,6 +2,8 @@
 
 ## 2026-07-09
 
+- Adicionados cabeçalhos HTTP básicos de segurança.
+- Configurada CSP compatível com a interface atual, ainda permitindo inline enquanto a tela de login nao for externalizada.
 - Adicionado indicador de ultima atualizacao no cabecalho da interface.
 - Ampliados testes automatizados para protecao de acesso e validacao de senha obrigatoria.
 - Criado checklist final em `docs/final-checklist.md`.

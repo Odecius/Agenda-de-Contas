@@ -98,3 +98,10 @@
 - Exibir ultima atualizacao dos dados no cabecalho.
 - Atualizar timestamp apos carregamento bem-sucedido.
 - Melhorar confianca de uso quando a tela fica aberta por muito tempo.
+
+## Sprint 25 - Cabeçalhos HTTP de seguranca
+
+- Aplicar headers basicos no pipeline ASP.NET Core.
+- Reduzir risco de MIME sniffing, clickjacking e vazamento de referencia.
+- Configurar CSP compatível com a interface atual.
+- Registrar que CSP estrita depende de remover scripts/handlers inline.
