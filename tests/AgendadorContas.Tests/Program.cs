@@ -1,4 +1,5 @@
 using AgendadorContas.Models;
+using AgendadorContas.Options;
 using AgendadorContas.Services;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
@@ -12,7 +13,9 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Pagamento marcado altera vencimento para pago", PaymentMarksDueAsPaidAsync),
     ("Backup restaura estado anterior", BackupRestoreRevertsDataAsync),
     ("Retencao remove apenas backups automaticos antigos", BackupRetentionRemovesOnlyOldAutomaticBackupsAsync),
-    ("Lembrete agrupa totais por moeda", ReminderGroupsTotalsByCurrency)
+    ("Lembrete agrupa totais por moeda", ReminderGroupsTotalsByCurrency),
+    ("Protecao mantem apenas rotas anonimas esperadas", AccessProtectionAnonymousPathsAreLimited),
+    ("Protecao ativa exige senha configurada", AccessProtectionRequiresPasswordWhenEnabled)
 };
 
 var failed = 0;
@@ -200,6 +203,32 @@ static Task ReminderGroupsTotalsByCurrency()
     AssertContains("£950.00", message, "Mensagem deveria conter valor em GBP.");
     AssertContains("120,00", message, "Mensagem deveria conter valor em EUR.");
     AssertContains("Total do dia", message, "Mensagem deveria conter totais.");
+    return Task.CompletedTask;
+}
+
+static Task AccessProtectionAnonymousPathsAreLimited()
+{
+    AssertTrue(AccessProtectionMiddlewareExtensions.IsAnonymousPath("/health"), "Health check deveria ser anonimo.");
+    AssertTrue(AccessProtectionMiddlewareExtensions.IsAnonymousPath("/login.html"), "Login deveria ser anonimo.");
+    AssertTrue(AccessProtectionMiddlewareExtensions.IsAnonymousPath("/api/auth/login"), "Endpoint de login deveria ser anonimo.");
+    AssertTrue(!AccessProtectionMiddlewareExtensions.IsAnonymousPath("/api/contas"), "API de contas nao deveria ser anonima.");
+    AssertTrue(!AccessProtectionMiddlewareExtensions.IsAnonymousPath("/"), "Pagina principal nao deveria ser anonima quando protecao estiver ativa.");
+    return Task.CompletedTask;
+}
+
+static Task AccessProtectionRequiresPasswordWhenEnabled()
+{
+    var validator = new AccessProtectionOptionsValidator();
+    var result = validator.Validate(null, new AccessProtectionOptions
+    {
+        Enabled = true,
+        Username = "admin",
+        Password = "",
+        SessionHours = 12
+    });
+
+    AssertTrue(result.Failed, "Protecao ativa sem senha deveria falhar validacao.");
+    AssertContains("Password", string.Join(" ", result.Failures ?? []), "Falha deveria mencionar senha.");
     return Task.CompletedTask;
 }
 

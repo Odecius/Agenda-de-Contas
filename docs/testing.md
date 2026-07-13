@@ -3,6 +3,7 @@
 ## Testes atuais
 
 Existe um test runner automatizado em `tests/AgendadorContas.Tests`.
+Ele cobre regras de vencimento, pagamento, backup/restauracao, retencao de backups automaticos, lembrete por moeda e verificacoes basicas da protecao de acesso.
 
 ## Verificações mínimas
 

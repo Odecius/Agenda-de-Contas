@@ -10,7 +10,7 @@
 
 - Avaliar conversao cambial futura com API externa.
 - Melhorar relatorios por moeda e pais.
-- Expandir testes automatizados para endpoints e autenticacao.
+- Expandir testes automatizados para endpoints completos com servidor em memoria.
 
 ## Baixa prioridade
 
@@ -34,6 +34,7 @@
 - Backup automatico configuravel e retencao segura de backups automaticos.
 - Endpoint `/health` para verificacao operacional.
 - Checklist final em `docs/final-checklist.md`.
+- Testes automatizados basicos para protecao de acesso.
 - Preparacao de deploy Raspberry Pi com systemd, ambiente, logs e checklist.
 - Protecao opcional de acesso por cookie.
 - Backup manual e restauração com backup `pre-restore`.

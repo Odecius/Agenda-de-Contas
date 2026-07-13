@@ -2,6 +2,7 @@
 
 ## 2026-07-09
 
+- Ampliados testes automatizados para protecao de acesso e validacao de senha obrigatoria.
 - Criado checklist final em `docs/final-checklist.md`.
 - Adicionado endpoint `/health` para verificacao operacional simples.
 - Liberado `/health` sem login por nao retornar dados sensiveis.

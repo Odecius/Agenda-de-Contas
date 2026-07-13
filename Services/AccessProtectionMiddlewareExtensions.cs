@@ -32,7 +32,7 @@ public static class AccessProtectionMiddlewareExtensions
         });
     }
 
-    private static bool IsAnonymousPath(PathString path)
+    public static bool IsAnonymousPath(PathString path)
     {
         return path.Equals("/login.html", StringComparison.OrdinalIgnoreCase)
             || path.Equals("/health", StringComparison.OrdinalIgnoreCase)

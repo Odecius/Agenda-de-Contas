@@ -86,3 +86,9 @@
 - Consolidar comandos de validacao local.
 - Registrar pendencias que dependem de Raspberry real.
 - Manter proximas evolucoes como melhorias, nao bloqueios do MVP.
+
+## Sprint 23 - Testes de seguranca basica
+
+- Cobrir rotas anonimas permitidas pela protecao de acesso.
+- Confirmar que APIs e pagina principal nao entram na lista anonima.
+- Confirmar que protecao ativa exige senha configurada.
