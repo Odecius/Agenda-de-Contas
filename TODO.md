@@ -11,7 +11,6 @@
 - Avaliar conversao cambial futura com API externa.
 - Melhorar relatorios por moeda e pais.
 - Expandir testes automatizados para endpoints completos com servidor em memoria.
-- Externalizar CSS/JS do login para permitir CSP estrita sem `unsafe-inline`.
 
 ## Baixa prioridade
 
@@ -38,6 +37,7 @@
 - Testes automatizados basicos para protecao de acesso.
 - Cabeçalhos HTTP basicos de seguranca.
 - Tela principal sem handlers `onclick` inline.
+- CSP estrita sem `unsafe-inline`.
 - Preparacao de deploy Raspberry Pi com systemd, ambiente, logs e checklist.
 - Protecao opcional de acesso por cookie.
 - Backup manual e restauração com backup `pre-restore`.

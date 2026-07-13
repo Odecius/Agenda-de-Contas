@@ -2,6 +2,8 @@
 
 ## 2026-07-09
 
+- Externalizados CSS e JavaScript da tela de login.
+- Removido `unsafe-inline` da Content Security Policy.
 - Removidos handlers `onclick` inline da tela principal.
 - Centralizada acoes da interface principal por delegacao de eventos em `wwwroot/app.js`.
 - Adicionados cabeçalhos HTTP básicos de segurança.

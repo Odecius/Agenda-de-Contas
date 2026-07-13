@@ -111,3 +111,9 @@
 - Trocar `onclick` gerado no dashboard por delegacao de eventos.
 - Centralizar acoes de contas, vencimentos e backups em handlers JavaScript.
 - Deixar a tela principal preparada para CSP mais rigida.
+
+## Sprint 27 - CSP estrita
+
+- Externalizar CSS e JavaScript da tela de login.
+- Remover `unsafe-inline` da Content Security Policy.
+- Confirmar paginas sem scripts, estilos ou handlers inline.

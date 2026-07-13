@@ -12,7 +12,7 @@
 - [ ] Proteção contra SQL Injection não aplicável enquanto não houver SQL.
 - [ ] Rate limiting se exposto em rede.
 - [x] Cabeçalhos HTTP básicos de segurança aplicados pela aplicação.
-- [ ] CSP estrita sem `unsafe-inline`.
+- [x] CSP estrita sem `unsafe-inline`.
 - [x] Autenticação opcional antes de uso em rede.
 - [x] Autorização básica aplicada pelo middleware de proteção.
 - [x] Backups do arquivo JSON de dados.
@@ -27,7 +27,7 @@ O endpoint `/health` retorna apenas status, nome da aplicação, ambiente e hor�
 
 A aplicação aplica cabeçalhos como `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, `Cross-Origin-Opener-Policy` e `Content-Security-Policy`.
 
-A CSP atual ainda permite `unsafe-inline` porque a tela de login usa script/estilo inline. A tela principal ja nao usa handlers `onclick` inline. Para endurecer a CSP, externalizar o CSS/JS do login.
+A CSP atual nao permite `unsafe-inline`. A tela principal e a tela de login carregam CSS/JS por arquivos externos.
 
 ## Risco atual
 
