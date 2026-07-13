@@ -20,6 +20,8 @@ dotnet run --project tests\AgendadorContas.Tests\AgendadorContas.Tests.csproj
 - Marcar/desmarcar pagamento.
 - Criar backup manual.
 - Restaurar backup com confirmação.
+- Conferir backup automatico em ambiente configurado com `Backup__AutomaticEnabled=true`.
+- Confirmar que retencao remove apenas backups automaticos antigos.
 - Consultar vencimentos do mês.
 - Conferir o resumo por pais e moeda no mes selecionado.
 - Filtrar contas por pais e moeda.

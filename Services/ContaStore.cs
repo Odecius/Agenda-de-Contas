@@ -270,11 +270,16 @@ public sealed class ContaStore
 
     public async Task<BackupInfo> CriarBackupAsync()
     {
+        return await CriarBackupAsync("manual");
+    }
+
+    public async Task<BackupInfo> CriarBackupAsync(string reason)
+    {
         await _lock.WaitAsync();
         try
         {
             var db = await ReadAsync();
-            return await WriteBackupAsync(db, "manual");
+            return await WriteBackupAsync(db, reason);
         }
         finally
         {
@@ -332,6 +337,48 @@ public sealed class ContaStore
             Directory.CreateDirectory(directory);
             File.Copy(backupPath, _filePath, overwrite: true);
             return true;
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
+    public async Task<int> RemoverBackupsAutomaticosAntigosAsync(
+        int retentionDays,
+        int minimumBackupsToKeep,
+        CancellationToken cancellationToken = default)
+    {
+        var backupDirectory = GetBackupDirectory();
+        if (!Directory.Exists(backupDirectory))
+        {
+            return 0;
+        }
+
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            var cutoffUtc = DateTime.UtcNow.AddDays(-retentionDays);
+            var automaticBackups = Directory
+                .EnumerateFiles(backupDirectory, "contas.auto.*.json")
+                .Select(path => new FileInfo(path))
+                .OrderByDescending(file => file.CreationTimeUtc)
+                .ToList();
+
+            var removed = 0;
+            foreach (var backup in automaticBackups.Skip(minimumBackupsToKeep))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (backup.CreationTimeUtc >= cutoffUtc)
+                {
+                    continue;
+                }
+
+                backup.Delete();
+                removed++;
+            }
+
+            return removed;
         }
         finally
         {
@@ -440,10 +487,15 @@ public sealed class ContaStore
 
     private async Task<BackupInfo> WriteBackupAsync(StoreData db, string reason)
     {
+        if (string.IsNullOrWhiteSpace(reason) || reason.Any(character => !char.IsLetterOrDigit(character) && character != '-'))
+        {
+            throw new ArgumentException("Motivo do backup invalido.", nameof(reason));
+        }
+
         var backupDirectory = GetBackupDirectory();
         Directory.CreateDirectory(backupDirectory);
 
-        var fileName = $"contas.{reason}.{DateTime.UtcNow:yyyyMMddHHmmss}.json";
+        var fileName = $"contas.{reason}.{DateTime.UtcNow:yyyyMMddHHmmssfff}.json";
         var backupPath = Path.Combine(backupDirectory, fileName);
 
         await using (var stream = File.Create(backupPath))

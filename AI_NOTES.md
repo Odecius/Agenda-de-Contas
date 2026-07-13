@@ -27,7 +27,8 @@ A exportacao CSV mensal e feita no navegador a partir de `state.vencimentos`. El
 - Deploy Raspberry esta preparado em documentacao e modelos, mas ainda nao foi validado em hardware real.
 - Contas antigas sem `country` e `currency` assumem `UnitedKingdom` e `GBP`.
 - Protecao de acesso por cookie existe, mas deve ser ativada por configuracao `AccessProtection` em producao.
-- Backups manuais ficam em uma pasta `backups` ao lado do arquivo `Data:FilePath`; restauracao cria backup `pre-restore`.
+- Backups manuais, automaticos e `pre-restore` ficam em uma pasta `backups` ao lado do arquivo `Data:FilePath`.
+- Retencao automatica remove apenas `contas.auto.*.json`; nao remover backups manuais nem `pre-restore`.
 - Testes automatizados ficam em `tests/AgendadorContas.Tests` e rodam com `dotnet run --project tests\AgendadorContas.Tests\AgendadorContas.Tests.csproj`.
 
 ## Arquivos importantes
@@ -36,6 +37,7 @@ A exportacao CSV mensal e feita no navegador a partir de `state.vencimentos`. El
 - `Models/Conta.cs`
 - `Services/ContaStore.cs`
 - `Services/DailyReminderService.cs`
+- `Services/AutomaticBackupService.cs`
 - `Services/TelegramNotificationService.cs`
 - `Options/TelegramOptions.cs`
 - `Options/TelegramOptionsValidator.cs`
@@ -54,4 +56,4 @@ A exportacao CSV mensal e feita no navegador a partir de `state.vencimentos`. El
 
 ## Onde continuar
 
-Próximo foco sugerido: validar acesso em rede local, melhorar relatorios por moeda/pais ou preparar automacao de backups.
+Próximo foco sugerido: validar acesso em rede local, revisar checklist final de producao ou melhorar relatorios por moeda/pais.

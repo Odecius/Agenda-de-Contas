@@ -89,3 +89,13 @@
 **Alternativas consideradas:** Criar endpoint backend de exportacao ou gerar PDF.
 
 **Impacto:** A exportacao fica rapida e simples. Relatorios oficiais ou PDFs podem ser adicionados depois se houver necessidade.
+
+## 2026-07-09 - Retencao remove somente backups automaticos
+
+**Descricao:** A limpeza automatica remove apenas arquivos `contas.auto.*.json`.
+
+**Motivo:** Backups manuais e `pre-restore` representam decisoes explicitas ou protecoes antes de restauracao e nao devem ser apagados automaticamente.
+
+**Alternativas consideradas:** Aplicar retencao a todos os backups ou deixar limpeza totalmente manual.
+
+**Impacto:** A pasta de backups fica controlada em producao sem risco de apagar pontos de recuperacao escolhidos pelo usuario.

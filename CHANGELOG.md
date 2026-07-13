@@ -2,6 +2,9 @@
 
 ## 2026-07-09
 
+- Adicionado backup automatico configuravel por `Backup__*`.
+- Adicionada retencao segura que remove apenas backups automaticos antigos.
+- Atualizado nome de backup para incluir milissegundos e evitar colisao no mesmo segundo.
 - Adicionada exportacao CSV dos vencimentos do mes selecionado.
 - O CSV inclui data, conta, pais, moeda, valor, valor formatado, status e observacoes.
 - Adicionado resumo por pais e moeda na interface, sem conversao cambial.

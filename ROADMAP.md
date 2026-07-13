@@ -66,3 +66,10 @@
 - Incluir pais, moeda, valor, status e observacoes.
 - Manter exportacao sem conversao cambial.
 - Preparar base para relatorios mais completos por pais e moeda.
+
+## Sprint 20 - Backup automatico e retencao
+
+- Criar hosted service para backup automatico diario.
+- Configurar `Backup__*` por appsettings/variaveis de ambiente.
+- Aplicar retencao apenas em backups automaticos antigos.
+- Preservar backups manuais e `pre-restore`.

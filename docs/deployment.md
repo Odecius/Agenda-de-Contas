@@ -77,6 +77,14 @@ Reminder__Hour=8
 Reminder__Minute=0
 Reminder__TimeZoneId=Europe/London
 
+Backup__AutomaticEnabled=true
+Backup__Hour=2
+Backup__Minute=0
+Backup__TimeZoneId=Europe/London
+Backup__RetentionDays=30
+Backup__MinimumBackupsToKeep=10
+Backup__RunOnStartup=false
+
 Telegram__Enabled=true
 Telegram__BotToken=SEU_TOKEN
 Telegram__ChatId=SEU_CHAT_ID
@@ -137,19 +145,30 @@ O arquivo principal fica em:
 /var/lib/agendador-contas/contas.json
 ```
 
-Backups manuais criados pela interface ficam em:
+Backups manuais criados pela interface, backups automaticos e backups `pre-restore` ficam em:
 
 ```text
 /var/lib/agendador-contas/backups/
 ```
+
+Para ativar backup automatico no Raspberry, configure no arquivo de ambiente:
+
+```text
+Backup__AutomaticEnabled=true
+Backup__Hour=2
+Backup__Minute=0
+Backup__TimeZoneId=Europe/London
+Backup__RetentionDays=30
+Backup__MinimumBackupsToKeep=10
+```
+
+A retencao automatica remove apenas arquivos `contas.auto.*.json` antigos. Backups manuais e `pre-restore` nao entram nessa limpeza.
 
 Backup manual:
 
 ```bash
 sudo cp /var/lib/agendador-contas/contas.json /var/lib/agendador-contas/contas.json.$(date +%Y%m%d%H%M%S).bak
 ```
-
-Uma sprint futura deve automatizar backup e restauracao.
 
 ## Checklist pendente para hardware real
 
@@ -159,5 +178,6 @@ Uma sprint futura deve automatizar backup e restauracao.
 - Confirmar login com `AccessProtection__Enabled=true`.
 - Confirmar envio real de Telegram em `Production`.
 - Confirmar timezone final (`Europe/London`, `Europe/Lisbon` ou outro).
+- Confirmar criacao de backup automatico e retencao em `/var/lib/agendador-contas/backups`.
 - Confirmar reinicio automatico apos reboot.
 - Confirmar permissao de escrita em `/var/lib/agendador-contas`.

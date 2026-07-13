@@ -11,6 +11,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Vencimento respeita ultimo dia do mes", DueDateUsesLastDayOfShortMonthAsync),
     ("Pagamento marcado altera vencimento para pago", PaymentMarksDueAsPaidAsync),
     ("Backup restaura estado anterior", BackupRestoreRevertsDataAsync),
+    ("Retencao remove apenas backups automaticos antigos", BackupRetentionRemovesOnlyOldAutomaticBackupsAsync),
     ("Lembrete agrupa totais por moeda", ReminderGroupsTotalsByCurrency)
 };
 
@@ -136,6 +137,47 @@ static async Task BackupRestoreRevertsDataAsync()
     AssertTrue(backups.Any(item => item.FileName.Contains("pre-restore", StringComparison.Ordinal)), "Backup pre-restore deveria ser criado.");
 }
 
+static async Task BackupRetentionRemovesOnlyOldAutomaticBackupsAsync()
+{
+    using var scope = new TestScope();
+    var store = scope.CreateStore();
+
+    await store.CriarContaAsync(new ContaCreateRequest
+    {
+        Nome = "Seguro",
+        Valor = 30,
+        DiaVencimento = 10,
+        DataInicio = new DateOnly(2026, 7, 1),
+        DuracaoMeses = 0
+    });
+
+    var manual = await store.CriarBackupAsync();
+    await Task.Delay(5);
+    var oldAuto1 = await store.CriarBackupAsync("auto");
+    await Task.Delay(5);
+    var oldAuto2 = await store.CriarBackupAsync("auto");
+    await Task.Delay(5);
+    var oldAuto3 = await store.CriarBackupAsync("auto");
+    await Task.Delay(5);
+    _ = await store.CriarBackupAsync("auto");
+
+    var backupDirectory = Path.Combine(scope.RootPath, "backups");
+    var oldDate = DateTime.UtcNow.AddDays(-60);
+    foreach (var fileName in new[] { manual.FileName, oldAuto1.FileName, oldAuto2.FileName, oldAuto3.FileName })
+    {
+        var path = Path.Combine(backupDirectory, fileName);
+        File.SetCreationTimeUtc(path, oldDate);
+        File.SetLastWriteTimeUtc(path, oldDate);
+    }
+
+    var removed = await store.RemoverBackupsAutomaticosAntigosAsync(retentionDays: 30, minimumBackupsToKeep: 2);
+    var backups = await store.ListarBackupsAsync();
+
+    AssertEqual(2, removed, "Retencao deveria remover dois backups automaticos antigos.");
+    AssertTrue(backups.Any(item => item.FileName == manual.FileName), "Backup manual antigo nao deveria ser removido.");
+    AssertEqual(2, backups.Count(item => item.FileName.StartsWith("contas.auto.", StringComparison.Ordinal)), "Deveriam restar dois backups automaticos.");
+}
+
 static Task ReminderGroupsTotalsByCurrency()
 {
     var builder = new ReminderMessageBuilder(new MoneyFormatter());
@@ -188,6 +230,8 @@ static void AssertContains(string expected, string actual, string message)
 internal sealed class TestScope : IDisposable
 {
     private readonly string _rootPath;
+
+    public string RootPath => _rootPath;
 
     public TestScope()
     {

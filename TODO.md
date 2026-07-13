@@ -8,7 +8,6 @@
 
 ## Média prioridade
 
-- Automatizar backups periódicos e política de retenção.
 - Avaliar conversao cambial futura com API externa.
 - Melhorar relatorios por moeda e pais.
 - Criar testes automatizados para regras de vencimento e mensagens.
@@ -32,6 +31,7 @@
 - Suporte inicial a pais e moeda por conta, sem conversao cambial.
 - Dashboard por pais e moeda, sem conversao cambial.
 - Exportacao CSV mensal de vencimentos.
+- Backup automatico configuravel e retencao segura de backups automaticos.
 - Preparacao de deploy Raspberry Pi com systemd, ambiente, logs e checklist.
 - Protecao opcional de acesso por cookie.
 - Backup manual e restauração com backup `pre-restore`.

@@ -30,8 +30,15 @@ builder.Services
     .ValidateDataAnnotations()
     .ValidateOnStart();
 
+builder.Services
+    .AddOptions<BackupOptions>()
+    .Bind(builder.Configuration.GetSection(BackupOptions.SectionName))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
 builder.Services.AddSingleton<IValidateOptions<AccessProtectionOptions>, AccessProtectionOptionsValidator>();
 builder.Services.AddSingleton<IValidateOptions<TelegramOptions>, TelegramOptionsValidator>();
+builder.Services.AddSingleton<IValidateOptions<BackupOptions>, BackupOptionsValidator>();
 builder.Services.AddSingleton<ContaStore>();
 builder.Services.AddSingleton<IMoneyFormatter, MoneyFormatter>();
 builder.Services.AddSingleton<IReminderMessageBuilder, ReminderMessageBuilder>();
@@ -42,6 +49,7 @@ builder.Services.AddHttpClient("Telegram", (serviceProvider, httpClient) =>
     httpClient.BaseAddress = new Uri(options.ApiBaseUrl);
 });
 builder.Services.AddHostedService<DailyReminderService>();
+builder.Services.AddHostedService<AutomaticBackupService>();
 builder.Services
     .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
