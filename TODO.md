@@ -36,6 +36,7 @@
 - Exportacao CSV mensal de vencimentos.
 - Backup automatico configuravel e retencao segura de backups automaticos.
 - Endpoint `/health` para verificacao operacional.
+- Horario do lembrete diario configuravel pela interface.
 - Checklist final em `docs/final-checklist.md`.
 - Testes automatizados basicos para protecao de acesso.
 - Cabeçalhos HTTP basicos de seguranca.

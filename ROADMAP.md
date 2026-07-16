@@ -130,3 +130,11 @@
 - Validar publish `linux-x64`.
 - Reusar modelos de `systemd` e variaveis de ambiente sem segredos reais.
 - Deixar deploy real pendente de acesso SSH, .NET Runtime 8 e configuracao do ambiente no servidor.
+
+## Sprint 31 - Horario do lembrete pela interface
+
+- Criar configuracao persistente para o horario do lembrete diario.
+- Expor rotas protegidas para consultar e atualizar hora/minuto.
+- Adicionar controle na interface principal.
+- Manter `Reminder__*` como defaults iniciais para ambiente.
+- Validar persistencia local e preparar validacao no volume Docker.

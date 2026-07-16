@@ -5,6 +5,7 @@ const state = {
   countryFilter: "all",
   currencyFilter: "all",
   dueFilter: "all",
+  reminderSettings: null,
   today: [],
   vencimentos: []
 };
@@ -74,6 +75,9 @@ const selectors = {
   refreshButton: document.querySelector("#refreshButton"),
   regionalCaption: document.querySelector("#regionalCaption"),
   regionalSummary: document.querySelector("#regionalSummary"),
+  reminderCaption: document.querySelector("#reminderCaption"),
+  reminderForm: document.querySelector("#reminderForm"),
+  reminderTime: document.querySelector("#reminderTime"),
   startDate: document.querySelector("#startDate"),
   todayCount: document.querySelector("#todayCount"),
   todaySummary: document.querySelector("#todaySummary"),
@@ -93,6 +97,7 @@ selectors.dueList.addEventListener("click", handleDueListClick);
 selectors.exportReportButton.addEventListener("click", exportMonthlyReportCsv);
 selectors.logoutButton.addEventListener("click", logout);
 selectors.refreshButton.addEventListener("click", loadAll);
+selectors.reminderForm.addEventListener("submit", saveReminderSettings);
 selectors.monthPicker.addEventListener("change", loadAll);
 selectors.accountFilters.forEach(button => {
   button.addEventListener("click", () => changeAccountFilter(button.dataset.filter));
@@ -135,19 +140,22 @@ async function loadAll() {
   setLoading(true);
 
   try {
-    const [accountsResponse, vencimentosResponse, todayResponse, backupsResponse] = await Promise.all([
+    const [accountsResponse, vencimentosResponse, todayResponse, backupsResponse, reminderResponse] = await Promise.all([
       fetch("/api/contas"),
       fetchMonthVencimentos(),
       fetch("/api/vencimentos/hoje"),
-      fetch("/api/backups")
+      fetch("/api/backups"),
+      fetch("/api/settings/reminder")
     ]);
 
     state.accounts = await readJson(accountsResponse);
     state.vencimentos = await readJson(vencimentosResponse);
     state.today = await readJson(todayResponse);
     state.backups = await readJson(backupsResponse);
+    state.reminderSettings = await readJson(reminderResponse);
 
     renderDashboard();
+    renderReminderSettings();
     renderRegionalSummary();
     renderAccounts();
     renderVencimentos();
@@ -198,6 +206,44 @@ async function createBackup() {
     showToast(error.message || "Erro ao criar backup.", "error");
   } finally {
     selectors.createBackupButton.disabled = false;
+  }
+}
+
+async function saveReminderSettings(event) {
+  event.preventDefault();
+
+  const [hour, minute] = selectors.reminderTime.value.split(":").map(Number);
+  if (!Number.isInteger(hour) || !Number.isInteger(minute)) {
+    showToast("Informe um horario valido para o lembrete.", "error");
+    return;
+  }
+
+  const payload = {
+    hour,
+    minute,
+    timeZoneId: state.reminderSettings?.timeZoneId || "Europe/London"
+  };
+
+  try {
+    selectors.reminderForm.querySelector("button").disabled = true;
+    const response = await fetch("/api/settings/reminder", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ erro: "Nao foi possivel guardar o horario." }));
+      throw new Error(error.erro || "Nao foi possivel guardar o horario.");
+    }
+
+    state.reminderSettings = await response.json();
+    renderReminderSettings();
+    showToast("Horario do lembrete atualizado.", "success");
+  } catch (error) {
+    showToast(error.message || "Erro ao guardar horario do lembrete.", "error");
+  } finally {
+    selectors.reminderForm.querySelector("button").disabled = false;
   }
 }
 
@@ -253,6 +299,19 @@ function renderDashboard() {
     : `Hoje existem ${state.today.length} conta(s) pendente(s), totalizando ${formatCurrencyTotalsText(todayTotals)}.`;
 
   selectors.accountsCaption.textContent = `${state.accounts.length} conta(s) cadastradas`;
+}
+
+function renderReminderSettings() {
+  const settings = state.reminderSettings;
+  if (!settings) {
+    selectors.reminderCaption.textContent = "Horario ainda nao carregado.";
+    return;
+  }
+
+  const hour = String(settings.hour).padStart(2, "0");
+  const minute = String(settings.minute).padStart(2, "0");
+  selectors.reminderTime.value = `${hour}:${minute}`;
+  selectors.reminderCaption.textContent = `Envio programado para ${hour}:${minute} (${settings.timeZoneId}).`;
 }
 
 async function saveAccount(event) {

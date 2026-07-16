@@ -456,6 +456,21 @@ textarea {
   font-weight: 700;
 }
 
+.reminder-form {
+  align-items: end;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(180px, 240px) auto;
+}
+
+.reminder-form label {
+  margin-bottom: 0;
+}
+
+.reminder-form button {
+  justify-self: start;
+}
+
 .due-controls {
   align-items: center;
   display: flex;
@@ -715,8 +730,13 @@ th {
   }
 
   .due-controls input,
-  .due-controls button {
+  .due-controls button,
+  .reminder-form button {
     width: 100%;
+  }
+
+  .reminder-form {
+    grid-template-columns: 1fr;
   }
 
   .filter-button {

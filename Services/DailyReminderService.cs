@@ -3,13 +3,11 @@ namespace AgendadorContas.Services;
 public sealed class DailyReminderService : BackgroundService
 {
     private readonly IServiceProvider _serviceProvider;
-    private readonly IConfiguration _configuration;
     private readonly ILogger<DailyReminderService> _logger;
 
-    public DailyReminderService(IServiceProvider serviceProvider, IConfiguration configuration, ILogger<DailyReminderService> logger)
+    public DailyReminderService(IServiceProvider serviceProvider, ILogger<DailyReminderService> logger)
     {
         _serviceProvider = serviceProvider;
-        _configuration = configuration;
         _logger = logger;
     }
 
@@ -36,18 +34,18 @@ public sealed class DailyReminderService : BackgroundService
 
     private async Task TentarEnviarLembreteAsync(CancellationToken cancellationToken)
     {
-        var agora = ObterAgoraLocal();
-        var hora = _configuration.GetValue("Reminder:Hour", 8);
-        var minuto = _configuration.GetValue("Reminder:Minute", 0);
+        using var scope = _serviceProvider.CreateScope();
+        var settingsStore = scope.ServiceProvider.GetRequiredService<ReminderSettingsStore>();
+        var settings = await settingsStore.GetAsync();
+        var agora = ObterAgoraLocal(settings.TimeZoneId);
 
-        if (agora.Hour != hora || agora.Minute != minuto)
+        if (agora.Hour != settings.Hour || agora.Minute != settings.Minute)
         {
             return;
         }
 
         var hoje = DateOnly.FromDateTime(agora);
 
-        using var scope = _serviceProvider.CreateScope();
         var store = scope.ServiceProvider.GetRequiredService<ContaStore>();
         if (await store.LembreteJaEnviadoAsync(hoje))
         {
@@ -70,9 +68,8 @@ public sealed class DailyReminderService : BackgroundService
         _logger.LogInformation("Lembrete diario enviado e registrado para {Data}.", hoje);
     }
 
-    private DateTime ObterAgoraLocal()
+    private DateTime ObterAgoraLocal(string timeZoneId)
     {
-        var timeZoneId = _configuration["Reminder:TimeZoneId"];
         if (string.IsNullOrWhiteSpace(timeZoneId))
         {
             return DateTime.Now;

@@ -42,6 +42,7 @@ builder.Services.AddSingleton<IValidateOptions<AccessProtectionOptions>, AccessP
 builder.Services.AddSingleton<IValidateOptions<TelegramOptions>, TelegramOptionsValidator>();
 builder.Services.AddSingleton<IValidateOptions<BackupOptions>, BackupOptionsValidator>();
 builder.Services.AddSingleton<ContaStore>();
+builder.Services.AddSingleton<ReminderSettingsStore>();
 builder.Services.AddSingleton<IMoneyFormatter, MoneyFormatter>();
 builder.Services.AddSingleton<IReminderMessageBuilder, ReminderMessageBuilder>();
 builder.Services.AddSingleton<INotificationService, TelegramNotificationService>();
@@ -224,6 +225,25 @@ app.MapGet("/api/backups", async (ContaStore store) =>
 {
     var backups = await store.ListarBackupsAsync();
     return Results.Ok(backups);
+});
+
+app.MapGet("/api/settings/reminder", async (ReminderSettingsStore settingsStore) =>
+{
+    var settings = await settingsStore.GetAsync();
+    return Results.Ok(settings);
+});
+
+app.MapPut("/api/settings/reminder", async (ReminderSettingsUpdateRequest request, ReminderSettingsStore settingsStore) =>
+{
+    try
+    {
+        var settings = await settingsStore.UpdateAsync(request);
+        return Results.Ok(settings);
+    }
+    catch (ArgumentException ex)
+    {
+        return Results.BadRequest(new { erro = ex.Message });
+    }
 });
 
 app.MapPost("/api/backups", async (ContaStore store) =>

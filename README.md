@@ -85,6 +85,12 @@ Para fechamento e preparação de produção, consulte `docs/final-checklist.md`
 
 Aplicação funcional com cadastro, listagem, edição, exclusão, pausa/reativação, vencimentos, marcação de pagamentos, backups manuais e automáticos, interface responsiva, resumo mensal, dashboard por país/moeda, exportação CSV mensal, suporte inicial a país/moeda por conta e envio Telegram. Não há banco externo. O deploy Linux esta documentado para servidor HP x64 e Raspberry Pi, mas ainda precisa ser validado em hardware real.
 
+## Lembrete diario
+
+O horario do lembrete diario pode ser alterado pela interface, na secao "Lembrete diario". A aplicacao usa os valores de `Reminder` como padrao inicial e, depois que o usuario salva um novo horario, persiste a configuracao em `settings.json` ao lado de `contas.json`.
+
+Em Docker, esse arquivo fica no volume persistente mapeado para `/var/lib/agendador-contas`, junto com contas e backups.
+
 ## Backups
 
 O sistema permite criar backups manuais do arquivo de dados local e restaurar um backup pela interface. Antes de restaurar, a aplicação cria automaticamente um backup `pre-restore` dos dados atuais.

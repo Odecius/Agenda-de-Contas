@@ -14,6 +14,14 @@
 
 **Impacto:** O publish para HP usa runtime `linux-x64`. O publish Raspberry permanece documentado como `linux-arm64`.
 
+## 2026-07-16 - Horario do lembrete configuravel pela interface
+
+**Decisao:** Persistir o horario do lembrete diario em `settings.json`, na mesma pasta persistente de `contas.json`, e expor rotas protegidas para leitura e atualizacao pela interface.
+
+**Motivo:** O usuario precisa alterar o horario sem editar arquivos de configuracao, reiniciar a aplicacao ou tocar em segredos. Manter esse dado no volume persistente tambem preserva o comportamento no Docker.
+
+**Impacto:** `Reminder:Hour`, `Reminder:Minute` e `Reminder:TimeZoneId` continuam sendo defaults iniciais. Depois que o horario e salvo pela interface, o Hosted Service passa a ler a configuracao persistida.
+
 ## 2026-07-09 - Usar .NET 8 com Minimal API
 
 **Descrição:** O backend usa ASP.NET Core Minimal API em `Program.cs`.

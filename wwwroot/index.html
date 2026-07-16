@@ -81,6 +81,23 @@
       <div id="regionalSummary" class="regional-grid"></div>
     </section>
 
+    <section class="panel reminder-panel" aria-label="Configuracao do lembrete diario">
+      <div class="section-title row">
+        <div>
+          <h2>Lembrete diario</h2>
+          <span id="reminderCaption" class="section-note">Carregando horario...</span>
+        </div>
+      </div>
+      <form id="reminderForm" class="reminder-form">
+        <label>
+          Horario de envio
+          <input id="reminderTime" type="time" required>
+        </label>
+        <button type="submit" class="primary">Guardar horario</button>
+      </form>
+      <p class="hint">O envio acontece uma vez por dia no horario configurado, usando o fuso horario apresentado acima.</p>
+    </section>
+
     <section class="workspace">
       <aside class="panel form-panel">
         <div class="section-title">

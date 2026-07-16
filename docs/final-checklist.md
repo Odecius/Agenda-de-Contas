@@ -32,6 +32,7 @@ http://localhost:5005/health
 - Confirmar `Data__FilePath=/var/lib/agendador-contas/contas.json`.
 - Confirmar `Backup__AutomaticEnabled=true` se quiser backup automatico.
 - Confirmar timezone final em `Reminder__TimeZoneId` e `Backup__TimeZoneId`.
+- Confirmar na interface o horario desejado do lembrete diario.
 
 ## Pontos que dependem do servidor HP Linux
 
@@ -41,6 +42,7 @@ http://localhost:5005/health
 - Confirmar acesso pela rede local a partir de outro aparelho.
 - Confirmar login em producao.
 - Confirmar envio Telegram em producao.
+- Confirmar que alterar o horario do lembrete cria/atualiza `/var/lib/agendador-contas/settings.json`.
 - Confirmar criacao de backup automatico em `/var/lib/agendador-contas/backups`.
 - Confirmar reinicio automatico via `systemd`.
 
@@ -51,6 +53,7 @@ http://localhost:5005/health
 - Confirmar acesso pela rede local a partir de outro aparelho.
 - Confirmar login em producao.
 - Confirmar envio Telegram em producao.
+- Confirmar que alterar o horario do lembrete cria/atualiza `/var/lib/agendador-contas/settings.json`.
 - Confirmar criacao de backup automatico em `/var/lib/agendador-contas/backups`.
 - Confirmar reinicio automatico via `systemd`.
 

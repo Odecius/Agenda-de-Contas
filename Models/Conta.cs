@@ -61,3 +61,17 @@ public sealed class ContaCreateRequest
     public int DuracaoMeses { get; set; }
     public string? Observacoes { get; set; }
 }
+
+public sealed class ReminderSettings
+{
+    public int Hour { get; set; } = 8;
+    public int Minute { get; set; }
+    public string TimeZoneId { get; set; } = "Europe/London";
+}
+
+public sealed class ReminderSettingsUpdateRequest
+{
+    public int Hour { get; set; }
+    public int Minute { get; set; }
+    public string? TimeZoneId { get; set; }
+}

@@ -2,6 +2,11 @@
 
 ## 2026-07-16
 
+- Adicionada configuracao do horario do lembrete diario pela interface.
+- Criado `ReminderSettingsStore` para persistir o horario em `settings.json`, ao lado de `contas.json`.
+- Criadas rotas protegidas `/api/settings/reminder` para consultar e atualizar hora/minuto do envio diario.
+- Atualizado `DailyReminderService` para ler o horario configurado dinamicamente sem reiniciar a aplicacao.
+- Adicionados testes automatizados para defaults, persistencia e validacao do horario do lembrete.
 - Criado guia `docs/deployment-hp-linux.md` para deploy em servidor HP Linux x64.
 - Atualizados README, checklist final, roadmap, TODO, decisions e notas de IA para registrar o servidor HP como alvo imediato de homologacao.
 - Mantido deploy Raspberry Pi como caminho futuro separado, usando `linux-arm64`.

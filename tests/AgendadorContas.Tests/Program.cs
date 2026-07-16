@@ -14,6 +14,8 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Backup restaura estado anterior", BackupRestoreRevertsDataAsync),
     ("Retencao remove apenas backups automaticos antigos", BackupRetentionRemovesOnlyOldAutomaticBackupsAsync),
     ("Lembrete agrupa totais por moeda", ReminderGroupsTotalsByCurrency),
+    ("Configuracao do lembrete usa padroes", ReminderSettingsUsesDefaultsAsync),
+    ("Configuracao do lembrete salva e valida horario", ReminderSettingsPersistsAndValidatesAsync),
     ("Protecao mantem apenas rotas anonimas esperadas", AccessProtectionAnonymousPathsAreLimited),
     ("Protecao ativa exige senha configurada", AccessProtectionRequiresPasswordWhenEnabled)
 };
@@ -206,6 +208,45 @@ static Task ReminderGroupsTotalsByCurrency()
     return Task.CompletedTask;
 }
 
+static async Task ReminderSettingsUsesDefaultsAsync()
+{
+    using var scope = new TestScope();
+    var store = scope.CreateReminderSettingsStore(hour: 7, minute: 45, timeZoneId: "Europe/London");
+
+    var settings = await store.GetAsync();
+
+    AssertEqual(7, settings.Hour, "Hora padrao do lembrete incorreta.");
+    AssertEqual(45, settings.Minute, "Minuto padrao do lembrete incorreto.");
+    AssertEqual("Europe/London", settings.TimeZoneId, "Fuso horario padrao do lembrete incorreto.");
+}
+
+static async Task ReminderSettingsPersistsAndValidatesAsync()
+{
+    using var scope = new TestScope();
+    var store = scope.CreateReminderSettingsStore();
+
+    var saved = await store.UpdateAsync(new ReminderSettingsUpdateRequest
+    {
+        Hour = 12,
+        Minute = 30,
+        TimeZoneId = "Europe/London"
+    });
+    var loaded = await store.GetAsync();
+
+    AssertEqual(12, saved.Hour, "Hora salva incorreta.");
+    AssertEqual(30, loaded.Minute, "Minuto persistido incorreto.");
+    AssertEqual("Europe/London", loaded.TimeZoneId, "Fuso horario persistido incorreto.");
+
+    try
+    {
+        await store.UpdateAsync(new ReminderSettingsUpdateRequest { Hour = 24, Minute = 0 });
+        throw new InvalidOperationException("Horario invalido deveria falhar validacao.");
+    }
+    catch (ArgumentException)
+    {
+    }
+}
+
 static Task AccessProtectionAnonymousPathsAreLimited()
 {
     AssertTrue(AccessProtectionMiddlewareExtensions.IsAnonymousPath("/health"), "Health check deveria ser anonimo.");
@@ -279,6 +320,22 @@ internal sealed class TestScope : IDisposable
             .Build();
 
         return new ContaStore(configuration, new FakeWebHostEnvironment(_rootPath), NullLogger<ContaStore>.Instance);
+    }
+
+    public ReminderSettingsStore CreateReminderSettingsStore(int hour = 8, int minute = 0, string timeZoneId = "Europe/London")
+    {
+        var dataPath = Path.Combine(_rootPath, "contas.json");
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Data:FilePath"] = dataPath,
+                ["Reminder:Hour"] = hour.ToString(),
+                ["Reminder:Minute"] = minute.ToString(),
+                ["Reminder:TimeZoneId"] = timeZoneId
+            })
+            .Build();
+
+        return new ReminderSettingsStore(configuration, new FakeWebHostEnvironment(_rootPath));
     }
 
     public void Dispose()

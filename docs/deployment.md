@@ -12,6 +12,7 @@ Este guia prepara o Agendador de Contas para rodar 24/7 em Raspberry Pi usando .
 - Usuario Linux dedicado chamado `agendador`.
 - Aplicacao instalada em `/opt/agendador-contas`.
 - Dados locais salvos em `/var/lib/agendador-contas/contas.json`.
+- Configuracao operacional salva em `/var/lib/agendador-contas/settings.json`.
 - Segredos em `/etc/agendador-contas/agendador-contas.env`, fora do Git.
 
 ## Publicar no computador de desenvolvimento
@@ -151,6 +152,12 @@ Backups manuais criados pela interface, backups automaticos e backups `pre-resto
 
 ```text
 /var/lib/agendador-contas/backups/
+```
+
+O horario salvo pela interface fica em:
+
+```text
+/var/lib/agendador-contas/settings.json
 ```
 
 Para ativar backup automatico no Raspberry, configure no arquivo de ambiente:

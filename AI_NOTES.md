@@ -10,6 +10,8 @@ A interface possui resumo por pais e moeda baseado nos vencimentos do mes seleci
 
 A exportacao CSV mensal e feita no navegador a partir de `state.vencimentos`. Ela nao chama endpoint proprio e nao faz conversao cambial.
 
+O horario do lembrete diario pode ser alterado pela interface. `ReminderSettingsStore` usa os defaults de `Reminder` quando `settings.json` ainda nao existe e persiste alteracoes em `settings.json` ao lado de `contas.json`.
+
 ## Fluxo do sistema
 
 1. Usuário acessa a interface em `wwwroot/index.html`.
@@ -28,6 +30,7 @@ A exportacao CSV mensal e feita no navegador a partir de `state.vencimentos`. El
 - Contas antigas sem `country` e `currency` assumem `UnitedKingdom` e `GBP`.
 - Protecao de acesso por cookie existe, mas deve ser ativada por configuracao `AccessProtection` em producao.
 - Backups manuais, automaticos e `pre-restore` ficam em uma pasta `backups` ao lado do arquivo `Data:FilePath`.
+- A configuracao operacional `settings.json` tambem fica ao lado de `Data:FilePath` e deve permanecer no volume persistente.
 - Retencao automatica remove apenas `contas.auto.*.json`; nao remover backups manuais nem `pre-restore`.
 - `/health` e anonimo e deve continuar sem dados sensiveis.
 - Cabeçalhos HTTP de seguranca sao aplicados por `UseSecurityHeaders`.
@@ -40,6 +43,7 @@ A exportacao CSV mensal e feita no navegador a partir de `state.vencimentos`. El
 - `Program.cs`
 - `Models/Conta.cs`
 - `Services/ContaStore.cs`
+- `Services/ReminderSettingsStore.cs`
 - `Services/DailyReminderService.cs`
 - `Services/AutomaticBackupService.cs`
 - `Services/SecurityHeadersMiddlewareExtensions.cs`
