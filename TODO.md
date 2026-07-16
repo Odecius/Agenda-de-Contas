@@ -3,14 +3,17 @@
 ## Alta prioridade
 
 - Remover token/chat id de `notas.txt` e limpar histórico Git se o segredo já tiver sido versionado.
+- Validar deploy real no servidor HP Linux.
 - Validar deploy real em Raspberry Pi quando o hardware estiver disponivel.
-- Validar login em Raspberry Pi real antes de expor o sistema em rede.
+- Validar login no servidor HP Linux antes de expor o sistema em rede.
 
 ## Média prioridade
 
+- Migrar a branch remota principal de `master` para `main` em manutencao Git coordenada.
 - Avaliar conversao cambial futura com API externa.
 - Melhorar relatorios por moeda e pais.
 - Expandir testes automatizados para endpoints completos com servidor em memoria.
+- Avaliar HTTPS/reverse proxy apos validacao em rede local.
 
 ## Baixa prioridade
 

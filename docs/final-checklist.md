@@ -2,7 +2,7 @@
 
 ## Estado do projeto
 
-O Agendador de Contas esta pronto para uso local e preparado para deploy futuro em Raspberry Pi. A validacao em hardware real continua pendente porque o Raspberry ainda nao esta disponivel.
+O Agendador de Contas esta pronto para uso local e preparado para deploy em Linux. O alvo imediato e o servidor HP Linux x64; Raspberry Pi continua como alvo futuro quando o hardware estiver disponivel.
 
 ## Validacao local
 
@@ -33,7 +33,18 @@ http://localhost:5005/health
 - Confirmar `Backup__AutomaticEnabled=true` se quiser backup automatico.
 - Confirmar timezone final em `Reminder__TimeZoneId` e `Backup__TimeZoneId`.
 
-## Pontos que dependem do Raspberry
+## Pontos que dependem do servidor HP Linux
+
+- Confirmar arquitetura com `uname -m`; normalmente `x86_64`.
+- Publicar com `linux-x64`.
+- Confirmar .NET Runtime 8 instalado.
+- Confirmar acesso pela rede local a partir de outro aparelho.
+- Confirmar login em producao.
+- Confirmar envio Telegram em producao.
+- Confirmar criacao de backup automatico em `/var/lib/agendador-contas/backups`.
+- Confirmar reinicio automatico via `systemd`.
+
+## Pontos futuros que dependem do Raspberry
 
 - Confirmar arquitetura `linux-arm64` ou `linux-arm`.
 - Confirmar .NET Runtime 8 instalado.

@@ -1,5 +1,11 @@
 ﻿# CHANGELOG
 
+## 2026-07-16
+
+- Criado guia `docs/deployment-hp-linux.md` para deploy em servidor HP Linux x64.
+- Atualizados README, checklist final, roadmap, TODO, decisions e notas de IA para registrar o servidor HP como alvo imediato de homologacao.
+- Mantido deploy Raspberry Pi como caminho futuro separado, usando `linux-arm64`.
+
 ## 2026-07-09
 
 - Adicionado rate limiting ao endpoint `/api/auth/login`.

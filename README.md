@@ -4,7 +4,7 @@ Aplicação web em .NET 8 para cadastrar contas, acompanhar vencimentos mensais,
 
 ## Objetivo do projeto
 
-Controlar contas recorrentes ou com duração definida, mostrando vencimentos por mês e enviando alertas automáticos para evitar atrasos. O projeto foi pensado para rodar localmente e, futuramente, 24/7 em Raspberry Pi.
+Controlar contas recorrentes ou com duração definida, mostrando vencimentos por mês e enviando alertas automáticos para evitar atrasos. O projeto foi pensado para rodar localmente e 24/7 em Linux, começando pelo servidor HP antigo e mantendo Raspberry Pi como caminho futuro.
 
 ## Tecnologias utilizadas
 
@@ -61,15 +61,21 @@ Depois acesse `http://localhost:5005/test-telegram`.
 
 ## Como fazer deploy
 
-O caminho planejado e publicar para Linux/Raspberry Pi:
+Para o servidor HP Linux x64:
+
+```powershell
+dotnet publish -c Release -r linux-x64 --self-contained false -o "..\publish\agendador-contas-linux-x64"
+```
+
+Para Raspberry Pi 64-bit:
 
 ```powershell
 dotnet publish -c Release -r linux-arm64 --self-contained false -o "..\publish\agendador-contas-linux-arm64"
 ```
 
-No Raspberry, rodar com `systemd`, variaveis de ambiente e `ASPNETCORE_ENVIRONMENT=Production`.
+Em Linux, rodar com `systemd`, variaveis de ambiente e `ASPNETCORE_ENVIRONMENT=Production`.
 
-Consulte o guia completo em `docs/deployment.md`. A pasta `deploy/` contem modelos de `systemd` e arquivo de ambiente sem segredos reais.
+Consulte `docs/deployment-hp-linux.md` para o servidor HP e `docs/deployment.md` para Raspberry Pi. A pasta `deploy/` contem modelos de `systemd` e arquivo de ambiente sem segredos reais.
 
 O endpoint `/health` pode ser usado para confirmar rapidamente se a aplicacao esta respondendo.
 
@@ -77,7 +83,7 @@ Para fechamento e preparação de produção, consulte `docs/final-checklist.md`
 
 ## Status atual
 
-Aplicação funcional com cadastro, listagem, edição, exclusão, pausa/reativação, vencimentos, marcação de pagamentos, backups manuais e automáticos, interface responsiva, resumo mensal, dashboard por país/moeda, exportação CSV mensal, suporte inicial a país/moeda por conta e envio Telegram. Não há banco externo. O deploy Raspberry esta documentado e preparado com modelos de apoio, mas ainda precisa ser validado em hardware real.
+Aplicação funcional com cadastro, listagem, edição, exclusão, pausa/reativação, vencimentos, marcação de pagamentos, backups manuais e automáticos, interface responsiva, resumo mensal, dashboard por país/moeda, exportação CSV mensal, suporte inicial a país/moeda por conta e envio Telegram. Não há banco externo. O deploy Linux esta documentado para servidor HP x64 e Raspberry Pi, mas ainda precisa ser validado em hardware real.
 
 ## Backups
 
@@ -105,7 +111,8 @@ A tela de vencimentos permite exportar um CSV do mes selecionado. O arquivo incl
 
 ## Próximos passos
 
-- Validar deploy real em Raspberry Pi.
+- Validar deploy real no servidor HP Linux.
+- Validar deploy real em Raspberry Pi quando o hardware estiver disponivel.
 - Avaliar conversao cambial futura com API externa.
 - Melhorar relatorios por moeda e pais.
 

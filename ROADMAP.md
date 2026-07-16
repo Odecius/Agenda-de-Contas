@@ -123,3 +123,10 @@
 - Aplicar limite de tentativas em `/api/auth/login`.
 - Retornar HTTP 429 quando o limite for excedido.
 - Reduzir risco de tentativa automatizada de senha.
+
+## Sprint 29 - Deploy HP Linux
+
+- Preparar runbook especifico para servidor HP Linux x64.
+- Validar publish `linux-x64`.
+- Reusar modelos de `systemd` e variaveis de ambiente sem segredos reais.
+- Deixar deploy real pendente de acesso SSH, .NET Runtime 8 e configuracao do ambiente no servidor.

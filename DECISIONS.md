@@ -1,5 +1,19 @@
 ﻿# DECISIONS
 
+## 2026-07-15 - Branch principal remota
+
+**Decisao:** Manter temporariamente `master` porque o repositorio remoto ainda publica `origin/master`.
+
+**Motivo:** O Standard recomenda `main`, mas a troca exige coordenar a branch remota e a branch padrao no GitHub. Renomear apenas localmente quebraria o fluxo atual.
+
+## 2026-07-16 - Servidor HP Linux como homologacao
+
+**Decisao:** Preparar o deploy imediato para um servidor HP Linux x64 usando o mesmo modelo de `systemd`, variaveis de ambiente e dados em `/var/lib/agendador-contas`.
+
+**Motivo:** O Raspberry Pi ainda nao esta disponivel, mas o servidor HP permite validar operacao 24/7, login, Telegram, backups, logs e reinicio automatico antes da migracao futura.
+
+**Impacto:** O publish para HP usa runtime `linux-x64`. O publish Raspberry permanece documentado como `linux-arm64`.
+
 ## 2026-07-09 - Usar .NET 8 com Minimal API
 
 **Descrição:** O backend usa ASP.NET Core Minimal API em `Program.cs`.
