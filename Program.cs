@@ -98,14 +98,11 @@ app.UseAccessProtection();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
-app.MapGet("/health", (IHostEnvironment environment) =>
+app.MapGet("/health", () =>
 {
     return Results.Ok(new
     {
-        status = "ok",
-        application = "AgendadorContas",
-        environment = environment.EnvironmentName,
-        checkedAtUtc = DateTimeOffset.UtcNow
+        status = "ok"
     });
 });
 

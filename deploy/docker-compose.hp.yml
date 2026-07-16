@@ -1,0 +1,32 @@
+name: agendador-contas
+
+services:
+  agendador-contas:
+    container_name: agendador-contas
+    image: agendador-contas:hp
+    build:
+      context: ${AGENDADOR_APP_DIR:-/srv/apps/agendador}
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ${AGENDADOR_ENV_FILE:-/srv/stacks/apps/agendador/agendador.env}
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://0.0.0.0:5005
+      Data__FilePath: /var/lib/agendador-contas/contas.json
+    volumes:
+      - /srv/data/apps/agendador:/var/lib/agendador-contas
+    ports:
+      - "127.0.0.1:5005:5005"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "--show-error", "http://127.0.0.1:5005/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true

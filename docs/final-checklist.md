@@ -2,7 +2,7 @@
 
 ## Estado do projeto
 
-O Agendador de Contas esta pronto para uso local e preparado para deploy em Linux. O alvo imediato e o servidor HP Linux x64; Raspberry Pi continua como alvo futuro quando o hardware estiver disponivel.
+O Agendador de Contas esta pronto para uso local e preparado para deploy Docker em Linux. O alvo imediato e o servidor HP Linux x64 com Docker Compose; Raspberry Pi continua como alvo futuro quando o hardware estiver disponivel.
 
 ## Validacao local
 
@@ -37,14 +37,17 @@ http://localhost:5005/health
 ## Pontos que dependem do servidor HP Linux
 
 - Confirmar arquitetura com `uname -m`; normalmente `x86_64`.
-- Publicar com `linux-x64`.
-- Confirmar .NET Runtime 8 instalado.
+- Confirmar Docker e Docker Compose instalados.
+- Confirmar rede Docker externa `proxy`.
+- Confirmar codigo em `/srv/apps/agendador`.
+- Confirmar dados em `/srv/data/apps/agendador`.
+- Confirmar compose e `.env` real em `/srv/stacks/apps/agendador`.
 - Confirmar acesso pela rede local a partir de outro aparelho.
 - Confirmar login em producao.
 - Confirmar envio Telegram em producao.
-- Confirmar que alterar o horario do lembrete cria/atualiza `/var/lib/agendador-contas/settings.json`.
-- Confirmar criacao de backup automatico em `/var/lib/agendador-contas/backups`.
-- Confirmar reinicio automatico via `systemd`.
+- Confirmar que alterar o horario do lembrete cria/atualiza `/srv/data/apps/agendador/settings.json`.
+- Confirmar criacao de backup automatico em `/srv/data/apps/agendador/backups`.
+- Confirmar reinicio automatico via `restart: unless-stopped`.
 
 ## Pontos futuros que dependem do Raspberry
 

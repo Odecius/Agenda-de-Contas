@@ -1,128 +1,148 @@
-# Deployment HP Linux
+# Deployment HP Linux com Docker
 
-Este guia prepara o Agendador de Contas para rodar 24/7 no servidor HP Linux antigo, usando .NET 8, variaveis de ambiente e `systemd`.
+Este guia prepara o Agendador de Contas para rodar 24/7 no HP Pavilion com Ubuntu Server 24.04 LTS usando Docker Compose, Nginx Proxy Manager e dados persistentes fora do container.
 
-> Status: preparado para validacao no servidor HP. O deploy real ainda depende de acesso ao servidor, instalacao do .NET Runtime 8 e configuracao das variaveis de ambiente reais.
+> Status: preparado para validacao no servidor HP. Este guia nao contem segredos reais e nao substitui a configuracao do arquivo `.env` real no servidor.
 
-## Premissas
+## Metodo recomendado
 
-- Servidor HP com Linux 64-bit x64.
-- Acesso SSH ao servidor.
-- .NET Runtime 8 instalado no servidor.
-- Usuario Linux dedicado chamado `agendador`.
-- Aplicacao instalada em `/opt/agendador-contas`.
-- Dados locais salvos em `/var/lib/agendador-contas/contas.json`.
-- Segredos em `/etc/agendador-contas/agendador-contas.env`, fora do Git.
-- Acesso inicial apenas pela rede local.
+Para o servidor HP, o metodo recomendado e Docker Compose.
 
-## Confirmar arquitetura do servidor
+O deploy via `systemd` continua preservado como alternativa em `docs/deployment.md` e `deploy/agendador-contas.service`.
 
-No servidor HP:
-
-```bash
-uname -m
-```
-
-Valores esperados:
-
-- `x86_64`: usar publish `linux-x64`.
-- `aarch64`: usar publish `linux-arm64`.
-
-Para o laptop HP antigo, o mais provavel e `x86_64`.
-
-## Publicar no computador de desenvolvimento
-
-No Windows, dentro do projeto:
-
-```powershell
-cd "C:\Projetos\Abc\Agendador de contas"
-dotnet publish -c Release -r linux-x64 --self-contained false -o "..\publish\agendador-contas-linux-x64"
-```
-
-Esse comando gera uma publicacao dependente do runtime. Portanto, o servidor precisa ter o .NET Runtime 8 instalado.
-
-## Preparar o servidor HP
-
-No servidor:
-
-```bash
-sudo adduser --system --group --home /opt/agendador-contas agendador
-sudo mkdir -p /opt/agendador-contas
-sudo mkdir -p /var/lib/agendador-contas
-sudo mkdir -p /etc/agendador-contas
-sudo chown -R agendador:agendador /opt/agendador-contas /var/lib/agendador-contas
-sudo chmod 750 /etc/agendador-contas
-```
-
-## Copiar arquivos publicados
-
-No Windows, ajuste `USUARIO` e `IP_DO_SERVIDOR_HP`:
-
-```powershell
-scp -r "..\publish\agendador-contas-linux-x64\*" USUARIO@IP_DO_SERVIDOR_HP:/tmp/agendador-contas/
-scp "deploy\agendador-contas.service" USUARIO@IP_DO_SERVIDOR_HP:/tmp/agendador-contas.service
-```
-
-No servidor:
-
-```bash
-sudo rsync -a --delete /tmp/agendador-contas/ /opt/agendador-contas/
-sudo chown -R agendador:agendador /opt/agendador-contas
-sudo cp /tmp/agendador-contas.service /etc/systemd/system/agendador-contas.service
-```
-
-## Configurar ambiente sem segredos no Git
-
-Use `deploy/agendador-contas.env.example` como referencia. Crie o arquivo real no servidor:
-
-```bash
-sudo nano /etc/agendador-contas/agendador-contas.env
-sudo chown root:agendador /etc/agendador-contas/agendador-contas.env
-sudo chmod 640 /etc/agendador-contas/agendador-contas.env
-```
-
-Exemplo:
+## Layout no servidor
 
 ```text
-ASPNETCORE_ENVIRONMENT=Production
-ASPNETCORE_URLS=http://0.0.0.0:5005
-
-Data__FilePath=/var/lib/agendador-contas/contas.json
-
-AccessProtection__Enabled=true
-AccessProtection__Username=admin
-AccessProtection__Password=SENHA_FORTE
-AccessProtection__SessionHours=12
-
-Reminder__Hour=8
-Reminder__Minute=0
-Reminder__TimeZoneId=Europe/London
-
-Backup__AutomaticEnabled=true
-Backup__Hour=2
-Backup__Minute=0
-Backup__TimeZoneId=Europe/London
-Backup__RetentionDays=30
-Backup__MinimumBackupsToKeep=10
-Backup__RunOnStartup=false
-
-Telegram__Enabled=true
-Telegram__BotToken=SEU_TOKEN
-Telegram__ChatId=SEU_CHAT_ID
-Telegram__ApiBaseUrl=https://api.telegram.org
+/srv/apps/agendador              # Codigo fonte do projeto
+/srv/data/apps/agendador         # Dados persistentes montados no container
+/srv/stacks/apps/agendador       # Compose e arquivo .env real
 ```
 
-Nunca commitar o arquivo real de ambiente.
+Dentro do container, a aplicacao usa:
 
-## Instalar e iniciar o servico
+```text
+/var/lib/agendador-contas/contas.json
+/var/lib/agendador-contas/settings.json
+/var/lib/agendador-contas/backups/
+```
+
+O volume Docker mapeia:
+
+```text
+/srv/data/apps/agendador:/var/lib/agendador-contas
+```
+
+Esse volume preserva contas, horario configurado do lembrete diario e backups.
+
+## Rede Docker
+
+O servidor ja possui uma rede externa chamada `proxy`, usada pelo Nginx Proxy Manager.
+
+O compose usa essa rede:
+
+```yaml
+networks:
+  proxy:
+    external: true
+```
+
+Isso permite que o Nginx Proxy Manager alcance o container pelo nome:
+
+```text
+agendador-contas:5005
+```
+
+## Arquivos preparados no repositorio
+
+- `Dockerfile`: build multi-stage com SDK apenas na fase de build e `aspnet:8.0` na fase final. A imagem final instala `curl` exclusivamente para o healthcheck do container e continua executando a aplicacao como usuario nao-root.
+- `.dockerignore`: exclui Git, binarios, dados locais, `.env`, User Secrets, notas locais e arquivos temporarios.
+- `deploy/docker-compose.hp.yml`: compose recomendado para o HP, incluindo healthcheck em `/health`.
+- `deploy/agendador-contas.docker.env.example`: exemplo de ambiente sem segredos reais.
+- `deploy/agendador-contas.service`: alternativa systemd preservada.
+- `deploy/agendador-contas.env.example`: alternativa systemd preservada.
+
+## Preparar diretorios no servidor
+
+No HP:
+
+```bash
+sudo mkdir -p /srv/apps/agendador
+sudo mkdir -p /srv/data/apps/agendador
+sudo mkdir -p /srv/stacks/apps/agendador
+```
+
+Como o container roda como usuario nao-root da imagem oficial .NET, ajuste a permissao do diretorio de dados para o UID/GID do usuario `app` da imagem:
+
+```bash
+sudo chown -R 1654:1654 /srv/data/apps/agendador
+sudo chmod 750 /srv/data/apps/agendador
+```
+
+## Copiar arquivos para o servidor
+
+O codigo deve ficar em:
+
+```text
+/srv/apps/agendador
+```
+
+O compose deve ficar em:
+
+```text
+/srv/stacks/apps/agendador/docker-compose.yml
+```
+
+Exemplo a partir do Windows:
+
+```powershell
+scp -r "C:\Projetos\Abc\Agendador de contas\*" USUARIO@IP_DO_SERVIDOR_HP:/srv/apps/agendador/
+scp "C:\Projetos\Abc\Agendador de contas\deploy\docker-compose.hp.yml" USUARIO@IP_DO_SERVIDOR_HP:/srv/stacks/apps/agendador/docker-compose.yml
+scp "C:\Projetos\Abc\Agendador de contas\deploy\agendador-contas.docker.env.example" USUARIO@IP_DO_SERVIDOR_HP:/srv/stacks/apps/agendador/agendador.env.example
+```
+
+Nao copie `NOTAS.txt`, `.env`, `data/`, `bin/` ou `obj/` para compartilhamento publico.
+
+## Criar arquivo de ambiente real
 
 No servidor:
 
 ```bash
-sudo systemctl daemon-reload
-sudo systemctl enable agendador-contas
-sudo systemctl start agendador-contas
-sudo systemctl status agendador-contas
+cd /srv/stacks/apps/agendador
+cp agendador.env.example agendador.env
+nano agendador.env
+chmod 600 agendador.env
+```
+
+Preencha no arquivo real:
+
+```text
+AccessProtection__Username=...
+AccessProtection__Password=...
+Telegram__BotToken=...
+Telegram__ChatId=...
+```
+
+Nunca commitar nem enviar o arquivo `agendador.env` para GitHub.
+
+Tambem nao use `appsettings.Production.json` para segredos reais. Configuracoes sensiveis devem ficar no arquivo `.env` real do servidor ou em variaveis de ambiente, nunca no Git.
+
+## Validar compose
+
+No servidor:
+
+```bash
+cd /srv/stacks/apps/agendador
+docker compose config
+```
+
+## Build e subida
+
+No servidor:
+
+```bash
+cd /srv/stacks/apps/agendador
+docker compose build
+docker compose up -d
 ```
 
 ## Verificar funcionamento
@@ -130,41 +150,70 @@ sudo systemctl status agendador-contas
 No servidor:
 
 ```bash
-curl http://localhost:5005/health
-curl -I http://localhost:5005/
-journalctl -u agendador-contas -n 80 --no-pager
+docker compose ps
+docker compose logs -f agendador-contas
+curl http://127.0.0.1:5005/health
 ```
 
-De outro aparelho na mesma rede:
+O container tambem possui healthcheck interno configurado para chamar:
 
 ```text
-http://IP_DO_SERVIDOR_HP:5005
+http://127.0.0.1:5005/health
 ```
+
+Esse endpoint retorna apenas `{"status":"ok"}` e nao deve expor dados sensiveis.
+
+De outro container na rede `proxy`, o alvo interno e:
+
+```text
+http://agendador-contas:5005
+```
+
+## Porta local
+
+O compose publica a porta apenas no loopback do servidor:
+
+```yaml
+ports:
+  - "127.0.0.1:5005:5005"
+```
+
+Isso permite teste local no servidor sem expor diretamente a porta `5005` na rede publica. Para acesso externo, use Nginx Proxy Manager na rede `proxy`.
+
+## Nginx Proxy Manager
+
+No Nginx Proxy Manager, configure o Proxy Host apontando para:
+
+```text
+Scheme: http
+Forward Hostname / IP: agendador-contas
+Forward Port: 5005
+```
+
+Ative SSL/HTTPS antes de expor fora da rede local.
 
 ## Atualizar uma versao futura
 
-1. Publicar novamente no Windows.
-2. Copiar os arquivos para `/tmp/agendador-contas/`.
-3. Parar o servico.
-4. Sincronizar `/opt/agendador-contas`.
-5. Iniciar e validar.
+No servidor:
 
 ```bash
-sudo systemctl stop agendador-contas
-sudo rsync -a --delete /tmp/agendador-contas/ /opt/agendador-contas/
-sudo chown -R agendador:agendador /opt/agendador-contas
-sudo systemctl start agendador-contas
-sudo systemctl status agendador-contas
-curl http://localhost:5005/health
+cd /srv/apps/agendador
+git pull
+
+cd /srv/stacks/apps/agendador
+docker compose build
+docker compose up -d
+docker compose logs -n 80 agendador-contas
+curl http://127.0.0.1:5005/health
 ```
 
 ## Checklist antes de expor fora da rede local
 
-- Confirmar login ativo com `AccessProtection__Enabled=true`.
-- Confirmar senha forte no arquivo de ambiente.
+- Confirmar `AccessProtection__Enabled=true`.
+- Confirmar senha forte no arquivo `/srv/stacks/apps/agendador/agendador.env`.
 - Confirmar Telegram funcionando em `Production`.
-- Confirmar backup automatico criando arquivos em `/var/lib/agendador-contas/backups`.
-- Confirmar reinicio automatico apos reboot.
-- Confirmar firewall local.
-- Configurar HTTPS e reverse proxy antes de acesso pela internet.
-- Evitar expor a porta `5005` diretamente na internet.
+- Confirmar backup automatico criando arquivos em `/srv/data/apps/agendador/backups`.
+- Confirmar que `docker compose ps` mostra o container em execucao.
+- Confirmar que `/health` retorna apenas status operacional minimo.
+- Configurar HTTPS no Nginx Proxy Manager.
+- Evitar expor `0.0.0.0:5005` diretamente no servidor.

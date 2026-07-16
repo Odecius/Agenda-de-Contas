@@ -3,9 +3,11 @@
 ## Alta prioridade
 
 - Remover token/chat id de `notas.txt` e limpar histórico Git se o segredo já tiver sido versionado.
-- Validar deploy real no servidor HP Linux.
+- Validar deploy Docker real no servidor HP Linux.
+- Configurar arquivo real `/srv/stacks/apps/agendador/agendador.env` diretamente no servidor, sem enviar ao Git.
 - Validar deploy real em Raspberry Pi quando o hardware estiver disponivel.
 - Validar login no servidor HP Linux antes de expor o sistema em rede.
+- Validar no servidor HP que a alteracao do horario do lembrete grava `settings.json` no volume persistente.
 
 ## Média prioridade
 
@@ -14,6 +16,7 @@
 - Melhorar relatorios por moeda e pais.
 - Expandir testes automatizados para endpoints completos com servidor em memoria.
 - Avaliar HTTPS/reverse proxy apos validacao em rede local.
+- Validar Nginx Proxy Manager apontando para `agendador-contas:5005` na rede `proxy`.
 
 ## Baixa prioridade
 
@@ -36,8 +39,9 @@
 - Exportacao CSV mensal de vencimentos.
 - Backup automatico configuravel e retencao segura de backups automaticos.
 - Endpoint `/health` para verificacao operacional.
-- Horario do lembrete diario configuravel pela interface.
 - Checklist final em `docs/final-checklist.md`.
+- Dockerfile e Docker Compose preparados para HP Linux.
+- Horario do lembrete diario configuravel pela interface.
 - Testes automatizados basicos para protecao de acesso.
 - Cabeçalhos HTTP basicos de seguranca.
 - Tela principal sem handlers `onclick` inline.

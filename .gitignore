@@ -3,13 +3,17 @@ appsettings.Development.json
 appsettings.Local.json
 appsettings.*.local.json
 appsettings.*.Local.json
+appsettings.Production.json
+appsettings.Production.local.json
 
 .env
 .env.*
+*.env
 *.secret.json
 secrets.json
 usersecrets.json
 notas.txt
+NOTAS.txt
 
 # Dados locais da aplicacao
 data/

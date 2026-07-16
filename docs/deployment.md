@@ -3,7 +3,7 @@
 Este guia prepara o Agendador de Contas para rodar 24/7 em Raspberry Pi usando .NET 8, variaveis de ambiente e `systemd`.
 
 > Status: ainda nao validado em Raspberry real. Os comandos abaixo foram preparados para uso futuro e precisam ser confirmados no hardware quando ele estiver disponivel.
-> Para o servidor HP Linux x64, use `docs/deployment-hp-linux.md`.
+> Para o servidor HP Linux x64, o metodo recomendado agora e Docker Compose em `docs/deployment-hp-linux.md`.
 
 ## Premissas
 

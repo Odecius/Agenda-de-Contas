@@ -15,6 +15,7 @@ Controlar contas recorrentes ou com duração definida, mostrando vencimentos po
 - Telegram Bot API via `HttpClientFactory`.
 - Options Pattern, validação de configuração e User Secrets em desenvolvimento.
 - Protecao de acesso opcional por cookie.
+- Docker/Docker Compose para deploy recomendado no servidor HP Linux.
 
 ## Estrutura do projeto
 
@@ -61,19 +62,22 @@ Depois acesse `http://localhost:5005/test-telegram`.
 
 ## Como fazer deploy
 
-Para o servidor HP Linux x64:
+Para o servidor HP Linux x64, o metodo recomendado e Docker Compose:
 
-```powershell
-dotnet publish -c Release -r linux-x64 --self-contained false -o "..\publish\agendador-contas-linux-x64"
+```bash
+cd /srv/stacks/apps/agendador
+docker compose -f docker-compose.yml up -d --build
 ```
 
-Para Raspberry Pi 64-bit:
+O compose usa:
 
-```powershell
-dotnet publish -c Release -r linux-arm64 --self-contained false -o "..\publish\agendador-contas-linux-arm64"
-```
+- Codigo em `/srv/apps/agendador`.
+- Dados em `/srv/data/apps/agendador`.
+- Configuracao em `/srv/stacks/apps/agendador`.
+- Rede Docker externa `proxy`.
+- Porta `5005` publicada apenas em `127.0.0.1`.
 
-Em Linux, rodar com `systemd`, variaveis de ambiente e `ASPNETCORE_ENVIRONMENT=Production`.
+O deploy via `systemd` continua documentado como alternativa.
 
 Consulte `docs/deployment-hp-linux.md` para o servidor HP e `docs/deployment.md` para Raspberry Pi. A pasta `deploy/` contem modelos de `systemd` e arquivo de ambiente sem segredos reais.
 
@@ -83,7 +87,7 @@ Para fechamento e preparação de produção, consulte `docs/final-checklist.md`
 
 ## Status atual
 
-Aplicação funcional com cadastro, listagem, edição, exclusão, pausa/reativação, vencimentos, marcação de pagamentos, backups manuais e automáticos, interface responsiva, resumo mensal, dashboard por país/moeda, exportação CSV mensal, suporte inicial a país/moeda por conta e envio Telegram. Não há banco externo. O deploy Linux esta documentado para servidor HP x64 e Raspberry Pi, mas ainda precisa ser validado em hardware real.
+Aplicação funcional com cadastro, listagem, edição, exclusão, pausa/reativação, vencimentos, marcação de pagamentos, backups manuais e automáticos, interface responsiva, resumo mensal, dashboard por país/moeda, exportação CSV mensal, suporte inicial a país/moeda por conta e envio Telegram. Não há banco externo. O deploy Docker para servidor HP Linux esta preparado, mas ainda precisa ser validado no servidor real.
 
 ## Lembrete diario
 

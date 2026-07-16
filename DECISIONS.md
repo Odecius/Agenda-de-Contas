@@ -14,6 +14,14 @@
 
 **Impacto:** O publish para HP usa runtime `linux-x64`. O publish Raspberry permanece documentado como `linux-arm64`.
 
+## 2026-07-16 - Docker Compose recomendado no servidor HP
+
+**Decisao:** Usar Docker Compose como metodo recomendado para o HP Pavilion Ubuntu Server 24.04 LTS, mantendo `systemd` como alternativa documentada.
+
+**Motivo:** O servidor ja possui Docker, Docker Compose e rede externa `proxy` usada pelo Nginx Proxy Manager. Docker reduz diferencas de ambiente, evita instalar runtime .NET diretamente no host e facilita rebuild/rollback.
+
+**Impacto:** O codigo fica em `/srv/apps/agendador`, dados persistentes em `/srv/data/apps/agendador` e configuracao em `/srv/stacks/apps/agendador`. Segredos ficam em arquivo `.env` externo ao Git.
+
 ## 2026-07-16 - Horario do lembrete configuravel pela interface
 
 **Decisao:** Persistir o horario do lembrete diario em `settings.json`, na mesma pasta persistente de `contas.json`, e expor rotas protegidas para leitura e atualizacao pela interface.

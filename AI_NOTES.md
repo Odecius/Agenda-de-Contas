@@ -26,7 +26,7 @@ O horario do lembrete diario pode ser alterado pela interface. `ReminderSettings
 - `notas.txt` contém segredo histórico e precisa ser tratado.
 - JSON local precisa de backup.
 - Ha protecao opcional de acesso por cookie, ativada por configuracao `AccessProtection`.
-- Deploy Linux esta preparado em documentacao e modelos. O alvo imediato e servidor HP Linux x64; Raspberry Pi continua como alvo futuro. Ambos ainda precisam de validacao em hardware real.
+- Deploy Linux esta preparado em documentacao e modelos. O alvo imediato e servidor HP Pavilion com Ubuntu Server 24.04 LTS usando Docker Compose, rede externa `proxy`, codigo em `/srv/apps/agendador`, dados em `/srv/data/apps/agendador` e configuracao em `/srv/stacks/apps/agendador`. Raspberry Pi continua como alvo futuro.
 - Contas antigas sem `country` e `currency` assumem `UnitedKingdom` e `GBP`.
 - Protecao de acesso por cookie existe, mas deve ser ativada por configuracao `AccessProtection` em producao.
 - Backups manuais, automaticos e `pre-restore` ficam em uma pasta `backups` ao lado do arquivo `Data:FilePath`.
@@ -41,17 +41,21 @@ O horario do lembrete diario pode ser alterado pela interface. `ReminderSettings
 ## Arquivos importantes
 
 - `Program.cs`
+- `Dockerfile`
+- `.dockerignore`
 - `Models/Conta.cs`
 - `Services/ContaStore.cs`
-- `Services/ReminderSettingsStore.cs`
 - `Services/DailyReminderService.cs`
 - `Services/AutomaticBackupService.cs`
 - `Services/SecurityHeadersMiddlewareExtensions.cs`
 - `Services/TelegramNotificationService.cs`
 - `Options/TelegramOptions.cs`
 - `Options/TelegramOptionsValidator.cs`
+- `Services/ReminderSettingsStore.cs`
 - `wwwroot/app.js`
 - `wwwroot/styles.css`
+- `deploy/docker-compose.hp.yml`
+- `deploy/agendador-contas.docker.env.example`
 
 ## Boas práticas específicas
 
@@ -60,11 +64,11 @@ O horario do lembrete diario pode ser alterado pela interface. `ReminderSettings
 - Manter rota `/test-telegram` somente em `Development`.
 - Atualizar docs após alterar rotas, configuração, deploy ou regras de vencimento.
 - Preferir serviços pequenos e testáveis para regras de negócio.
-- Para deploy HP Linux x64, consultar `docs/deployment-hp-linux.md`.
+- Para deploy HP Linux x64, consultar `docs/deployment-hp-linux.md`; Docker Compose e o metodo recomendado.
 - Para deploy Raspberry, consultar `docs/deployment.md` e os modelos em `deploy/`.
 - Para fechamento operacional, consultar `docs/final-checklist.md`.
 - Para proteger acesso, configurar `AccessProtection__Enabled=true`, usuario e senha por User Secrets ou variaveis de ambiente.
 
 ## Onde continuar
 
-Próximo foco sugerido: validar no servidor HP Linux x64, ativando login, Telegram, backup automatico e systemd antes de considerar exposicao fora da rede local.
+Próximo foco sugerido: copiar codigo para `/srv/apps/agendador`, compose para `/srv/stacks/apps/agendador`, criar o `.env` real no servidor e validar `docker compose config`, `docker compose build`, `docker compose up -d` e `/health`.

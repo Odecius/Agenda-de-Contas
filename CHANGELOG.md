@@ -7,6 +7,9 @@
 - Criadas rotas protegidas `/api/settings/reminder` para consultar e atualizar hora/minuto do envio diario.
 - Atualizado `DailyReminderService` para ler o horario configurado dinamicamente sem reiniciar a aplicacao.
 - Adicionados testes automatizados para defaults, persistencia e validacao do horario do lembrete.
+- Adicionados `Dockerfile`, `.dockerignore`, `deploy/docker-compose.hp.yml` e `deploy/agendador-contas.docker.env.example` para deploy Docker seguro no HP Pavilion Ubuntu Server 24.04 LTS.
+- Atualizado `docs/deployment-hp-linux.md` para tornar Docker Compose o metodo recomendado no HP, preservando `systemd` como alternativa.
+- Configurado compose com container previsivel, `restart: unless-stopped`, volume persistente em `/srv/data/apps/agendador`, rede externa `proxy` e porta `5005` limitada a `127.0.0.1`.
 - Criado guia `docs/deployment-hp-linux.md` para deploy em servidor HP Linux x64.
 - Atualizados README, checklist final, roadmap, TODO, decisions e notas de IA para registrar o servidor HP como alvo imediato de homologacao.
 - Mantido deploy Raspberry Pi como caminho futuro separado, usando `linux-arm64`.

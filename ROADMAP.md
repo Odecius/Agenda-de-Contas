@@ -131,6 +131,15 @@
 - Reusar modelos de `systemd` e variaveis de ambiente sem segredos reais.
 - Deixar deploy real pendente de acesso SSH, .NET Runtime 8 e configuracao do ambiente no servidor.
 
+## Sprint 30 - Deploy Docker HP
+
+- Criar Dockerfile multi-stage com .NET 8.
+- Criar `.dockerignore` com exclusao de segredos, dados locais e artefatos de build.
+- Criar Docker Compose para HP usando rede externa `proxy`.
+- Montar dados persistentes em `/srv/data/apps/agendador`.
+- Usar arquivo `.env` externo em `/srv/stacks/apps/agendador`.
+- Manter porta `5005` apenas em `127.0.0.1` e acesso publico via Nginx Proxy Manager.
+
 ## Sprint 31 - Horario do lembrete pela interface
 
 - Criar configuracao persistente para o horario do lembrete diario.
