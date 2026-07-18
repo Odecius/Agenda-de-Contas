@@ -1,5 +1,11 @@
 ﻿# CHANGELOG
 
+
+## 2026-07-18
+
+- Corrigida a protecao de acesso para permitir o carregamento anonimo de `login.js` e `login.css` na tela de login.
+- Adicionados testes para garantir que somente os recursos da tela de login sejam publicos e que `app.js` continue protegido.
+
 ## 2026-07-16
 
 - Adicionada configuracao do horario do lembrete diario pela interface.

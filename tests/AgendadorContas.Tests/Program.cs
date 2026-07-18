@@ -251,7 +251,10 @@ static Task AccessProtectionAnonymousPathsAreLimited()
 {
     AssertTrue(AccessProtectionMiddlewareExtensions.IsAnonymousPath("/health"), "Health check deveria ser anonimo.");
     AssertTrue(AccessProtectionMiddlewareExtensions.IsAnonymousPath("/login.html"), "Login deveria ser anonimo.");
+    AssertTrue(AccessProtectionMiddlewareExtensions.IsAnonymousPath("/login.js"), "JavaScript do login deveria ser anonimo.");
+    AssertTrue(AccessProtectionMiddlewareExtensions.IsAnonymousPath("/login.css"), "CSS do login deveria ser anonimo.");
     AssertTrue(AccessProtectionMiddlewareExtensions.IsAnonymousPath("/api/auth/login"), "Endpoint de login deveria ser anonimo.");
+    AssertTrue(!AccessProtectionMiddlewareExtensions.IsAnonymousPath("/app.js"), "JavaScript principal deveria continuar protegido.");
     AssertTrue(!AccessProtectionMiddlewareExtensions.IsAnonymousPath("/api/contas"), "API de contas nao deveria ser anonima.");
     AssertTrue(!AccessProtectionMiddlewareExtensions.IsAnonymousPath("/"), "Pagina principal nao deveria ser anonima quando protecao estiver ativa.");
     return Task.CompletedTask;
