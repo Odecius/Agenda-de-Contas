@@ -75,7 +75,7 @@ O compose usa:
 - Dados em `/srv/data/apps/agendador`.
 - Configuracao em `/srv/stacks/apps/agendador`.
 - Rede Docker externa `proxy`.
-- Porta `5005` publicada apenas em `127.0.0.1`.
+- Porta `5005` acessivel somente dentro da rede Docker `proxy`, sem publicacao no host.
 
 O deploy via `systemd` continua documentado como alternativa.
 

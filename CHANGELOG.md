@@ -1,6 +1,12 @@
 ﻿# CHANGELOG
 
 
+## 2026-07-30
+
+- Persistidas as chaves ASP.NET Data Protection no volume de dados do deploy Docker.
+- Evitada a invalidacao desnecessaria das sessoes de login ao recriar o container.
+- Atualizados Compose, exemplos de ambiente, seguranca e checklists operacionais.
+
 ## 2026-07-18
 
 - Corrigida a protecao de acesso para permitir o carregamento anonimo de `login.js` e `login.css` na tela de login.

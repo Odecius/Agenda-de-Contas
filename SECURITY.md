@@ -23,7 +23,14 @@
 
 O endpoint `/health` retorna apenas status operacional minimo. Ele nao deve incluir caminhos locais, tokens, chat id, usuario, senha, ambiente, horario ou dados de contas.
 
-No deploy Docker do servidor HP, a porta `5005` deve ficar publicada apenas em `127.0.0.1`. A exposicao externa deve passar pelo Nginx Proxy Manager na rede Docker `proxy`, preferencialmente com HTTPS. A imagem Docker instala `curl` apenas para executar o healthcheck local do container contra `/health`.
+No deploy Docker do servidor HP, a porta `5005` nao deve ser publicada no host.
+O Nginx Proxy Manager acessa `agendador-contas:5005` diretamente pela rede Docker
+`proxy`, e a exposicao externa deve usar HTTPS. A imagem instala `curl` apenas para
+executar o healthcheck interno contra `/health`.
+
+As chaves ASP.NET Data Protection usadas pelo cookie de login devem permanecer no
+volume persistente em `/var/lib/agendador-contas/dataprotection-keys`. Elas nao devem
+ser publicadas no Git nem compartilhadas entre aplicacoes diferentes.
 
 `appsettings.Production.json` e `appsettings.Production.local.json` nao devem guardar segredos nem entrar no Git. Em producao, use variaveis de ambiente ou o arquivo `.env` real do servidor, mantido fora do repositorio.
 

@@ -14,10 +14,9 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://0.0.0.0:5005
       Data__FilePath: /var/lib/agendador-contas/contas.json
+      DataProtection__KeysPath: /var/lib/agendador-contas/dataprotection-keys
     volumes:
       - /srv/data/apps/agendador:/var/lib/agendador-contas
-    ports:
-      - "127.0.0.1:5005:5005"
     healthcheck:
       test: ["CMD", "curl", "--fail", "--silent", "--show-error", "http://127.0.0.1:5005/health"]
       interval: 30s

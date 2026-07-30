@@ -24,6 +24,7 @@ Dentro do container, a aplicacao usa:
 /var/lib/agendador-contas/contas.json
 /var/lib/agendador-contas/settings.json
 /var/lib/agendador-contas/backups/
+/var/lib/agendador-contas/dataprotection-keys/
 ```
 
 O volume Docker mapeia:
@@ -32,7 +33,9 @@ O volume Docker mapeia:
 /srv/data/apps/agendador:/var/lib/agendador-contas
 ```
 
-Esse volume preserva contas, horario configurado do lembrete diario e backups.
+Esse volume preserva contas, horario configurado do lembrete diario, backups e
+as chaves de protecao do cookie de login. Assim, recriar o container nao invalida
+as sessoes apenas por perda de chaves.
 
 ## Rede Docker
 
@@ -152,7 +155,7 @@ No servidor:
 ```bash
 docker compose ps
 docker compose logs -f agendador-contas
-curl http://127.0.0.1:5005/health
+docker exec agendador-contas curl --fail --silent http://127.0.0.1:5005/health
 ```
 
 O container tambem possui healthcheck interno configurado para chamar:
@@ -169,16 +172,11 @@ De outro container na rede `proxy`, o alvo interno e:
 http://agendador-contas:5005
 ```
 
-## Porta local
+## Porta e rede
 
-O compose publica a porta apenas no loopback do servidor:
-
-```yaml
-ports:
-  - "127.0.0.1:5005:5005"
-```
-
-Isso permite teste local no servidor sem expor diretamente a porta `5005` na rede publica. Para acesso externo, use Nginx Proxy Manager na rede `proxy`.
+O compose nao publica a porta `5005` no host. O Nginx Proxy Manager acessa o
+container pelo nome `agendador-contas` na rede externa `proxy`. Para diagnostico
+local, use o healthcheck do Docker ou execute o `curl` dentro do container.
 
 ## Nginx Proxy Manager
 
@@ -204,7 +202,7 @@ cd /srv/stacks/apps/agendador
 docker compose build
 docker compose up -d
 docker compose logs -n 80 agendador-contas
-curl http://127.0.0.1:5005/health
+docker exec agendador-contas curl --fail --silent http://127.0.0.1:5005/health
 ```
 
 ## Checklist antes de expor fora da rede local

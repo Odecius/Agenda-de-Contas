@@ -138,7 +138,7 @@
 - Criar Docker Compose para HP usando rede externa `proxy`.
 - Montar dados persistentes em `/srv/data/apps/agendador`.
 - Usar arquivo `.env` externo em `/srv/stacks/apps/agendador`.
-- Manter porta `5005` apenas em `127.0.0.1` e acesso publico via Nginx Proxy Manager.
+- Manter porta `5005` sem publicacao no host e acesso publico via Nginx Proxy Manager.
 
 ## Sprint 31 - Horario do lembrete pela interface
 

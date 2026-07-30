@@ -30,6 +30,7 @@ http://localhost:5005/health
 - Configurar `AccessProtection__Enabled=true`.
 - Configurar `AccessProtection__Username` e `AccessProtection__Password`.
 - Confirmar `Data__FilePath=/var/lib/agendador-contas/contas.json`.
+- Confirmar `DataProtection__KeysPath=/var/lib/agendador-contas/dataprotection-keys`.
 - Confirmar `Backup__AutomaticEnabled=true` se quiser backup automatico.
 - Confirmar timezone final em `Reminder__TimeZoneId` e `Backup__TimeZoneId`.
 - Confirmar na interface o horario desejado do lembrete diario.
@@ -47,6 +48,7 @@ http://localhost:5005/health
 - Confirmar envio Telegram em producao.
 - Confirmar que alterar o horario do lembrete cria/atualiza `/srv/data/apps/agendador/settings.json`.
 - Confirmar criacao de backup automatico em `/srv/data/apps/agendador/backups`.
+- Confirmar persistencia das chaves em `/srv/data/apps/agendador/dataprotection-keys`.
 - Confirmar reinicio automatico via `restart: unless-stopped`.
 
 ## Pontos futuros que dependem do Raspberry
