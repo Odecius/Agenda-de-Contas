@@ -3,6 +3,7 @@
 
 ## 2026-07-30
 
+- Corrigido estouro horizontal do painel em tablets e ampliados os filtros para toque.
 - Backups automaticos identicos agora sao ignorados, com copia obrigatoria apos sete dias.
 - Persistidas as chaves ASP.NET Data Protection no volume de dados do deploy Docker.
 - Evitada a invalidacao desnecessaria das sessoes de login ao recriar o container.
