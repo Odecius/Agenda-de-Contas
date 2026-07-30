@@ -102,7 +102,7 @@ builder.Services.AddRateLimiter(options =>
 
 var app = builder.Build();
 
-app.UseSecurityHeaders();
+app.UseSecurityHeaders(includeHsts: app.Environment.IsProduction());
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();

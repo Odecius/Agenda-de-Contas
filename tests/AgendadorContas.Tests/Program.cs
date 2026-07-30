@@ -1,8 +1,11 @@
 using AgendadorContas.Models;
 using AgendadorContas.Options;
 using AgendadorContas.Services;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -17,7 +20,8 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Configuracao do lembrete usa padroes", ReminderSettingsUsesDefaultsAsync),
     ("Configuracao do lembrete salva e valida horario", ReminderSettingsPersistsAndValidatesAsync),
     ("Protecao mantem apenas rotas anonimas esperadas", AccessProtectionAnonymousPathsAreLimited),
-    ("Protecao ativa exige senha configurada", AccessProtectionRequiresPasswordWhenEnabled)
+    ("Protecao ativa exige senha configurada", AccessProtectionRequiresPasswordWhenEnabled),
+    ("HSTS e aplicado apenas quando solicitado", SecurityHeadersApplyHstsWhenRequestedAsync)
 };
 
 var failed = 0;
@@ -274,6 +278,30 @@ static Task AccessProtectionRequiresPasswordWhenEnabled()
     AssertTrue(result.Failed, "Protecao ativa sem senha deveria falhar validacao.");
     AssertContains("Password", string.Join(" ", result.Failures ?? []), "Falha deveria mencionar senha.");
     return Task.CompletedTask;
+}
+
+static async Task SecurityHeadersApplyHstsWhenRequestedAsync()
+{
+    var productionHeaders = new HeaderDictionary();
+    SecurityHeadersMiddlewareExtensions.ApplySecurityHeaders(
+        productionHeaders,
+        includeHsts: true);
+
+    AssertEqual(
+        "max-age=31536000; includeSubDomains",
+        productionHeaders["Strict-Transport-Security"].ToString(),
+        "HSTS deveria ser aplicado em producao.");
+
+    var developmentHeaders = new HeaderDictionary();
+    SecurityHeadersMiddlewareExtensions.ApplySecurityHeaders(
+        developmentHeaders,
+        includeHsts: false);
+
+    AssertTrue(
+        !developmentHeaders.ContainsKey("Strict-Transport-Security"),
+        "HSTS nao deveria ser aplicado quando desativado.");
+
+    await Task.CompletedTask;
 }
 
 static void AssertTrue(bool condition, string message)

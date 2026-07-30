@@ -6,6 +6,7 @@
 - Persistidas as chaves ASP.NET Data Protection no volume de dados do deploy Docker.
 - Evitada a invalidacao desnecessaria das sessoes de login ao recriar o container.
 - Atualizados Compose, exemplos de ambiente, seguranca e checklists operacionais.
+- Adicionado HSTS em producao e teste automatizado para evitar regressao.
 
 ## 2026-07-18
 

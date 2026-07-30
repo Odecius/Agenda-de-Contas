@@ -38,6 +38,9 @@ ser publicadas no Git nem compartilhadas entre aplicacoes diferentes.
 
 A aplicação aplica cabeçalhos como `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, `Cross-Origin-Opener-Policy` e `Content-Security-Policy`.
 
+Em `Production`, a aplicacao tambem envia `Strict-Transport-Security` por um ano.
+O dominio deve permanecer exclusivamente em HTTPS durante esse periodo.
+
 A CSP atual nao permite `unsafe-inline`. A tela principal e a tela de login carregam CSS/JS por arquivos externos.
 
 ## Risco atual
