@@ -3,6 +3,7 @@
 
 ## 2026-07-30
 
+- Simplificada a tela do celular ocultando as secoes administrativas de contas e backups.
 - Corrigido estouro horizontal do painel em tablets e ampliados os filtros para toque.
 - Backups automaticos identicos agora sao ignorados, com copia obrigatoria apos sete dias.
 - Persistidas as chaves ASP.NET Data Protection no volume de dados do deploy Docker.

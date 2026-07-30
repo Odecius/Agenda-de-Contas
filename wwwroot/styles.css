@@ -649,6 +649,11 @@ th {
 }
 
 @media (max-width: 680px) {
+  .accounts-panel,
+  .backups-panel {
+    display: none;
+  }
+
   .app-header {
     align-items: flex-start;
     min-height: auto;
