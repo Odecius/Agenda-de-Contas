@@ -22,5 +22,8 @@ public sealed class BackupOptions
     [Range(1, 500)]
     public int MinimumBackupsToKeep { get; set; } = 10;
 
+    [Range(1, 365)]
+    public int ForceBackupAfterDays { get; set; } = 7;
+
     public bool RunOnStartup { get; set; }
 }

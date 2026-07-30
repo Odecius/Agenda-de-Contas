@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using AgendadorContas.Models;
@@ -287,6 +288,37 @@ public sealed class ContaStore
         }
     }
 
+    public async Task<BackupInfo?> CriarBackupAutomaticoSeAlteradoAsync(
+        int forceBackupAfterDays,
+        CancellationToken cancellationToken = default)
+    {
+        if (forceBackupAfterDays < 1)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(forceBackupAfterDays),
+                "O intervalo para forcar backup deve ser maior que zero.");
+        }
+
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            var db = await ReadAsync();
+            var latestBackup = GetLatestBackupFile();
+            if (latestBackup is not null
+                && latestBackup.CreationTimeUtc >= DateTime.UtcNow.AddDays(-forceBackupAfterDays)
+                && await HasSameContentAsync(db, latestBackup.FullName, cancellationToken))
+            {
+                return null;
+            }
+
+            return await WriteBackupAsync(db, "auto");
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
     public Task<IReadOnlyList<BackupInfo>> ListarBackupsAsync()
     {
         var backupDirectory = GetBackupDirectory();
@@ -509,6 +541,40 @@ public sealed class ContaStore
             CreatedAtUtc = File.GetCreationTimeUtc(backupPath),
             SizeBytes = new FileInfo(backupPath).Length
         };
+    }
+
+    private FileInfo? GetLatestBackupFile()
+    {
+        var backupDirectory = GetBackupDirectory();
+        if (!Directory.Exists(backupDirectory))
+        {
+            return null;
+        }
+
+        return Directory
+            .EnumerateFiles(backupDirectory, "contas.*.json")
+            .Select(path => new FileInfo(path))
+            .OrderByDescending(file => file.CreationTimeUtc)
+            .FirstOrDefault();
+    }
+
+    private static async Task<bool> HasSameContentAsync(
+        StoreData db,
+        string backupPath,
+        CancellationToken cancellationToken)
+    {
+        await using var currentContent = new MemoryStream();
+        await JsonSerializer.SerializeAsync(
+            currentContent,
+            db,
+            JsonOptions,
+            cancellationToken);
+        currentContent.Position = 0;
+
+        await using var backupContent = File.OpenRead(backupPath);
+        var currentHash = await SHA256.HashDataAsync(currentContent, cancellationToken);
+        var backupHash = await SHA256.HashDataAsync(backupContent, cancellationToken);
+        return CryptographicOperations.FixedTimeEquals(currentHash, backupHash);
     }
 
     private string GetBackupDirectory()

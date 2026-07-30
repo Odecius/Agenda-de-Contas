@@ -101,7 +101,7 @@ O sistema permite criar backups manuais do arquivo de dados local e restaurar um
 
 Os backups ficam na pasta `backups` ao lado do arquivo configurado em `Data:FilePath`. Como `data/` esta no `.gitignore`, os backups locais não são enviados ao GitHub.
 
-Backups automaticos podem ser ativados por configuracao `Backup__AutomaticEnabled=true`. A retencao automatica remove apenas arquivos `contas.auto.*.json`, preservando backups manuais e `pre-restore`.
+Backups automaticos podem ser ativados por configuracao `Backup__AutomaticEnabled=true`. Copias identicas ao backup mais recente sao ignoradas, mas `Backup__ForceBackupAfterDays` forca uma nova copia periodica (sete dias por padrao). A retencao automatica remove apenas arquivos `contas.auto.*.json`, preservando backups manuais e `pre-restore`.
 
 ## Paises e moedas
 

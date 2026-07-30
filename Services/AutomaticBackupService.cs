@@ -68,13 +68,22 @@ public sealed class AutomaticBackupService : BackgroundService
 
         using var scope = _serviceProvider.CreateScope();
         var store = scope.ServiceProvider.GetRequiredService<ContaStore>();
-        var backup = await store.CriarBackupAsync("auto");
+        var backup = await store.CriarBackupAutomaticoSeAlteradoAsync(
+            backupOptions.ForceBackupAfterDays,
+            cancellationToken);
         var removed = await store.RemoverBackupsAutomaticosAntigosAsync(
             backupOptions.RetentionDays,
             backupOptions.MinimumBackupsToKeep,
             cancellationToken);
 
         _lastBackupDate = today;
+        if (backup is null)
+        {
+            _logger.LogInformation(
+                "Backup automatico ignorado: nenhuma alteracao desde o ultimo backup.");
+            return;
+        }
+
         _logger.LogInformation(
             "Backup automatico criado: {BackupFile}. Backups automaticos removidos pela retencao: {RemovedCount}.",
             backup.FileName,

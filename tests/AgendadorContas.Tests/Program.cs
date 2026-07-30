@@ -15,6 +15,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Vencimento respeita ultimo dia do mes", DueDateUsesLastDayOfShortMonthAsync),
     ("Pagamento marcado altera vencimento para pago", PaymentMarksDueAsPaidAsync),
     ("Backup restaura estado anterior", BackupRestoreRevertsDataAsync),
+    ("Backup automatico ignora duplicata e forca copia semanal", BackupAutomaticDeduplicationAsync),
     ("Retencao remove apenas backups automaticos antigos", BackupRetentionRemovesOnlyOldAutomaticBackupsAsync),
     ("Lembrete agrupa totais por moeda", ReminderGroupsTotalsByCurrency),
     ("Configuracao do lembrete usa padroes", ReminderSettingsUsesDefaultsAsync),
@@ -144,6 +145,47 @@ static async Task BackupRestoreRevertsDataAsync()
     AssertTrue(restored, "Backup deveria ser restaurado.");
     AssertEqual(1, contas.Count, "Restauracao deveria voltar para uma conta.");
     AssertTrue(backups.Any(item => item.FileName.Contains("pre-restore", StringComparison.Ordinal)), "Backup pre-restore deveria ser criado.");
+}
+
+static async Task BackupAutomaticDeduplicationAsync()
+{
+    using var scope = new TestScope();
+    var store = scope.CreateStore();
+
+    await store.CriarContaAsync(new ContaCreateRequest
+    {
+        Nome = "Internet",
+        Valor = 35,
+        DiaVencimento = 15,
+        DataInicio = new DateOnly(2026, 7, 1),
+        DuracaoMeses = 0
+    });
+
+    var first = await store.CriarBackupAutomaticoSeAlteradoAsync(7);
+    var duplicate = await store.CriarBackupAutomaticoSeAlteradoAsync(7);
+
+    AssertTrue(first is not null, "Primeiro backup automatico deveria ser criado.");
+    AssertTrue(duplicate is null, "Backup automatico identico deveria ser ignorado.");
+
+    var firstPath = Path.Combine(scope.RootPath, "backups", first!.FileName);
+    var oldDate = DateTime.UtcNow.AddDays(-8);
+    File.SetCreationTimeUtc(firstPath, oldDate);
+    File.SetLastWriteTimeUtc(firstPath, oldDate);
+
+    var forced = await store.CriarBackupAutomaticoSeAlteradoAsync(7);
+    AssertTrue(forced is not null, "Backup semanal deveria ser forcado mesmo sem alteracoes.");
+
+    await store.CriarContaAsync(new ContaCreateRequest
+    {
+        Nome = "Energia",
+        Valor = 50,
+        DiaVencimento = 20,
+        DataInicio = new DateOnly(2026, 7, 1),
+        DuracaoMeses = 0
+    });
+
+    var changed = await store.CriarBackupAutomaticoSeAlteradoAsync(7);
+    AssertTrue(changed is not null, "Alteracao nos dados deveria criar novo backup.");
 }
 
 static async Task BackupRetentionRemovesOnlyOldAutomaticBackupsAsync()

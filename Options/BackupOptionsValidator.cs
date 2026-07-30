@@ -23,6 +23,11 @@ public sealed class BackupOptionsValidator : IValidateOptions<BackupOptions>
             failures.Add("Backup:RetentionDays deve ser maior que zero.");
         }
 
+        if (options.ForceBackupAfterDays < 1)
+        {
+            failures.Add("Backup:ForceBackupAfterDays deve ser maior que zero.");
+        }
+
         return failures.Count == 0
             ? ValidateOptionsResult.Success
             : ValidateOptionsResult.Fail(failures);
