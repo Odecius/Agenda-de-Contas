@@ -3,6 +3,7 @@
 
 ## 2026-07-30
 
+- Adicionado versionamento dos arquivos visuais para evitar CSS antigo em cache no Safari.
 - Simplificada a tela do celular ocultando as secoes administrativas de contas e backups.
 - Corrigido estouro horizontal do painel em tablets e ampliados os filtros para toque.
 - Backups automaticos identicos agora sao ignorados, com copia obrigatoria apos sete dias.
