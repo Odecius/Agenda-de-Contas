@@ -3,6 +3,8 @@ using AgendadorContas.Options;
 using AgendadorContas.Services;
 using AgendadorContas.Data;
 using AgendadorContas.Data.Entities;
+using AgendadorContas.Tenancy;
+using AgendadorContas;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -10,12 +12,18 @@ using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Configuration;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using System.Security.Claims;
+using System.Net;
+using System.Net.Http.Json;
+using System.Text.Json;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Logging.Abstractions;
 
-var tests = new (string Name, Func<Task> Run)[]
+var tests = new List<(string Name, Func<Task> Run)>
 {
     ("Conta criada usa pais e moeda padrao", AccountDefaultsAreAppliedAsync),
     ("Vencimento respeita ultimo dia do mes", DueDateUsesLastDayOfShortMonthAsync),
@@ -38,8 +46,25 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Pagamento duplicado no mesmo mes e impedido", DuplicateMonthlyPaymentIsRejectedAsync),
     ("Roles e valores invalidos sao impedidos", InvalidRelationalValuesAreRejectedAsync),
     ("Deletes respeitam cascades e restricoes", RelationalDeleteBehaviorsAreEnforcedAsync),
-    ("Migration inicial contem schema multi-tenant", InitialMigrationContainsExpectedSchema)
+    ("Migration inicial contem schema multi-tenant", InitialMigrationContainsExpectedSchema),
+    ("Identity usa hash e rejeita email duplicado", IdentityHashesPasswordsAndRequiresUniqueEmailAsync),
+    ("Identity contabiliza falhas e aplica lockout", IdentityLockoutIsEnforcedAsync),
+    ("CurrentUserContext confia somente no principal", CurrentUserContextUsesOnlyAuthenticatedPrincipal),
+    ("CurrentUserContext rejeita usuario anonimo", CurrentUserContextRejectsAnonymousUser),
+    ("CurrentUserContext rejeita claim malformado", CurrentUserContextRejectsMalformedClaim),
+    ("Familia unica e selecionada automaticamente", SingleAuthorizedFamilyIsSelectedAsync),
+    ("Selecao familiar rejeita acesso cross-family", FamilySelectionRejectsCrossFamilyAsync),
+    ("Selecao familiar exige escolha entre duas familias", MultipleFamiliesRequireAuthorizedSelectionAsync),
+    ("Membership e familia inativas sao rejeitadas", InactiveFamilyAccessIsRejectedAsync),
+    ("Contexto familiar resolve Owner Admin e Member", CurrentFamilyContextResolvesRolesAsync),
+    ("Selecao existente e invalidada com membership", SelectedMembershipIsRevalidatedAsync),
+    ("Sessao familiar nao atravessa usuarios", FamilySessionDoesNotCrossUsersAsync)
 };
+
+if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("AGENDADOR_TEST_POSTGRES")))
+{
+    tests.Add(("Fluxo HTTP Identity e familia funciona em PostgreSQL", MultiFamilyHttpFlowWorksOnPostgresAsync));
+}
 
 var failed = 0;
 
@@ -64,7 +89,7 @@ if (failed > 0)
     return 1;
 }
 
-Console.WriteLine($"{tests.Length} teste(s) passaram.");
+Console.WriteLine($"{tests.Count} teste(s) passaram.");
 return 0;
 
 static async Task AccountDefaultsAreAppliedAsync()
@@ -554,6 +579,312 @@ static Task InitialMigrationContainsExpectedSchema()
     return Task.CompletedTask;
 }
 
+static async Task IdentityHashesPasswordsAndRequiresUniqueEmailAsync()
+{
+    await using var scope = await IdentityTestScope.CreateAsync();
+    var first = new AppUser { Id = Guid.NewGuid(), UserName = "user-a@example.test", Email = "user-a@example.test" };
+    var created = await scope.UserManager.CreateAsync(first, "Valid-password-123!");
+    AssertTrue(created.Succeeded, "Usuario deveria ser criado pelo Identity.");
+    AssertTrue(!string.Equals(first.PasswordHash, "Valid-password-123!", StringComparison.Ordinal), "Senha nunca deve ser persistida em texto claro.");
+    AssertTrue(await scope.UserManager.CheckPasswordAsync(first, "Valid-password-123!"), "Login valido deveria aceitar a senha correta.");
+    AssertTrue(!await scope.UserManager.CheckPasswordAsync(first, "wrong-password"), "Senha invalida deveria ser rejeitada.");
+    AssertTrue(await scope.UserManager.FindByEmailAsync("missing@example.test") is null, "Usuario inexistente nao deveria ser localizado.");
+
+    var duplicate = new AppUser { Id = Guid.NewGuid(), UserName = "other@example.test", Email = "USER-A@EXAMPLE.TEST" };
+    var duplicateResult = await scope.UserManager.CreateAsync(duplicate, "Valid-password-123!");
+    AssertTrue(!duplicateResult.Succeeded, "Email normalizado duplicado deveria ser rejeitado.");
+}
+
+static async Task IdentityLockoutIsEnforcedAsync()
+{
+    await using var scope = await IdentityTestScope.CreateAsync();
+    var user = new AppUser { Id = Guid.NewGuid(), UserName = "lock@example.test", Email = "lock@example.test" };
+    AssertTrue((await scope.UserManager.CreateAsync(user, "Valid-password-123!")).Succeeded, "Usuario de lockout deveria ser criado.");
+
+    for (var attempt = 0; attempt < 5; attempt++)
+    {
+        await scope.UserManager.AccessFailedAsync(user);
+    }
+
+    AssertTrue(await scope.UserManager.IsLockedOutAsync(user), "Cinco falhas deveriam bloquear temporariamente o usuario.");
+}
+
+static Task CurrentUserContextUsesOnlyAuthenticatedPrincipal()
+{
+    var expectedUserId = Guid.NewGuid();
+    var tamperedUserId = Guid.NewGuid();
+    var httpContext = AuthenticatedHttpContext(expectedUserId);
+    httpContext.Request.QueryString = new QueryString($"?userId={tamperedUserId}");
+    httpContext.Request.Headers["X-User-Id"] = tamperedUserId.ToString();
+    httpContext.Request.RouteValues["userId"] = tamperedUserId;
+    var currentUser = new CurrentUserContext(new HttpContextAccessor { HttpContext = httpContext });
+
+    AssertTrue(currentUser.IsAuthenticated, "Principal autenticado deveria ser reconhecido.");
+    AssertEqual(expectedUserId, currentUser.RequireUserId(), "UserId deve vir exclusivamente do claim autenticado.");
+    return Task.CompletedTask;
+}
+
+static Task CurrentUserContextRejectsAnonymousUser()
+{
+    var currentUser = new CurrentUserContext(new HttpContextAccessor { HttpContext = new DefaultHttpContext() });
+    AssertTrue(!currentUser.IsAuthenticated, "Usuario anonimo nao deveria ser autenticado.");
+    try
+    {
+        currentUser.RequireUserId();
+        throw new InvalidOperationException("Usuario anonimo deveria ser rejeitado.");
+    }
+    catch (UnauthorizedAccessException)
+    {
+    }
+
+    return Task.CompletedTask;
+}
+
+static Task CurrentUserContextRejectsMalformedClaim()
+{
+    var context = new DefaultHttpContext
+    {
+        User = new ClaimsPrincipal(new ClaimsIdentity(
+        [
+            new Claim(ClaimTypes.NameIdentifier, "not-a-guid")
+        ], "TestIdentity"))
+    };
+    var currentUser = new CurrentUserContext(new TestHttpContextAccessor { HttpContext = context });
+    AssertTrue(!currentUser.IsAuthenticated, "Claim malformado nao deve produzir usuario autenticado valido.");
+    try
+    {
+        currentUser.RequireUserId();
+        throw new InvalidOperationException("Claim malformado deveria ser rejeitado.");
+    }
+    catch (UnauthorizedAccessException)
+    {
+    }
+
+    return Task.CompletedTask;
+}
+
+static async Task SingleAuthorizedFamilyIsSelectedAsync()
+{
+    await using var scope = await FamilyContextTestScope.CreateAsync();
+    var family = await scope.AddMembershipAsync(FamilyRole.Owner);
+    var current = await scope.CurrentFamily.RequireAsync();
+    AssertEqual(family.Id, current.FamilyId, "Familia unica ativa deveria ser selecionada automaticamente.");
+    AssertEqual(FamilyRole.Owner, current.Role, "Role Owner deveria ser resolvida.");
+}
+
+static async Task FamilySelectionRejectsCrossFamilyAsync()
+{
+    await using var scope = await FamilyContextTestScope.CreateAsync();
+    var ownFamily = await scope.AddMembershipAsync(FamilyRole.Member);
+    var otherFamily = NewFamily("Other family");
+    scope.Db.Add(otherFamily);
+    await scope.Db.SaveChangesAsync();
+
+    AssertTrue(!await scope.Selection.SelectAsync(otherFamily.Id), "Familia sem membership nao pode ser selecionada.");
+    scope.HttpContext.Request.QueryString = new QueryString($"?familyId={otherFamily.Id}");
+    scope.HttpContext.Request.Headers["X-Family-Id"] = otherFamily.Id.ToString();
+    var current = await scope.CurrentFamily.RequireAsync();
+    AssertEqual(ownFamily.Id, current.FamilyId, "FamilyId adulterado no request nao deve alterar o contexto.");
+}
+
+static async Task MultipleFamiliesRequireAuthorizedSelectionAsync()
+{
+    await using var scope = await FamilyContextTestScope.CreateAsync();
+    _ = await scope.AddMembershipAsync(FamilyRole.Owner, "Family A");
+    var familyB = await scope.AddMembershipAsync(FamilyRole.Admin, "Family B");
+
+    try
+    {
+        await scope.CurrentFamily.RequireAsync();
+        throw new InvalidOperationException("Duas familias deveriam exigir selecao explicita.");
+    }
+    catch (InvalidOperationException)
+    {
+    }
+
+    AssertTrue(await scope.Selection.SelectAsync(familyB.Id), "Membership valida deveria permitir selecao.");
+    AssertEqual(familyB.Id, (await scope.CurrentFamily.RequireAsync()).FamilyId, "Selecao autorizada deveria ser respeitada.");
+}
+
+static async Task InactiveFamilyAccessIsRejectedAsync()
+{
+    await using var scope = await FamilyContextTestScope.CreateAsync();
+    _ = await scope.AddMembershipAsync(FamilyRole.Member, membershipActive: false);
+    var inactiveFamily = await scope.AddMembershipAsync(FamilyRole.Member, "Inactive family", familyActive: false);
+    AssertTrue(!await scope.Selection.SelectAsync(inactiveFamily.Id), "Familia ou membership inativa deve ser rejeitada.");
+    AssertEqual(0, (await scope.Selection.ListAsync()).Count, "Nenhuma membership inativa deve ser listada.");
+}
+
+static async Task CurrentFamilyContextResolvesRolesAsync()
+{
+    foreach (var role in new[] { FamilyRole.Owner, FamilyRole.Admin, FamilyRole.Member })
+    {
+        await using var scope = await FamilyContextTestScope.CreateAsync();
+        _ = await scope.AddMembershipAsync(role);
+        AssertEqual(role, (await scope.CurrentFamily.RequireAsync()).Role, $"Role {role} deveria ser resolvida.");
+    }
+}
+
+static async Task SelectedMembershipIsRevalidatedAsync()
+{
+    await using var scope = await FamilyContextTestScope.CreateAsync();
+    var familyA = await scope.AddMembershipAsync(FamilyRole.Owner, "Family A");
+    _ = await scope.AddMembershipAsync(FamilyRole.Member, "Family B");
+    AssertTrue(await scope.Selection.SelectAsync(familyA.Id), "Family A deveria ser selecionada.");
+
+    var membership = await scope.Db.FamilyUsers.SingleAsync(x => x.FamilyId == familyA.Id && x.UserId == scope.UserId);
+    membership.IsActive = false;
+    await scope.Db.SaveChangesAsync();
+    AssertTrue(await scope.Selection.ResolveAsync() is null, "Membership desativada deve invalidar a selecao sem fallback no mesmo request.");
+
+    membership.IsActive = true;
+    familyA.IsActive = true;
+    await scope.Db.SaveChangesAsync();
+    AssertTrue(await scope.Selection.SelectAsync(familyA.Id), "Family A deveria ser selecionada novamente.");
+    familyA.IsActive = false;
+    await scope.Db.SaveChangesAsync();
+    AssertTrue(await scope.Selection.ResolveAsync() is null, "Familia desativada deve invalidar a selecao existente.");
+}
+
+static async Task FamilySessionDoesNotCrossUsersAsync()
+{
+    await using var scope = await FamilyContextTestScope.CreateAsync();
+    var familyA = await scope.AddMembershipAsync(FamilyRole.Owner, "Family A");
+    AssertTrue(await scope.Selection.SelectAsync(familyA.Id), "User A deveria selecionar Family A.");
+
+    var userB = new AppUser { Id = Guid.NewGuid(), UserName = "user-b", NormalizedUserName = "USER-B" };
+    var familyB = new Family { Id = Guid.NewGuid(), Name = "Family B" };
+    scope.Db.AddRange(userB, familyB);
+    scope.Db.FamilyUsers.Add(new FamilyUser { FamilyId = familyB.Id, UserId = userB.Id, Role = FamilyRole.Member });
+    await scope.Db.SaveChangesAsync();
+    scope.SwitchUser(userB.Id);
+
+    AssertTrue(await scope.Selection.ResolveAsync() is null, "Selecao vinculada ao User A deve ser invalidada para User B.");
+    AssertEqual(familyB.Id, (await scope.CurrentFamily.RequireAsync()).FamilyId, "Nova resolucao pode selecionar somente a familia autorizada do User B.");
+}
+
+static async Task MultiFamilyHttpFlowWorksOnPostgresAsync()
+{
+    var connectionString = Environment.GetEnvironmentVariable("AGENDADOR_TEST_POSTGRES")
+        ?? throw new InvalidOperationException("Connection string descartavel de teste ausente.");
+    await using var factory = new MultiFamilyWebFactory(connectionString);
+
+    Guid userAId;
+    Guid familyAId;
+    Guid familyBId;
+    using (var scope = factory.Services.CreateScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<AgendadorDbContext>();
+        await db.Database.MigrateAsync();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+        var userA = new AppUser { Id = Guid.NewGuid(), UserName = "user-a@example.test", Email = "user-a@example.test" };
+        var userB = new AppUser { Id = Guid.NewGuid(), UserName = "user-b@example.test", Email = "user-b@example.test" };
+        AssertTrue((await userManager.CreateAsync(userA, "Test-password-123!")).Succeeded, "User A ficticio deveria ser criado.");
+        AssertTrue((await userManager.CreateAsync(userB, "Test-password-123!")).Succeeded, "User B ficticio deveria ser criado.");
+        var familyA = NewFamily("Family A");
+        var familyB = NewFamily("Family B");
+        db.AddRange(familyA, familyB);
+        db.FamilyUsers.AddRange(
+            new FamilyUser { FamilyId = familyA.Id, UserId = userA.Id, Role = FamilyRole.Owner },
+            new FamilyUser { FamilyId = familyB.Id, UserId = userB.Id, Role = FamilyRole.Member });
+        await db.SaveChangesAsync();
+        userAId = userA.Id;
+        familyAId = familyA.Id;
+        familyBId = familyB.Id;
+    }
+
+    using var anonymousClient = factory.CreateClient(new WebApplicationFactoryClientOptions
+    {
+        BaseAddress = new Uri("https://localhost"),
+        AllowAutoRedirect = false,
+        HandleCookies = true
+    });
+    AssertEqual(HttpStatusCode.Unauthorized, (await anonymousClient.GetAsync("/api/multi-family/me")).StatusCode, "Usuario anonimo deveria receber 401.");
+    AssertEqual(HttpStatusCode.BadRequest, (await anonymousClient.PostAsJsonAsync("/api/multi-family/auth/login", new IdentityLoginRequest("user-a@example.test", "Test-password-123!"))).StatusCode, "Login sem antiforgery deveria ser rejeitado.");
+    foreach (var request in LegacyRequests(familyAId))
+    {
+        using (request)
+        using (var response = await anonymousClient.SendAsync(request))
+        {
+            AssertEqual(HttpStatusCode.NotFound, response.StatusCode, $"Rota legada {request.Method} {request.RequestUri} deveria ficar bloqueada.");
+        }
+    }
+    anonymousClient.DefaultRequestHeaders.Add("Cookie", "AgendadorContas.MultiFamily.Auth=invalid");
+    AssertEqual(HttpStatusCode.Unauthorized, (await anonymousClient.GetAsync("/api/multi-family/me")).StatusCode, "Cookie invalido deveria receber 401.");
+
+    using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+    {
+        BaseAddress = new Uri("https://localhost"),
+        AllowAutoRedirect = false,
+        HandleCookies = true
+    });
+    var initialToken = await GetAntiforgeryTokenAsync(client);
+    AssertEqual(HttpStatusCode.Unauthorized, (await PostWithTokenAsync(client, "/api/multi-family/auth/login", new IdentityLoginRequest("missing@example.test", "wrong"), initialToken)).StatusCode, "Usuario inexistente deveria ser rejeitado.");
+    AssertEqual(HttpStatusCode.Unauthorized, (await PostWithTokenAsync(client, "/api/multi-family/auth/login", new IdentityLoginRequest("user-a@example.test", "wrong"), initialToken)).StatusCode, "Senha invalida deveria ser rejeitada.");
+    AssertEqual(HttpStatusCode.OK, (await PostWithTokenAsync(client, "/api/multi-family/auth/login", new IdentityLoginRequest("user-a@example.test", "Test-password-123!"), initialToken)).StatusCode, "Login valido deveria funcionar.");
+
+    using var me = JsonDocument.Parse(await (await client.GetAsync("/api/multi-family/me")).Content.ReadAsStringAsync());
+    AssertEqual(userAId, me.RootElement.GetProperty("userId").GetGuid(), "Endpoint me deveria usar o usuario autenticado.");
+    var familiesJson = await (await client.GetAsync("/api/multi-family/families?familyId=" + familyBId)).Content.ReadAsStringAsync();
+    AssertTrue(familiesJson.Contains(familyAId.ToString(), StringComparison.OrdinalIgnoreCase), "User A deveria listar Family A.");
+    AssertTrue(!familiesJson.Contains(familyBId.ToString(), StringComparison.OrdinalIgnoreCase), "User A nao deveria listar Family B.");
+    AssertEqual(HttpStatusCode.OK, (await client.GetAsync("/api/multi-family/family/current?familyId=" + familyBId)).StatusCode, "Familia unica deveria ser resolvida apesar de query adulterada.");
+
+    var authenticatedToken = await GetAntiforgeryTokenAsync(client);
+    AssertEqual(HttpStatusCode.BadRequest, (await client.PostAsJsonAsync("/api/multi-family/family/select", new FamilySelectionRequest(familyAId))).StatusCode, "Selecao sem antiforgery deveria ser rejeitada.");
+    AssertEqual(HttpStatusCode.NotFound, (await PostWithTokenAsync(client, "/api/multi-family/family/select", new FamilySelectionRequest(familyBId), authenticatedToken)).StatusCode, "Selecao cross-family deveria usar 404.");
+    AssertEqual(HttpStatusCode.BadRequest, (await client.PostAsJsonAsync("/api/multi-family/auth/logout", new { })).StatusCode, "Logout sem antiforgery deveria ser rejeitado.");
+    AssertEqual(HttpStatusCode.OK, (await PostWithTokenAsync(client, "/api/multi-family/auth/logout", new { }, authenticatedToken)).StatusCode, "Logout deveria funcionar.");
+    AssertEqual(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/multi-family/me")).StatusCode, "Sessao encerrada deveria receber 401.");
+
+    await using var rateFactory = new MultiFamilyWebFactory(connectionString);
+    using var rateClient = rateFactory.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri("https://localhost"), HandleCookies = true });
+    var rateToken = await GetAntiforgeryTokenAsync(rateClient);
+    HttpStatusCode lastStatus = 0;
+    for (var attempt = 0; attempt < 6; attempt++)
+    {
+        lastStatus = (await PostWithTokenAsync(rateClient, "/api/multi-family/auth/login", new IdentityLoginRequest("missing@example.test", "wrong"), rateToken)).StatusCode;
+    }
+    AssertEqual(HttpStatusCode.TooManyRequests, lastStatus, "Sexta tentativa na janela deveria receber 429.");
+}
+
+static IEnumerable<HttpRequestMessage> LegacyRequests(Guid id)
+{
+    yield return new HttpRequestMessage(HttpMethod.Get, "/api/auth/status");
+    yield return new HttpRequestMessage(HttpMethod.Post, "/api/auth/login");
+    yield return new HttpRequestMessage(HttpMethod.Get, "/api/contas");
+    yield return new HttpRequestMessage(HttpMethod.Post, "/api/contas");
+    yield return new HttpRequestMessage(HttpMethod.Put, $"/api/contas/{id}");
+    yield return new HttpRequestMessage(HttpMethod.Delete, $"/api/contas/{id}?confirm=true");
+    yield return new HttpRequestMessage(HttpMethod.Post, $"/api/contas/{id}/alternar-ativa");
+    yield return new HttpRequestMessage(HttpMethod.Post, $"/api/contas/{id}/pagamentos/2026/8");
+    yield return new HttpRequestMessage(HttpMethod.Delete, $"/api/contas/{id}/pagamentos/2026/8");
+    yield return new HttpRequestMessage(HttpMethod.Get, "/api/vencimentos?ano=2026&mes=8");
+    yield return new HttpRequestMessage(HttpMethod.Get, "/api/vencimentos/hoje");
+    yield return new HttpRequestMessage(HttpMethod.Get, "/api/settings/reminder");
+    yield return new HttpRequestMessage(HttpMethod.Put, "/api/settings/reminder");
+    yield return new HttpRequestMessage(HttpMethod.Get, "/api/backups");
+    yield return new HttpRequestMessage(HttpMethod.Post, "/api/backups");
+    yield return new HttpRequestMessage(HttpMethod.Post, "/api/backups/example/restaurar?confirm=true");
+    yield return new HttpRequestMessage(HttpMethod.Get, "/test-telegram");
+}
+
+static async Task<string> GetAntiforgeryTokenAsync(HttpClient client)
+{
+    using var response = await client.GetAsync("/api/multi-family/antiforgery/token");
+    response.EnsureSuccessStatusCode();
+    using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+    return document.RootElement.GetProperty("token").GetString()
+        ?? throw new InvalidOperationException("Token antiforgery ausente.");
+}
+
+static Task<HttpResponseMessage> PostWithTokenAsync<T>(HttpClient client, string path, T body, string token)
+{
+    var request = new HttpRequestMessage(HttpMethod.Post, path) { Content = JsonContent.Create(body) };
+    request.Headers.Add("X-CSRF-TOKEN", token);
+    return client.SendAsync(request);
+}
+
 static Family NewFamily(string name) => new() { Id = Guid.NewGuid(), Name = name };
 
 static ContaEntity NewConta(Guid familyId, string name) => new()
@@ -584,6 +915,16 @@ static void AssertContains(string expected, string actual, string message)
     {
         throw new InvalidOperationException($"{message} Trecho esperado: {expected}.");
     }
+}
+
+static DefaultHttpContext AuthenticatedHttpContext(Guid userId)
+{
+    var context = new DefaultHttpContext();
+    context.User = new ClaimsPrincipal(new ClaimsIdentity(
+    [
+        new Claim(ClaimTypes.NameIdentifier, userId.ToString())
+    ], "TestIdentity"));
+    return context;
 }
 
 internal sealed class TestScope : IDisposable
@@ -676,5 +1017,152 @@ internal sealed class RelationalTestScope : IAsyncDisposable
     {
         await Db.DisposeAsync();
         await _connection.DisposeAsync();
+    }
+}
+
+internal sealed class IdentityTestScope : IAsyncDisposable
+{
+    private readonly SqliteConnection _connection;
+    private readonly ServiceProvider _services;
+    public UserManager<AppUser> UserManager { get; }
+
+    private IdentityTestScope(SqliteConnection connection, ServiceProvider services, UserManager<AppUser> userManager)
+    {
+        _connection = connection;
+        _services = services;
+        UserManager = userManager;
+    }
+
+    public static async Task<IdentityTestScope> CreateAsync()
+    {
+        var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddDataProtection();
+        services.AddDbContext<AgendadorDbContext>(options => options.UseSqlite(connection));
+        services.AddIdentityCore<AppUser>(options =>
+        {
+            options.User.RequireUniqueEmail = true;
+            options.Lockout.AllowedForNewUsers = true;
+            options.Lockout.MaxFailedAccessAttempts = 5;
+        }).AddRoles<IdentityRole<Guid>>().AddEntityFrameworkStores<AgendadorDbContext>().AddDefaultTokenProviders();
+        var provider = services.BuildServiceProvider();
+        await provider.GetRequiredService<AgendadorDbContext>().Database.EnsureCreatedAsync();
+        return new IdentityTestScope(connection, provider, provider.GetRequiredService<UserManager<AppUser>>());
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await _services.DisposeAsync();
+        await _connection.DisposeAsync();
+    }
+}
+
+internal sealed class FamilyContextTestScope : IAsyncDisposable
+{
+    private readonly SqliteConnection _connection;
+    private readonly TestHttpContextAccessor _accessor;
+    public AgendadorDbContext Db { get; }
+    public Guid UserId { get; } = Guid.NewGuid();
+    public DefaultHttpContext HttpContext { get; }
+    public IFamilySelectionService Selection { get; }
+    public ICurrentFamilyContext CurrentFamily { get; }
+
+    private FamilyContextTestScope(SqliteConnection connection, AgendadorDbContext db)
+    {
+        _connection = connection;
+        Db = db;
+        HttpContext = TestFixtures.AuthenticatedHttpContext(UserId);
+        HttpContext.Session = new TestSession();
+        _accessor = new TestHttpContextAccessor { HttpContext = HttpContext };
+        var currentUser = new CurrentUserContext(_accessor);
+        Selection = new FamilySelectionService(db, currentUser, _accessor);
+        CurrentFamily = new CurrentFamilyContext(currentUser, Selection);
+    }
+
+    public static async Task<FamilyContextTestScope> CreateAsync()
+    {
+        var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        var db = new AgendadorDbContext(new DbContextOptionsBuilder<AgendadorDbContext>().UseSqlite(connection).Options);
+        await db.Database.EnsureCreatedAsync();
+        var scope = new FamilyContextTestScope(connection, db);
+        db.Add(new AppUser { Id = scope.UserId, UserName = $"user-{scope.UserId:N}", NormalizedUserName = $"USER-{scope.UserId:N}" });
+        await db.SaveChangesAsync();
+        return scope;
+    }
+
+    public async Task<Family> AddMembershipAsync(
+        FamilyRole role,
+        string name = "Family A",
+        bool membershipActive = true,
+        bool familyActive = true)
+    {
+        var family = new Family { Id = Guid.NewGuid(), Name = name };
+        family.IsActive = familyActive;
+        Db.Add(family);
+        Db.FamilyUsers.Add(new FamilyUser { FamilyId = family.Id, UserId = UserId, Role = role, IsActive = membershipActive });
+        await Db.SaveChangesAsync();
+        return family;
+    }
+
+    public void SwitchUser(Guid userId) => HttpContext.User = TestFixtures.AuthenticatedHttpContext(userId).User;
+
+    public async ValueTask DisposeAsync()
+    {
+        await Db.DisposeAsync();
+        await _connection.DisposeAsync();
+    }
+}
+
+internal sealed class TestSession : ISession
+{
+    private readonly Dictionary<string, byte[]> _values = new(StringComparer.Ordinal);
+    public bool IsAvailable => true;
+    public string Id { get; } = Guid.NewGuid().ToString("N");
+    public IEnumerable<string> Keys => _values.Keys;
+    public void Clear() => _values.Clear();
+    public Task CommitAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public Task LoadAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public void Remove(string key) => _values.Remove(key);
+    public void Set(string key, byte[] value) => _values[key] = value;
+    public bool TryGetValue(string key, out byte[] value) => _values.TryGetValue(key, out value!);
+}
+
+internal sealed class TestHttpContextAccessor : IHttpContextAccessor
+{
+    public HttpContext? HttpContext { get; set; }
+}
+
+internal static class TestFixtures
+{
+    public static DefaultHttpContext AuthenticatedHttpContext(Guid userId)
+    {
+        var context = new DefaultHttpContext();
+        context.User = new ClaimsPrincipal(new ClaimsIdentity(
+        [
+            new Claim(ClaimTypes.NameIdentifier, userId.ToString())
+        ], "TestIdentity"));
+        return context;
+    }
+}
+
+internal sealed class MultiFamilyWebFactory(string connectionString) : WebApplicationFactory<ApplicationMarker>
+{
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        builder.UseContentRoot(Directory.GetCurrentDirectory());
+        builder.UseEnvironment("Testing");
+        builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(
+            new Dictionary<string, string?>
+            {
+                ["MultiFamily:Enabled"] = "true",
+                ["MultiFamily:ConnectionString"] = connectionString,
+                ["MultiFamily:SessionHours"] = "1",
+                ["Telegram:Enabled"] = "false",
+                ["Backup:AutomaticEnabled"] = "false",
+                ["AccessProtection:Enabled"] = "false"
+            }));
     }
 }

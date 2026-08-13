@@ -3,6 +3,9 @@
 
 ## 2026-08-13
 
+- Preparada Fase 2.1 com Identity individual, `CurrentUserContext` e `CurrentFamilyContext` apenas em modo controlado.
+- Adicionados cookie seguro, antiforgery, lockout, rate limiting por IP e selecao familiar em sessao revalidada.
+- Runtime JSON permanece padrao; APIs legadas ficam bloqueadas quando o modo experimental multi-family esta ativo.
 - Adicionada fundacao local EF Core/PostgreSQL multi-tenant, ainda desconectada do runtime JSON.
 - Criados modelo relacional, Identity, migration inicial e testes SQLite descartaveis de integridade familiar.
 - Nenhuma migration foi aplicada em producao, nenhum JSON real foi importado e nenhum deploy foi realizado.

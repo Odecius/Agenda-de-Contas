@@ -1,5 +1,21 @@
 ﻿# DECISIONS
 
+## 2026-08-13 - Contexto familiar selecionado em sessao e revalidado
+
+**Decisao:** Usar sessao protegida para guardar a familia escolhida, revalidando usuario, membership e familia no PostgreSQL a cada resolucao do `CurrentFamilyContext`.
+
+**Motivo:** O cliente nao deve ser autoridade sobre `UserId` ou `FamilyId`; a sessao e a opcao mais simples para o incremento controlado atual.
+
+**Impacto:** Uma familia valida pode ser selecionada automaticamente. Multiplas familias exigem escolha autorizada. Sessao distribuida fica pendente antes de multiplas replicas.
+
+## 2026-08-13 - Identity permanece atras de feature flag
+
+**Decisao:** Ativar Identity apenas com `MultiFamily:Enabled=true` em Development/Testing e bloquear APIs JSON legadas nesse modo.
+
+**Motivo:** Evitar qualquer mudanca na producao e impedir acesso nao isolado ao JSON compartilhado durante os testes multi-family.
+
+**Impacto:** AccessProtection e `ContaStore` continuam exatamente como runtime padrao com a flag desligada.
+
 ## 2026-08-13 - Manter modelo JSON separado durante a transicao
 
 **Decisao:** Criar entidades relacionais em `Data/Entities` sem adicionar `FamilyId` aos modelos JSON ativos nesta etapa.
