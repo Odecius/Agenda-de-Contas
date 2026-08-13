@@ -2,6 +2,9 @@
 
 ## Alta prioridade
 
+- Revisar a migration `InitialMultiTenantSchema` antes de preparar qualquer ambiente PostgreSQL.
+- Implementar `CurrentFamilyContext` e repositorios tenant-aware antes de trocar o runtime JSON.
+- Criar importador JSON idempotente usando apenas copias controladas.
 - Remover token/chat id de `notas.txt` e limpar histórico Git se o segredo já tiver sido versionado.
 - Confirmar e registrar a rotação de qualquer token Telegram historicamente exposto.
 - Planejar PostgreSQL, autenticação individual e `Family/Tenant` conforme `docs/multi-family-postgresql-plan.md`.
@@ -26,6 +29,8 @@
 
 ## Concluído
 
+- Fundacao local EF Core/PostgreSQL multi-tenant criada, sem conexao com producao.
+- Modelo relacional e primeira migration versionados; testes usam SQLite descartavel.
 - Deploy Docker real validado no servidor HP Linux.
 - Aplicação funcional em produção no container `agendador-contas`.
 - Dados JSON persistidos em `/srv/data/apps/agendador`.

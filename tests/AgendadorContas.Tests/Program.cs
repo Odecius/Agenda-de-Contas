@@ -1,6 +1,12 @@
 using AgendadorContas.Models;
 using AgendadorContas.Options;
 using AgendadorContas.Services;
+using AgendadorContas.Data;
+using AgendadorContas.Data.Entities;
+using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -22,7 +28,17 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Configuracao do lembrete salva e valida horario", ReminderSettingsPersistsAndValidatesAsync),
     ("Protecao mantem apenas rotas anonimas esperadas", AccessProtectionAnonymousPathsAreLimited),
     ("Protecao ativa exige senha configurada", AccessProtectionRequiresPasswordWhenEnabled),
-    ("HSTS e aplicado apenas quando solicitado", SecurityHeadersApplyHstsWhenRequestedAsync)
+    ("HSTS e aplicado apenas quando solicitado", SecurityHeadersApplyHstsWhenRequestedAsync),
+    ("Modelo relacional isola familias e settings", MultiTenantFamiliesAreIsolatedAsync),
+    ("Modelo relacional impede pagamento cross-family", CrossFamilyPaymentIsRejectedAsync),
+    ("Modelo relacional separa roles e lembretes", FamilyRolesAndRemindersAreSeparatedAsync),
+    ("Membership duplicado e impedido", DuplicateMembershipIsRejectedAsync),
+    ("Settings duplicados por familia sao impedidos", DuplicateFamilySettingsAreRejectedAsync),
+    ("Telegram settings duplicados por familia sao impedidos", DuplicateTelegramSettingsAreRejectedAsync),
+    ("Pagamento duplicado no mesmo mes e impedido", DuplicateMonthlyPaymentIsRejectedAsync),
+    ("Roles e valores invalidos sao impedidos", InvalidRelationalValuesAreRejectedAsync),
+    ("Deletes respeitam cascades e restricoes", RelationalDeleteBehaviorsAreEnforcedAsync),
+    ("Migration inicial contem schema multi-tenant", InitialMigrationContainsExpectedSchema)
 };
 
 var failed = 0;
@@ -346,6 +362,206 @@ static async Task SecurityHeadersApplyHstsWhenRequestedAsync()
     await Task.CompletedTask;
 }
 
+static async Task MultiTenantFamiliesAreIsolatedAsync()
+{
+    await using var scope = await RelationalTestScope.CreateAsync();
+    var familyA = NewFamily("Family A");
+    var familyB = NewFamily("Family B");
+    scope.Db.Families.AddRange(familyA, familyB);
+    scope.Db.FamilySettings.AddRange(
+        new FamilySettings { FamilyId = familyA.Id, TimeZoneId = "Europe/London", ReminderHour = 8 },
+        new FamilySettings { FamilyId = familyB.Id, TimeZoneId = "Europe/Lisbon", ReminderHour = 9 });
+    scope.Db.Contas.AddRange(NewConta(familyA.Id, "Bill A"), NewConta(familyB.Id, "Bill B"));
+    await scope.Db.SaveChangesAsync();
+
+    AssertEqual(1, await scope.Db.Contas.CountAsync(x => x.FamilyId == familyA.Id), "Family A deveria ter uma conta.");
+    AssertEqual("Europe/Lisbon", (await scope.Db.FamilySettings.SingleAsync(x => x.FamilyId == familyB.Id)).TimeZoneId, "Settings deveriam permanecer separados.");
+}
+
+static async Task CrossFamilyPaymentIsRejectedAsync()
+{
+    await using var scope = await RelationalTestScope.CreateAsync();
+    var familyA = NewFamily("Family A");
+    var familyB = NewFamily("Family B");
+    var billA = NewConta(familyA.Id, "Bill A");
+    scope.Db.AddRange(familyA, familyB, billA);
+    await scope.Db.SaveChangesAsync();
+
+    scope.Db.Pagamentos.Add(new PagamentoEntity
+    {
+        FamilyId = familyB.Id,
+        ContaId = billA.Id,
+        Ano = 2026,
+        Mes = 8
+    });
+
+    try
+    {
+        await scope.Db.SaveChangesAsync();
+        throw new InvalidOperationException("Pagamento cross-family deveria violar a FK composta.");
+    }
+    catch (DbUpdateException)
+    {
+    }
+}
+
+static async Task FamilyRolesAndRemindersAreSeparatedAsync()
+{
+    await using var scope = await RelationalTestScope.CreateAsync();
+    var familyA = NewFamily("Family A");
+    var familyB = NewFamily("Family B");
+    var owner = new AppUser { Id = Guid.NewGuid(), UserName = "owner-a", NormalizedUserName = "OWNER-A" };
+    var member = new AppUser { Id = Guid.NewGuid(), UserName = "member-b", NormalizedUserName = "MEMBER-B" };
+    scope.Db.AddRange(familyA, familyB, owner, member);
+    scope.Db.FamilyUsers.AddRange(
+        new FamilyUser { FamilyId = familyA.Id, UserId = owner.Id, Role = FamilyRole.Owner },
+        new FamilyUser { FamilyId = familyB.Id, UserId = member.Id, Role = FamilyRole.Member });
+    scope.Db.LembretesEnviados.AddRange(
+        new LembreteEnviadoEntity { FamilyId = familyA.Id, LocalDate = new DateOnly(2026, 8, 13) },
+        new LembreteEnviadoEntity { FamilyId = familyB.Id, LocalDate = new DateOnly(2026, 8, 13) });
+    await scope.Db.SaveChangesAsync();
+
+    AssertEqual(FamilyRole.Owner, (await scope.Db.FamilyUsers.SingleAsync(x => x.FamilyId == familyA.Id)).Role, "Owner deveria permanecer associado a A.");
+    AssertEqual(1, await scope.Db.LembretesEnviados.CountAsync(x => x.FamilyId == familyB.Id), "Lembretes deveriam permanecer separados.");
+    AssertEqual(3, Enum.GetValues<FamilyRole>().Length, "Somente Owner, Admin e Member sao roles validos.");
+}
+
+static async Task DuplicateMembershipIsRejectedAsync()
+{
+    await using var scope = await RelationalTestScope.CreateAsync();
+    var family = NewFamily("Family A");
+    var user = new AppUser { Id = Guid.NewGuid(), UserName = "member", NormalizedUserName = "MEMBER" };
+    scope.Db.AddRange(family, user);
+    scope.Db.FamilyUsers.Add(new FamilyUser { FamilyId = family.Id, UserId = user.Id, Role = FamilyRole.Member });
+    await scope.Db.SaveChangesAsync();
+
+    scope.Db.ChangeTracker.Clear();
+    scope.Db.FamilyUsers.Add(new FamilyUser { FamilyId = family.Id, UserId = user.Id, Role = FamilyRole.Admin });
+    await AssertDbUpdateRejectedAsync(scope.Db, "Membership duplicado deveria violar a PK composta.");
+}
+
+static async Task DuplicateFamilySettingsAreRejectedAsync()
+{
+    await using var scope = await RelationalTestScope.CreateAsync();
+    var family = NewFamily("Family A");
+    scope.Db.Add(family);
+    scope.Db.FamilySettings.Add(new FamilySettings { FamilyId = family.Id, TimeZoneId = "Europe/London" });
+    await scope.Db.SaveChangesAsync();
+
+    scope.Db.ChangeTracker.Clear();
+    scope.Db.FamilySettings.Add(new FamilySettings { FamilyId = family.Id, TimeZoneId = "Europe/Lisbon" });
+    await AssertDbUpdateRejectedAsync(scope.Db, "Settings duplicados deveriam violar a PK por familia.");
+}
+
+static async Task DuplicateTelegramSettingsAreRejectedAsync()
+{
+    await using var scope = await RelationalTestScope.CreateAsync();
+    var family = NewFamily("Family A");
+    scope.Db.Add(family);
+    scope.Db.TelegramSettings.Add(new TelegramSettings { FamilyId = family.Id });
+    await scope.Db.SaveChangesAsync();
+
+    scope.Db.ChangeTracker.Clear();
+    scope.Db.TelegramSettings.Add(new TelegramSettings { FamilyId = family.Id });
+    await AssertDbUpdateRejectedAsync(scope.Db, "Telegram settings duplicados deveriam violar a PK por familia.");
+}
+
+static async Task DuplicateMonthlyPaymentIsRejectedAsync()
+{
+    await using var scope = await RelationalTestScope.CreateAsync();
+    var family = NewFamily("Family A");
+    var conta = NewConta(family.Id, "Bill A");
+    scope.Db.AddRange(family, conta);
+    scope.Db.Pagamentos.Add(new PagamentoEntity { FamilyId = family.Id, ContaId = conta.Id, Ano = 2026, Mes = 8 });
+    await scope.Db.SaveChangesAsync();
+
+    scope.Db.ChangeTracker.Clear();
+    scope.Db.Pagamentos.Add(new PagamentoEntity { FamilyId = family.Id, ContaId = conta.Id, Ano = 2026, Mes = 8 });
+    await AssertDbUpdateRejectedAsync(scope.Db, "Pagamento mensal duplicado deveria violar o indice unico.");
+}
+
+static async Task InvalidRelationalValuesAreRejectedAsync()
+{
+    await using var scope = await RelationalTestScope.CreateAsync();
+    var family = NewFamily("Family A");
+    var user = new AppUser { Id = Guid.NewGuid(), UserName = "member", NormalizedUserName = "MEMBER" };
+    scope.Db.AddRange(family, user);
+    await scope.Db.SaveChangesAsync();
+
+    scope.Db.FamilyUsers.Add(new FamilyUser { FamilyId = family.Id, UserId = user.Id, Role = (FamilyRole)999 });
+    await AssertDbUpdateRejectedAsync(scope.Db, "Role fora de Owner/Admin/Member deveria violar o check constraint.");
+
+    scope.Db.ChangeTracker.Clear();
+    var invalidConta = NewConta(family.Id, "Invalid");
+    invalidConta.DiaVencimento = 32;
+    scope.Db.Contas.Add(invalidConta);
+    await AssertDbUpdateRejectedAsync(scope.Db, "Dia de vencimento invalido deveria violar o check constraint.");
+}
+
+static async Task RelationalDeleteBehaviorsAreEnforcedAsync()
+{
+    await using var scope = await RelationalTestScope.CreateAsync();
+    var family = NewFamily("Family A");
+    var conta = NewConta(family.Id, "Bill A");
+    scope.Db.AddRange(family, conta);
+    scope.Db.FamilySettings.Add(new FamilySettings { FamilyId = family.Id, TimeZoneId = "Europe/London" });
+    scope.Db.Pagamentos.Add(new PagamentoEntity { FamilyId = family.Id, ContaId = conta.Id, Ano = 2026, Mes = 8 });
+    await scope.Db.SaveChangesAsync();
+
+    scope.Db.ChangeTracker.Clear();
+    scope.Db.Families.Remove(new Family { Id = family.Id, Name = family.Name });
+    await AssertDbUpdateRejectedAsync(scope.Db, "Familia com conta deveria ser protegida por delete Restrict.");
+
+    scope.Db.ChangeTracker.Clear();
+    var persistedConta = await scope.Db.Contas.SingleAsync(x => x.Id == conta.Id);
+    scope.Db.Contas.Remove(persistedConta);
+    await scope.Db.SaveChangesAsync();
+    AssertEqual(0, await scope.Db.Pagamentos.CountAsync(), "Remover conta deveria remover seus pagamentos.");
+
+    var persistedFamily = await scope.Db.Families.SingleAsync(x => x.Id == family.Id);
+    scope.Db.Families.Remove(persistedFamily);
+    await scope.Db.SaveChangesAsync();
+    AssertEqual(0, await scope.Db.FamilySettings.CountAsync(), "Remover familia deveria remover seus settings dependentes.");
+}
+
+static async Task AssertDbUpdateRejectedAsync(AgendadorDbContext db, string message)
+{
+    try
+    {
+        await db.SaveChangesAsync();
+        throw new InvalidOperationException(message);
+    }
+    catch (DbUpdateException)
+    {
+    }
+}
+
+static Task InitialMigrationContainsExpectedSchema()
+{
+    var options = new DbContextOptionsBuilder<AgendadorDbContext>()
+        .UseNpgsql("Host=localhost;Database=schema_test;Username=schema_test")
+        .Options;
+    using var db = new AgendadorDbContext(options);
+    var migrations = db.GetService<IMigrationsAssembly>().Migrations;
+    AssertTrue(migrations.Keys.Any(x => x.EndsWith("_InitialMultiTenantSchema", StringComparison.Ordinal)), "Migration inicial nao foi encontrada.");
+
+    var tables = db.Model.GetEntityTypes().Select(x => x.GetTableName()).Where(x => x is not null).ToHashSet();
+    foreach (var table in new[] { "families", "family_users", "family_settings", "telegram_settings", "contas", "pagamentos", "lembretes_enviados", "app_users" })
+    {
+        AssertTrue(tables.Contains(table), $"Tabela {table} deveria existir no modelo da migration.");
+    }
+
+    return Task.CompletedTask;
+}
+
+static Family NewFamily(string name) => new() { Id = Guid.NewGuid(), Name = name };
+
+static ContaEntity NewConta(Guid familyId, string name) => new()
+{
+    Id = Guid.NewGuid(), FamilyId = familyId, Nome = name, Valor = 10,
+    DiaVencimento = 10, DataInicio = new DateOnly(2026, 1, 1)
+};
+
 static void AssertTrue(bool condition, string message)
 {
     if (!condition)
@@ -428,4 +644,37 @@ internal sealed class FakeWebHostEnvironment(string contentRootPath) : IWebHostE
     public string EnvironmentName { get; set; } = "Testing";
     public string WebRootPath { get; set; } = contentRootPath;
     public IFileProvider WebRootFileProvider { get; set; } = new NullFileProvider();
+}
+
+internal sealed class RelationalTestScope : IAsyncDisposable
+{
+    private readonly SqliteConnection _connection;
+    public AgendadorDbContext Db { get; }
+
+    private RelationalTestScope(SqliteConnection connection, AgendadorDbContext db)
+    {
+        _connection = connection;
+        Db = db;
+    }
+
+    public static async Task<RelationalTestScope> CreateAsync()
+    {
+        var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        await using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "PRAGMA foreign_keys = ON;";
+            await command.ExecuteNonQueryAsync();
+        }
+        var options = new DbContextOptionsBuilder<AgendadorDbContext>().UseSqlite(connection).Options;
+        var db = new AgendadorDbContext(options);
+        await db.Database.EnsureCreatedAsync();
+        return new RelationalTestScope(connection, db);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await Db.DisposeAsync();
+        await _connection.DisposeAsync();
+    }
 }

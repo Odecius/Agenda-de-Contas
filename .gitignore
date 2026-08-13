@@ -15,8 +15,16 @@ usersecrets.json
 notas.txt
 NOTAS.txt
 
-# Dados locais da aplicacao
-data/
+# Dados locais da aplicacao. Por seguranca, somente codigo C# explicitamente
+# permitido sob Data/ pode ser versionado; qualquer outro artefato permanece ignorado.
+/data/*
+!/data/*.cs
+!/data/Entities/
+/data/Entities/*
+!/data/Entities/*.cs
+!/data/Migrations/
+/data/Migrations/*
+!/data/Migrations/*.cs
 
 # Banco SQLite
 *.db

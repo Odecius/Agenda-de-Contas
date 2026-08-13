@@ -1,5 +1,21 @@
 ﻿# DECISIONS
 
+## 2026-08-13 - Manter modelo JSON separado durante a transicao
+
+**Decisao:** Criar entidades relacionais em `Data/Entities` sem adicionar `FamilyId` aos modelos JSON ativos nesta etapa.
+
+**Motivo:** Evitar alterar contratos e arquivos reais antes de existir importador e `CurrentFamilyContext`.
+
+**Impacto:** `ContaStore` continua sendo o runtime. O schema PostgreSQL nasce multi-tenant e preservara os UUIDs na importacao.
+
+## 2026-08-13 - FamilyId em pagamentos
+
+**Decisao:** Persistir `FamilyId` em pagamentos e usar FK composta `(FamilyId, ContaId)` para `Conta`.
+
+**Motivo:** Impedir associacao cross-family no banco.
+
+**Impacto:** Importador e repositorios futuros devem preencher o tenant a partir do contexto server-side.
+
 ## 2026-08-13 - Baseline pos-producao
 
 **Decisao:** Registrar a tag `v1.0.4`, commit `e06d30e`, como baseline documental pos-producao do Agendador.
