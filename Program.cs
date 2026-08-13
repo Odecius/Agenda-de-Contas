@@ -65,8 +65,11 @@ builder.Services.AddHttpClient("Telegram", (serviceProvider, httpClient) =>
     var options = serviceProvider.GetRequiredService<IOptions<TelegramOptions>>().Value;
     httpClient.BaseAddress = new Uri(options.ApiBaseUrl);
 });
-builder.Services.AddHostedService<DailyReminderService>();
-builder.Services.AddHostedService<AutomaticBackupService>();
+if (!multiFamilyOptions.Enabled)
+{
+    builder.Services.AddHostedService<DailyReminderService>();
+    builder.Services.AddHostedService<AutomaticBackupService>();
+}
 
 var dataProtectionKeysPath = builder.Configuration["DataProtection:KeysPath"];
 if (!string.IsNullOrWhiteSpace(dataProtectionKeysPath))

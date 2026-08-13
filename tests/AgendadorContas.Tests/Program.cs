@@ -22,6 +22,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Hosting;
 
 var tests = new List<(string Name, Func<Task> Run)>
 {
@@ -768,6 +769,9 @@ static async Task MultiFamilyHttpFlowWorksOnPostgresAsync()
     var connectionString = Environment.GetEnvironmentVariable("AGENDADOR_TEST_POSTGRES")
         ?? throw new InvalidOperationException("Connection string descartavel de teste ausente.");
     await using var factory = new MultiFamilyWebFactory(connectionString);
+    var hostedServices = factory.Services.GetServices<IHostedService>().ToList();
+    AssertTrue(hostedServices.All(service => service is not DailyReminderService), "Worker de lembretes JSON nao deve executar no modo multi-family.");
+    AssertTrue(hostedServices.All(service => service is not AutomaticBackupService), "Worker de backup JSON nao deve executar no modo multi-family.");
 
     Guid userAId;
     Guid familyAId;

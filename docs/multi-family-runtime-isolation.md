@@ -10,6 +10,8 @@ A fase 2.1 prepara Identity, usuario atual e familia ativa sem trocar o runtime 
 
 Quando a flag esta ligada, os endpoints legados `/api/*` ficam indisponiveis e somente `/api/multi-family/*` e exposto para os testes. Isso impede que uma identidade individual acesse o JSON compartilhado antes de existirem repositories tenant-aware.
 
+Os workers legados de lembretes e backup tambem nao sao registrados nesse modo, evitando operacoes de background sobre JSON ou Telegram fora do contexto familiar.
+
 ## Identidade e trust boundary
 
 Identity usa `AppUser`, `IdentityRole<Guid>`, senha com o hasher padrao, email normalizado unico, lockout apos cinco falhas e cookie `HttpOnly`, `Secure` e `SameSite=Strict`. Login tem rate limiting por IP. Mutacoes usam token antiforgery.
