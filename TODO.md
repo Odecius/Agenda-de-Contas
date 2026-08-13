@@ -3,11 +3,11 @@
 ## Alta prioridade
 
 - Remover token/chat id de `notas.txt` e limpar histórico Git se o segredo já tiver sido versionado.
-- Validar deploy Docker real no servidor HP Linux.
-- Configurar arquivo real `/srv/stacks/apps/agendador/agendador.env` diretamente no servidor, sem enviar ao Git.
+- Confirmar e registrar a rotação de qualquer token Telegram historicamente exposto.
+- Planejar PostgreSQL, autenticação individual e `Family/Tenant` conforme `docs/multi-family-postgresql-plan.md`.
+- Definir RPO/RTO e ensaiar restore antes de qualquer migração dos dados reais.
+- Registrar correspondência verificável entre futura imagem de produção e commit/tag de origem.
 - Validar deploy real em Raspberry Pi quando o hardware estiver disponivel.
-- Validar login no servidor HP Linux antes de expor o sistema em rede.
-- Validar no servidor HP que a alteracao do horario do lembrete grava `settings.json` no volume persistente.
 
 ## Média prioridade
 
@@ -25,6 +25,13 @@
 - Avaliar novos canais de notificação.
 
 ## Concluído
+
+- Deploy Docker real validado no servidor HP Linux.
+- Aplicação funcional em produção no container `agendador-contas`.
+- Dados JSON persistidos em `/srv/data/apps/agendador`.
+- AccessProtection, sessões, Data Protection keys, backups automáticos e health check ativos em produção.
+- Timezone de produção confirmado como `Europe/London`.
+- Baseline pós-produção registrado para `v1.0.4`/`e06d30e`.
 
 - Cadastro e listagem de contas.
 - Marcação/desmarcação de pagamentos.

@@ -1,5 +1,37 @@
 ﻿# DECISIONS
 
+## 2026-08-13 - Baseline pos-producao
+
+**Decisao:** Registrar a tag `v1.0.4`, commit `e06d30e`, como baseline documental pos-producao do Agendador.
+
+**Motivo:** A aplicacao esta funcional no servidor HP Linux via Docker Compose, superando o baseline de pre-producao de 2026-07-23.
+
+**Impacto:** O repositorio `C:\Projetos\Abc\Agendador de contas` passa a ser a fonte de verdade para novos planejamentos. O snapshot simplificado existente em outros diretorios nao deve ser usado. O proximo ciclo deve preservar a imagem e os dados atuais antes de qualquer evolucao.
+
+## 2026-08-13 - PostgreSQL deve nascer preparado para Family/Tenant
+
+**Decisao:** Planejar o primeiro schema PostgreSQL com `Family`, usuarios, associacoes e isolamento familiar, sem criar uma etapa relacional mono-tenant intermediaria.
+
+**Motivo:** O objetivo aprovado para planejamento e atender a familia atual e duas familias piloto. Um schema mono-tenant exigiria uma segunda migracao estrutural e aumentaria o risco sobre os dados.
+
+**Impacto:** A importacao do JSON criara a familia existente como primeiro tenant. PostgreSQL, autenticacao e multi-tenancy continuam apenas planejados ate aprovacao explicita de implementacao.
+
+## 2026-08-13 - Baseline pos-producao
+
+**Decisao:** Registrar a tag `v1.0.4`, commit `e06d30e`, como baseline documental pos-producao do Agendador.
+
+**Motivo:** A aplicacao esta funcional no servidor HP Linux via Docker Compose, superando o baseline de pre-producao de 2026-07-23.
+
+**Impacto:** O repositorio `C:\Projetos\Abc\Agendador de contas` passa a ser a fonte de verdade para novos planejamentos. O snapshot simplificado existente em outros diretorios nao deve ser usado. O proximo ciclo deve preservar a imagem e os dados atuais antes de qualquer evolucao.
+
+## 2026-08-13 - PostgreSQL deve nascer preparado para Family/Tenant
+
+**Decisao:** Planejar o primeiro schema PostgreSQL com `Family`, usuarios, associacoes e isolamento familiar, sem criar uma etapa relacional mono-tenant intermediaria.
+
+**Motivo:** O objetivo aprovado para planejamento e atender a familia atual e duas familias piloto. Um schema mono-tenant exigiria uma segunda migracao estrutural e aumentaria o risco sobre os dados.
+
+**Impacto:** A importacao do JSON criara a familia existente como primeiro tenant. PostgreSQL, autenticacao e multi-tenancy continuam apenas planejados ate aprovacao explicita de implementacao.
+
 ## 2026-07-15 - Branch principal remota
 
 **Decisao:** Manter temporariamente `master` porque o repositorio remoto ainda publica `origin/master`.

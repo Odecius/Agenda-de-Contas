@@ -147,3 +147,16 @@
 - Adicionar controle na interface principal.
 - Manter `Reminder__*` como defaults iniciais para ambiente.
 - Validar persistencia local e preparar validacao no volume Docker.
+
+## Fase 32 - Evolucao multi-familia
+
+- Preservar o baseline de producao `v1.0.4` e os dados JSON atuais.
+- Criar PostgreSQL com database e usuario dedicados ao Agendador.
+- Modelar `Family/Tenant` desde o primeiro schema relacional.
+- Importar o JSON atual de forma idempotente para a familia existente.
+- Substituir a credencial compartilhada por autenticacao individual.
+- Aplicar isolamento por `FamilyId`, roles e protecao contra IDOR/BOLA.
+- Migrar configuracoes, Telegram e workers para escopo familiar.
+- Liberar duas familias piloto somente apos testes e rollback comprovados.
+
+O plano detalhado esta em `docs/multi-family-postgresql-plan.md`. Esta fase ainda nao esta implementada.

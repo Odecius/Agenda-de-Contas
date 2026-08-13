@@ -27,6 +27,18 @@ Aplicação ASP.NET Core .NET 8 com Minimal API, frontend estático servido por 
 
 ## Restrições
 
-- Não há autenticação.
+- A protecao atual usa credencial compartilhada e cookie; nao e autenticacao individual.
 - Não há banco externo.
-- Deploy Raspberry é planejado, mas ainda precisa validação real.
+- JSON e `SemaphoreSlim` suportam somente uma instancia coordenada no processo.
+- Nao existe isolamento por usuario ou familia.
+- Deploy Docker no HP Linux esta em producao; deploy Raspberry continua planejado.
+
+## Estado de producao
+
+A aplicacao roda via Docker Compose no container `agendador-contas`. Os dados JSON, configuracao do lembrete, backups e chaves ASP.NET Data Protection sao persistidos em `/srv/data/apps/agendador`. AccessProtection, backups automaticos e `/health` estao ativos. O timezone e `Europe/London`.
+
+O baseline pos-producao e `v1.0.4`, commit `e06d30e`.
+
+## Evolucao planejada
+
+O proximo desenho arquitetural esta documentado em `multi-family-postgresql-plan.md`: PostgreSQL com modelo `Family/Tenant` desde o primeiro schema, autenticacao individual e isolamento server-side por `FamilyId`. Nada dessa evolucao esta implementado neste baseline.

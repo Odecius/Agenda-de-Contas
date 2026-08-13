@@ -2,6 +2,7 @@
 
 ## Regras para trabalhar neste projeto
 
+- Antes de auditar ou alterar, ler o checkpoint mais recente em `docs/checkpoints/` e reconciliar com o baseline central.
 - Entender `Program.cs`, `ContaStore` e serviços antes de alterar comportamento.
 - Nunca inserir tokens, chat id, senhas ou chaves em arquivos versionados.
 - Atualizar documentação após qualquer tarefa relevante.

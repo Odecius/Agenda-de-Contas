@@ -4,6 +4,8 @@
 
 Agendador de Contas é uma aplicação ASP.NET Core .NET 8 com frontend estático em `wwwroot`, APIs mínimas em `Program.cs`, armazenamento local em JSON e lembretes diários via Hosted Service.
 
+O baseline atual e pos-producao: branch `master`, tag `v1.0.4`, commit `e06d30e`. A aplicacao esta funcional no servidor HP Linux via Docker Compose, no container `agendador-contas`. Dados, `settings.json`, backups e chaves Data Protection ficam persistidos sob `/srv/data/apps/agendador`. AccessProtection, backups automaticos e health check estao ativos. O timezone de producao e `Europe/London`.
+
 O modelo de contas possui suporte inicial a pais e moeda por conta. Os paises suportados sao `UnitedKingdom`, `Portugal` e `Brazil`; as moedas suportadas sao `GBP`, `EUR` e `BRL`. O sistema nao faz conversao cambial. Totais com moedas diferentes devem ser agrupados por moeda.
 
 A interface possui resumo por pais e moeda baseado nos vencimentos do mes selecionado. Esse resumo e apenas demonstrativo/operacional: ele separa os valores por moeda e nao calcula conversao.
@@ -71,4 +73,4 @@ O horario do lembrete diario pode ser alterado pela interface. `ReminderSettings
 
 ## Onde continuar
 
-Próximo foco sugerido: copiar codigo para `/srv/apps/agendador`, compose para `/srv/stacks/apps/agendador`, criar o `.env` real no servidor e validar `docker compose config`, `docker compose build`, `docker compose up -d` e `/health`.
+Antes de qualquer trabalho, ler `docs/checkpoints/2026-08-13-post-production-checkpoint.md` e o baseline central. O proximo foco e revisar e aprovar `docs/multi-family-postgresql-plan.md`; PostgreSQL, autenticacao e multi-tenancy ainda nao estao implementados.

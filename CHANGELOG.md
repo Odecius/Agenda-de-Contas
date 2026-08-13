@@ -1,6 +1,14 @@
 ﻿# CHANGELOG
 
 
+## 2026-08-13
+
+- Encerrado o baseline pos-producao da tag `v1.0.4`, commit `e06d30e`.
+- Registrado o estado operacional validado no servidor HP Linux.
+- Criado checkpoint formal pos-producao.
+- Atualizada documentacao de arquitetura, deploy, continuidade e pendencias.
+- Documentado o plano tecnico JSON -> PostgreSQL -> autenticacao individual -> Family/Tenant, sem implementacao.
+
 ## 2026-07-30
 
 - Adicionado versionamento dos arquivos visuais para evitar CSS antigo em cache no Safari.

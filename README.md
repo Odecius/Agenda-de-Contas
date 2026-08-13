@@ -87,7 +87,9 @@ Para fechamento e preparação de produção, consulte `docs/final-checklist.md`
 
 ## Status atual
 
-Aplicação funcional com cadastro, listagem, edição, exclusão, pausa/reativação, vencimentos, marcação de pagamentos, backups manuais e automáticos, interface responsiva, resumo mensal, dashboard por país/moeda, exportação CSV mensal, suporte inicial a país/moeda por conta e envio Telegram. Não há banco externo. O deploy Docker para servidor HP Linux esta preparado, mas ainda precisa ser validado no servidor real.
+Aplicação funcional em produção no servidor HP Linux. O método operacional atual é Docker Compose, com o container `agendador-contas`, persistência JSON em `/srv/data/apps/agendador`, AccessProtection ativa, chaves ASP.NET Data Protection persistentes, backups automáticos e health check ativos. O timezone de produção é `Europe/London`.
+
+O baseline pós-produção corresponde à tag `v1.0.4`, commit `e06d30e`, na branch `master`. Consulte `docs/checkpoints/2026-08-13-post-production-checkpoint.md`.
 
 ## Lembrete diario
 
@@ -121,7 +123,8 @@ A tela de vencimentos permite exportar um CSV do mes selecionado. O arquivo incl
 
 ## Próximos passos
 
-- Validar deploy real no servidor HP Linux.
+- Planejar a evolução segura de JSON para PostgreSQL já preparado para `Family/Tenant`.
+- Planejar autenticação individual e isolamento por família antes de aceitar famílias piloto.
 - Validar deploy real em Raspberry Pi quando o hardware estiver disponivel.
 - Avaliar conversao cambial futura com API externa.
 - Melhorar relatorios por moeda e pais.

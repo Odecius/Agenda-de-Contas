@@ -2,7 +2,20 @@
 
 Este guia prepara o Agendador de Contas para rodar 24/7 no HP Pavilion com Ubuntu Server 24.04 LTS usando Docker Compose, Nginx Proxy Manager e dados persistentes fora do container.
 
-> Status: preparado para validacao no servidor HP. Este guia nao contem segredos reais e nao substitui a configuracao do arquivo `.env` real no servidor.
+> Status: validado e em operacao no servidor HP. Este guia nao contem segredos reais e nao substitui a configuracao do arquivo `.env` real no servidor.
+
+## Estado operacional confirmado
+
+- Container: `agendador-contas`.
+- Metodo: Docker Compose.
+- Compose operacional: `/srv/stacks/apps/agendador/docker-compose.yml`.
+- Dados persistentes: `/srv/data/apps/agendador`.
+- Persistencia atual: JSON (`contas.json`).
+- AccessProtection ativa e sessoes persistidas.
+- Chaves Data Protection persistidas no volume de dados.
+- Backups automaticos e health check ativos.
+- Timezone: `Europe/London`.
+- Baseline de codigo: tag `v1.0.4`, commit `e06d30e`.
 
 ## Metodo recomendado
 
