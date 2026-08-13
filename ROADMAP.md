@@ -160,3 +160,10 @@
 - Liberar duas familias piloto somente apos testes e rollback comprovados.
 
 O plano detalhado esta em `docs/multi-family-postgresql-plan.md`. Esta fase ainda nao esta implementada.
+
+### Etapa 32.1 - Fundacao local concluida
+
+- EF Core, provider PostgreSQL, Identity e entidades relacionais preparados.
+- Migration inicial multi-tenant criada apenas para desenvolvimento.
+- Testes isolados validam tenant, roles, settings, lembretes e FK cross-family.
+- Runtime e producao continuam usando JSON.

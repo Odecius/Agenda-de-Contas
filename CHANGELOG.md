@@ -3,6 +3,9 @@
 
 ## 2026-08-13
 
+- Adicionada fundacao local EF Core/PostgreSQL multi-tenant, ainda desconectada do runtime JSON.
+- Criados modelo relacional, Identity, migration inicial e testes SQLite descartaveis de integridade familiar.
+- Nenhuma migration foi aplicada em producao, nenhum JSON real foi importado e nenhum deploy foi realizado.
 - Encerrado o baseline pos-producao da tag `v1.0.4`, commit `e06d30e`.
 - Registrado o estado operacional validado no servidor HP Linux.
 - Criado checkpoint formal pos-producao.
