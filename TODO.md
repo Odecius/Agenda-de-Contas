@@ -2,11 +2,9 @@
 
 ## Alta prioridade
 
-- Revisar a Fase 2.1 antes de commit e implementar repositories tenant-aware na proxima subfase.
-- Definir a matriz final de permissoes Owner/Admin/Member.
+- Revisar e versionar a Fase 2.2 antes de planejar importacao ou ativacao de runtime.
 - Trocar sessao em memoria por armazenamento apropriado antes de multiplas replicas.
 - Revisar a migration `InitialMultiTenantSchema` antes de preparar qualquer ambiente PostgreSQL.
-- Implementar `CurrentFamilyContext` e repositorios tenant-aware antes de trocar o runtime JSON.
 - Criar importador JSON idempotente usando apenas copias controladas.
 - Remover token/chat id de `notas.txt` e limpar histórico Git se o segredo já tiver sido versionado.
 - Confirmar e registrar a rotação de qualquer token Telegram historicamente exposto.
@@ -31,6 +29,10 @@
 - Avaliar novos canais de notificação.
 
 ## Concluído
+
+- Repositories tenant-aware de Conta e Pagamento implementados para o modo experimental.
+- Matriz Owner/Admin/Member aplicada com 404 cross-family e 403 por role insuficiente.
+- Testes PostgreSQL descartaveis cobrem leitura, escrita, pagamentos, parametros adulterados e troca de familia.
 
 - Identity, contextos de usuario/familia e selecao familiar preparados atras de feature flag local.
 - Fundacao local EF Core/PostgreSQL multi-tenant criada, sem conexao com producao.

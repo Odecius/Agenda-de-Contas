@@ -27,7 +27,7 @@ Identity usa `AppUser`, `IdentityRole<Guid>`, senha com o hasher padrao, email n
 - `404 Not Found`: ID pertence a outra familia ou a membership nao autoriza revelar o recurso.
 - `403 Forbidden`: recurso pertence ao tenant atual, mas a role nao permite a operacao.
 
-Repositories completos e a matriz de permissoes serao implementados na proxima subfase.
+Na Fase 2.2, repositories de Conta e Pagamento aplicam essa politica em todas as consultas e mutacoes experimentais. A matriz detalhada esta em `docs/multi-family-tenant-repositories.md`.
 
 ## Endpoints controlados
 
@@ -38,6 +38,15 @@ Repositories completos e a matriz de permissoes serao implementados na proxima s
 - `GET /api/multi-family/families`
 - `GET /api/multi-family/family/current`
 - `POST /api/multi-family/family/select`
+- `GET /api/multi-family/contas`
+- `GET /api/multi-family/contas/{id}`
+- `POST /api/multi-family/contas`
+- `PUT /api/multi-family/contas/{id}`
+- `DELETE /api/multi-family/contas/{id}`
+- `GET /api/multi-family/pagamentos`
+- `GET /api/multi-family/contas/{contaId}/pagamentos`
+- `POST /api/multi-family/contas/{contaId}/pagamentos`
+- `DELETE /api/multi-family/pagamentos/{id}`
 
 Nao existe UI nova, seed de runtime, importador ou migration automatica no startup.
 
@@ -45,5 +54,5 @@ Nao existe UI nova, seed de runtime, importador ou migration automatica no start
 
 - PostgreSQL ainda nao e o runtime das contas.
 - Os endpoints JSON nao sao tenant-aware e por isso sao bloqueados no modo experimental.
-- Recovery por email, convites e repositories de negocio ficam fora desta fase.
+- Recovery por email e convites ficam fora desta fase.
 - A sessao em memoria serve somente ao ambiente local/controlado; uma estrategia distribuida sera necessaria antes de multiplas replicas.

@@ -22,6 +22,9 @@ NOTAS.txt
 !/data/Entities/
 /data/Entities/*
 !/data/Entities/*.cs
+!/data/Repositories/
+/data/Repositories/*
+!/data/Repositories/*.cs
 !/data/Migrations/
 /data/Migrations/*
 !/data/Migrations/*.cs

@@ -1,5 +1,13 @@
 ﻿# ROADMAP
 
+## Fase 2.2 - Repositories tenant-aware e autorizacao familiar
+
+- [x] Criar repositories scoped de Conta e Pagamento com tenant obtido de `ICurrentFamilyContext`.
+- [x] Expor endpoints relacionais apenas sob `/api/multi-family`.
+- [x] Aplicar matriz Owner/Admin/Member e politica 403/404.
+- [x] Cobrir isolamento A/B, adulteracao de parametros e troca de familia em PostgreSQL descartavel.
+- [ ] Planejar a proxima etapa sem ativar PostgreSQL ou importar JSON em producao.
+
 ## Sprint 10 - Experiência de cadastro e edição
 
 - Melhorar validações visuais.
