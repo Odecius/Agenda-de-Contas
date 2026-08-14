@@ -67,6 +67,8 @@ if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("AGENDADOR_TES
     tests.Add(("Fluxo HTTP Identity e familia funciona em PostgreSQL", MultiFamilyHttpFlowWorksOnPostgresAsync));
 }
 
+tests.Add(("Runtime legado preserva JSON e workers", LegacyRuntimeKeepsJsonAndWorkersAsync));
+
 var failed = 0;
 
 foreach (var test in tests)
@@ -852,6 +854,23 @@ static async Task MultiFamilyHttpFlowWorksOnPostgresAsync()
     AssertEqual(HttpStatusCode.TooManyRequests, lastStatus, "Sexta tentativa na janela deveria receber 429.");
 }
 
+static async Task LegacyRuntimeKeepsJsonAndWorkersAsync()
+{
+    await using var factory = new LegacyWebFactory();
+    var hostedServices = factory.Services.GetServices<IHostedService>().ToList();
+    AssertTrue(hostedServices.Any(service => service is DailyReminderService), "Worker de lembretes JSON deve permanecer ativo no modo legado.");
+    AssertTrue(hostedServices.Any(service => service is AutomaticBackupService), "Worker de backup JSON deve permanecer ativo no modo legado.");
+    AssertTrue(factory.Services.GetService<ContaStore>() is not null, "ContaStore deve permanecer registrado no modo legado.");
+    AssertTrue(factory.Services.GetService<AgendadorDbContext>() is null, "PostgreSQL nao deve ser registrado no modo legado.");
+
+    using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+    {
+        BaseAddress = new Uri("https://localhost"),
+        AllowAutoRedirect = false
+    });
+    AssertEqual(HttpStatusCode.OK, (await client.GetAsync("/api/contas")).StatusCode, "API JSON deve permanecer ativa no modo legado.");
+}
+
 static IEnumerable<HttpRequestMessage> LegacyRequests(Guid id)
 {
     yield return new HttpRequestMessage(HttpMethod.Get, "/api/auth/status");
@@ -1152,8 +1171,22 @@ internal static class TestFixtures
     }
 }
 
-internal sealed class MultiFamilyWebFactory(string connectionString) : WebApplicationFactory<ApplicationMarker>
+internal sealed class MultiFamilyWebFactory : WebApplicationFactory<ApplicationMarker>
 {
+    private readonly Dictionary<string, string?> _previousEnvironment = new(StringComparer.Ordinal);
+    private readonly string _connectionString;
+
+    public MultiFamilyWebFactory(string connectionString)
+    {
+        _connectionString = connectionString;
+        SetEnvironment("MultiFamily__Enabled", "true");
+        SetEnvironment("MultiFamily__ConnectionString", connectionString);
+        SetEnvironment("MultiFamily__SessionHours", "1");
+        SetEnvironment("Telegram__Enabled", "false");
+        SetEnvironment("Backup__AutomaticEnabled", "false");
+        SetEnvironment("AccessProtection__Enabled", "false");
+    }
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseContentRoot(Directory.GetCurrentDirectory());
@@ -1162,11 +1195,58 @@ internal sealed class MultiFamilyWebFactory(string connectionString) : WebApplic
             new Dictionary<string, string?>
             {
                 ["MultiFamily:Enabled"] = "true",
-                ["MultiFamily:ConnectionString"] = connectionString,
+                ["MultiFamily:ConnectionString"] = _connectionString,
                 ["MultiFamily:SessionHours"] = "1",
                 ["Telegram:Enabled"] = "false",
                 ["Backup:AutomaticEnabled"] = "false",
                 ["AccessProtection:Enabled"] = "false"
             }));
+    }
+
+    public override async ValueTask DisposeAsync()
+    {
+        await base.DisposeAsync();
+        foreach (var entry in _previousEnvironment)
+        {
+            Environment.SetEnvironmentVariable(entry.Key, entry.Value);
+        }
+    }
+
+    private void SetEnvironment(string name, string value)
+    {
+        _previousEnvironment[name] = Environment.GetEnvironmentVariable(name);
+        Environment.SetEnvironmentVariable(name, value);
+    }
+}
+
+internal sealed class LegacyWebFactory : WebApplicationFactory<ApplicationMarker>
+{
+    private readonly string _rootPath = Path.Combine(Path.GetTempPath(), "agendador-contas-legacy-tests", Guid.NewGuid().ToString("N"));
+
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        Directory.CreateDirectory(_rootPath);
+        builder.UseContentRoot(Directory.GetCurrentDirectory());
+        builder.UseEnvironment("Testing");
+        builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(
+            new Dictionary<string, string?>
+            {
+                ["MultiFamily:Enabled"] = "false",
+                ["MultiFamily:ConnectionString"] = null,
+                ["Data:FilePath"] = Path.Combine(_rootPath, "contas.json"),
+                ["Backup:DirectoryPath"] = Path.Combine(_rootPath, "backups"),
+                ["Backup:AutomaticEnabled"] = "false",
+                ["Telegram:Enabled"] = "false",
+                ["AccessProtection:Enabled"] = "false"
+            }));
+    }
+
+    public override async ValueTask DisposeAsync()
+    {
+        await base.DisposeAsync();
+        if (Directory.Exists(_rootPath))
+        {
+            Directory.Delete(_rootPath, recursive: true);
+        }
     }
 }
