@@ -167,3 +167,10 @@ O plano detalhado esta em `docs/multi-family-postgresql-plan.md`. Esta fase aind
 - Migration inicial multi-tenant criada apenas para desenvolvimento.
 - Testes isolados validam tenant, roles, settings, lembretes e FK cross-family.
 - Runtime e producao continuam usando JSON.
+
+### Etapa 32.2 - Identity e contextos em ambiente controlado
+
+- Identity individual protegido por feature flag desligada por default.
+- `CurrentUserContext`, `CurrentFamilyContext` e selecao familiar server-side.
+- Endpoints minimos de teste, antiforgery, lockout e rate limiting.
+- Proxima subfase: repositories tenant-aware e matriz de autorizacao, ainda sem migrar JSON real.

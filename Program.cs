@@ -1,6 +1,9 @@
+using AgendadorContas.Data;
+using AgendadorContas.Data.Entities;
 using AgendadorContas.Models;
 using AgendadorContas.Options;
 using AgendadorContas.Services;
+using AgendadorContas.Tenancy;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
@@ -9,10 +12,20 @@ using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
+var multiFamilyOptions = builder.Configuration
+    .GetSection(MultiFamilyOptions.SectionName)
+    .Get<MultiFamilyOptions>() ?? new MultiFamilyOptions();
+
+if (multiFamilyOptions.Enabled && !builder.Environment.IsDevelopment() && !builder.Environment.IsEnvironment("Testing"))
+{
+    throw new InvalidOperationException("MultiFamily may only be enabled in Development or Testing during phase 2.1.");
+}
 
 builder.Logging.AddFilter("System.Net.Http.HttpClient.Telegram", LogLevel.Warning);
 
@@ -52,8 +65,11 @@ builder.Services.AddHttpClient("Telegram", (serviceProvider, httpClient) =>
     var options = serviceProvider.GetRequiredService<IOptions<TelegramOptions>>().Value;
     httpClient.BaseAddress = new Uri(options.ApiBaseUrl);
 });
-builder.Services.AddHostedService<DailyReminderService>();
-builder.Services.AddHostedService<AutomaticBackupService>();
+if (!multiFamilyOptions.Enabled)
+{
+    builder.Services.AddHostedService<DailyReminderService>();
+    builder.Services.AddHostedService<AutomaticBackupService>();
+}
 
 var dataProtectionKeysPath = builder.Configuration["DataProtection:KeysPath"];
 if (!string.IsNullOrWhiteSpace(dataProtectionKeysPath))
@@ -65,9 +81,70 @@ if (!string.IsNullOrWhiteSpace(dataProtectionKeysPath))
         .SetApplicationName("AgendadorContas");
 }
 
-builder.Services
-    .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
-    .AddCookie(options =>
+if (multiFamilyOptions.Enabled)
+{
+    if (string.IsNullOrWhiteSpace(multiFamilyOptions.ConnectionString))
+    {
+        throw new InvalidOperationException("MultiFamily:ConnectionString is required when MultiFamily is enabled.");
+    }
+
+    builder.Services.Configure<MultiFamilyOptions>(builder.Configuration.GetSection(MultiFamilyOptions.SectionName));
+    builder.Services.AddDbContext<AgendadorDbContext>(options => options.UseNpgsql(multiFamilyOptions.ConnectionString));
+    builder.Services
+        .AddIdentityCore<AppUser>(options =>
+        {
+            options.User.RequireUniqueEmail = true;
+            options.Lockout.AllowedForNewUsers = true;
+            options.Lockout.MaxFailedAccessAttempts = 5;
+            options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+        })
+        .AddRoles<IdentityRole<Guid>>()
+        .AddEntityFrameworkStores<AgendadorDbContext>()
+        .AddSignInManager()
+        .AddDefaultTokenProviders();
+    builder.Services
+        .AddAuthentication(IdentityConstants.ApplicationScheme)
+        .AddCookie(IdentityConstants.ApplicationScheme, options =>
+        {
+            options.Cookie.Name = "AgendadorContas.MultiFamily.Auth";
+            options.Cookie.HttpOnly = true;
+            options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+            options.Cookie.SameSite = SameSiteMode.Strict;
+            options.ExpireTimeSpan = TimeSpan.FromHours(multiFamilyOptions.SessionHours);
+            options.SlidingExpiration = true;
+            options.Events.OnRedirectToLogin = context =>
+            {
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                return Task.CompletedTask;
+            };
+            options.Events.OnRedirectToAccessDenied = context =>
+            {
+                context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                return Task.CompletedTask;
+            };
+        });
+    builder.Services.AddHttpContextAccessor();
+    builder.Services.AddScoped<ICurrentUserContext, CurrentUserContext>();
+    builder.Services.AddScoped<IFamilySelectionService, FamilySelectionService>();
+    builder.Services.AddScoped<ICurrentFamilyContext, CurrentFamilyContext>();
+    builder.Services.AddSingleton<LoginTimingProtector>();
+    builder.Services.AddDistributedMemoryCache();
+    builder.Services.AddSession(options =>
+    {
+        options.Cookie.Name = "AgendadorContas.MultiFamily.Session";
+        options.Cookie.HttpOnly = true;
+        options.Cookie.IsEssential = true;
+        options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+        options.Cookie.SameSite = SameSiteMode.Strict;
+        options.IdleTimeout = TimeSpan.FromHours(multiFamilyOptions.SessionHours);
+    });
+    builder.Services.AddAntiforgery(options => options.HeaderName = "X-CSRF-TOKEN");
+}
+else
+{
+    builder.Services
+        .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+        .AddCookie(options =>
     {
         options.Cookie.Name = "AgendadorContas.Auth";
         options.Cookie.HttpOnly = true;
@@ -87,6 +164,7 @@ builder.Services
             return Task.CompletedTask;
         };
     });
+}
 builder.Services.AddAuthorization();
 builder.Services.AddRateLimiter(options =>
 {
@@ -98,15 +176,51 @@ builder.Services.AddRateLimiter(options =>
         limiterOptions.QueueLimit = 0;
         limiterOptions.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
     });
+    options.AddPolicy("multi-family-login", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst
+            }));
 });
 
 var app = builder.Build();
 
 app.UseSecurityHeaders(includeHsts: app.Environment.IsProduction());
+if (multiFamilyOptions.Enabled)
+{
+    app.Use(async (context, next) =>
+    {
+        if ((context.Request.Path.StartsWithSegments("/api")
+                && !context.Request.Path.StartsWithSegments("/api/multi-family"))
+            || context.Request.Path.Equals("/test-telegram"))
+        {
+            context.Response.StatusCode = StatusCodes.Status404NotFound;
+            return;
+        }
+
+        await next();
+    });
+}
+if (multiFamilyOptions.Enabled)
+{
+    app.UseSession();
+}
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
-app.UseAccessProtection();
+if (multiFamilyOptions.Enabled)
+{
+    app.UseAntiforgery();
+}
+else
+{
+    app.UseAccessProtection();
+}
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
@@ -117,6 +231,11 @@ app.MapGet("/health", () =>
         status = "ok"
     });
 });
+
+if (multiFamilyOptions.Enabled)
+{
+    app.MapMultiFamilyEndpoints();
+}
 
 app.MapGet("/api/auth/status", (HttpContext httpContext, IOptions<AccessProtectionOptions> options) =>
 {
@@ -318,3 +437,5 @@ static bool SecureEquals(string left, string right)
     var rightHash = SHA256.HashData(Encoding.UTF8.GetBytes(right));
     return CryptographicOperations.FixedTimeEquals(leftHash, rightHash);
 }
+
+public partial class Program;

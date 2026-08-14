@@ -33,6 +33,7 @@ public sealed class AgendadorDbContext(
         {
             entity.ToTable("app_users");
             entity.Property(x => x.CreatedAtUtc).IsRequired();
+            entity.HasIndex(x => x.NormalizedEmail).HasDatabaseName("EmailIndex").IsUnique();
         });
         builder.Entity<IdentityRole<Guid>>().ToTable("app_roles");
         builder.Entity<IdentityUserRole<Guid>>().ToTable("app_user_roles");
