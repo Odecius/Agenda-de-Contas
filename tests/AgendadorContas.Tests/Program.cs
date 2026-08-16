@@ -3,6 +3,7 @@ using AgendadorContas.Options;
 using AgendadorContas.Services;
 using AgendadorContas.Data;
 using AgendadorContas.Data.Entities;
+using AgendadorContas.DataMigration;
 using AgendadorContas.Tenancy;
 using AgendadorContas;
 using Microsoft.Data.Sqlite;
@@ -59,13 +60,20 @@ var tests = new List<(string Name, Func<Task> Run)>
     ("Membership e familia inativas sao rejeitadas", InactiveFamilyAccessIsRejectedAsync),
     ("Contexto familiar resolve Owner Admin e Member", CurrentFamilyContextResolvesRolesAsync),
     ("Selecao existente e invalidada com membership", SelectedMembershipIsRevalidatedAsync),
-    ("Sessao familiar nao atravessa usuarios", FamilySessionDoesNotCrossUsersAsync)
+    ("Sessao familiar nao atravessa usuarios", FamilySessionDoesNotCrossUsersAsync),
+    ("Migracao JSON importa contas e pagamentos", JsonMigrationImportsAccountsAndPaymentsAsync),
+    ("Migracao JSON e idempotente em tres execucoes", JsonMigrationIsIdempotentAcrossThreeRunsAsync),
+    ("Migracao respeita pagamento logico preexistente", JsonMigrationRecognizesExistingLogicalPaymentAsync),
+    ("Migracao JSON isola familias", JsonMigrationIsTenantIsolatedAsync),
+    ("Dry-run nao modifica o banco", JsonMigrationDryRunDoesNotWriteAsync),
+    ("Migracao invalida e falha atomica nao deixam escrita parcial", JsonMigrationValidationAndRollbackAsync)
 };
 
 if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("AGENDADOR_TEST_POSTGRES")))
 {
     tests.Add(("Fluxo HTTP Identity e familia funciona em PostgreSQL", MultiFamilyHttpFlowWorksOnPostgresAsync));
     tests.Add(("Repositories e roles isolam familias em PostgreSQL", TenantAwareBusinessFlowWorksOnPostgresAsync));
+    tests.Add(("Migracao JSON funciona em PostgreSQL", JsonMigrationWorksOnPostgresAsync));
 }
 
 tests.Add(("Runtime legado preserva JSON e workers", LegacyRuntimeKeepsJsonAndWorkersAsync));
@@ -1109,6 +1117,159 @@ static IEnumerable<HttpRequestMessage> LegacyRequests(Guid id)
     yield return new HttpRequestMessage(HttpMethod.Get, "/test-telegram");
 }
 
+static async Task JsonMigrationImportsAccountsAndPaymentsAsync()
+{
+    await using var scope = await RelationalTestScope.CreateAsync();
+    var family = NewFamily("Import A");
+    scope.Db.Families.Add(family);
+    await scope.Db.SaveChangesAsync();
+    using var source = MigrationJsonFile.Valid();
+
+    var report = await NewMigrator(scope.Db).ImportAsync(source.Path, family.Id, new MigrationOptions());
+
+    AssertTrue(report.Success && report.DatabaseModified, "Importacao basica deveria concluir com escrita.");
+    AssertEqual(2, report.ContasInserted, "Quantidade de contas importadas incorreta.");
+    AssertEqual(2, report.PagamentosInserted, "Pagamentos unicos importados incorretamente.");
+    AssertEqual(1, report.DuplicatePayments, "Duplicado legado deveria gerar warning.");
+    AssertEqual(2, await scope.Db.Contas.CountAsync(x => x.FamilyId == family.Id), "Contas nao foram persistidas.");
+    AssertEqual(2, await scope.Db.Pagamentos.CountAsync(x => x.FamilyId == family.Id), "Pagamentos nao foram persistidos.");
+    AssertTrue(await scope.Db.Pagamentos.AllAsync(x => x.FamilyId == family.Id && x.Conta.FamilyId == family.Id), "Pagamento perdeu isolamento familiar.");
+}
+
+static async Task JsonMigrationIsIdempotentAcrossThreeRunsAsync()
+{
+    await using var scope = await RelationalTestScope.CreateAsync();
+    var family = NewFamily("Idempotent");
+    scope.Db.Add(family);
+    await scope.Db.SaveChangesAsync();
+    using var source = MigrationJsonFile.Valid();
+    var migrator = NewMigrator(scope.Db);
+
+    var first = await migrator.ImportAsync(source.Path, family.Id, new MigrationOptions());
+    var second = await migrator.ImportAsync(source.Path, family.Id, new MigrationOptions());
+    var third = await migrator.ImportAsync(source.Path, family.Id, new MigrationOptions());
+
+    AssertEqual(2, first.ContasInserted, "Primeira execucao deveria inserir contas.");
+    AssertEqual(0, second.ContasInserted, "Segunda execucao duplicou contas.");
+    AssertEqual(0, third.PagamentosInserted, "Terceira execucao duplicou pagamentos.");
+    AssertEqual(2, await scope.Db.Contas.CountAsync(), "Contagem final de contas instavel.");
+    AssertEqual(2, await scope.Db.Pagamentos.CountAsync(), "Contagem final de pagamentos instavel.");
+}
+
+static async Task JsonMigrationIsTenantIsolatedAsync()
+{
+    await using var scope = await RelationalTestScope.CreateAsync();
+    var familyA = NewFamily("A");
+    var familyB = NewFamily("B");
+    scope.Db.AddRange(familyA, familyB);
+    await scope.Db.SaveChangesAsync();
+    using var source = MigrationJsonFile.Valid();
+    var migrator = NewMigrator(scope.Db);
+
+    await migrator.ImportAsync(source.Path, familyA.Id, new MigrationOptions());
+    await migrator.ImportAsync(source.Path, familyB.Id, new MigrationOptions());
+
+    var idsA = await scope.Db.Contas.Where(x => x.FamilyId == familyA.Id).Select(x => x.Id).ToListAsync();
+    var idsB = await scope.Db.Contas.Where(x => x.FamilyId == familyB.Id).Select(x => x.Id).ToListAsync();
+    AssertEqual(2, idsA.Count, "Familia A incompleta.");
+    AssertEqual(2, idsB.Count, "Familia B incompleta.");
+    AssertTrue(!idsA.Intersect(idsB).Any(), "IDs deterministas nao foram namespaced por familia.");
+    AssertTrue(await scope.Db.Pagamentos.AllAsync(x => x.FamilyId == x.Conta.FamilyId), "Pagamento atravessou tenant.");
+}
+
+static async Task JsonMigrationRecognizesExistingLogicalPaymentAsync()
+{
+    await using var scope = await RelationalTestScope.CreateAsync();
+    var family = NewFamily("Existing payment");
+    scope.Db.Add(family);
+    await scope.Db.SaveChangesAsync();
+    using var source = MigrationJsonFile.Valid();
+    var migrator = NewMigrator(scope.Db);
+    await migrator.ImportAsync(source.Path, family.Id, new MigrationOptions());
+
+    var payment = await scope.Db.Pagamentos.FirstAsync(x => x.Ano == 2026 && x.Mes == 7);
+    scope.Db.Pagamentos.Remove(payment);
+    await scope.Db.SaveChangesAsync();
+    scope.Db.Pagamentos.Add(new PagamentoEntity
+    {
+        Id = Guid.NewGuid(),
+        FamilyId = family.Id,
+        ContaId = payment.ContaId,
+        Ano = payment.Ano,
+        Mes = payment.Mes,
+        PagoEmUtc = payment.PagoEmUtc
+    });
+    await scope.Db.SaveChangesAsync();
+
+    var report = await migrator.ImportAsync(source.Path, family.Id, new MigrationOptions());
+    AssertEqual(0, report.PagamentosInserted, "Pagamento logico existente com outro ID foi duplicado.");
+    AssertEqual(2, await scope.Db.Pagamentos.CountAsync(), "Contagem logica de pagamentos mudou.");
+}
+
+static async Task JsonMigrationDryRunDoesNotWriteAsync()
+{
+    await using var scope = await RelationalTestScope.CreateAsync();
+    var family = NewFamily("Dry run");
+    scope.Db.Add(family);
+    await scope.Db.SaveChangesAsync();
+    using var source = MigrationJsonFile.Valid();
+
+    var report = await NewMigrator(scope.Db).ImportAsync(source.Path, family.Id, new MigrationOptions(DryRun: true));
+
+    AssertTrue(report.Success && report.DryRun && !report.DatabaseModified, "Dry-run reportou escrita.");
+    AssertEqual(2, report.ContasInserted, "Dry-run deveria informar plano de contas.");
+    AssertEqual(0, await scope.Db.Contas.CountAsync(), "Dry-run alterou contas.");
+    AssertEqual(0, await scope.Db.Pagamentos.CountAsync(), "Dry-run alterou pagamentos.");
+}
+
+static async Task JsonMigrationValidationAndRollbackAsync()
+{
+    await using var scope = await RelationalTestScope.CreateAsync();
+    var family = NewFamily("Rollback");
+    scope.Db.Add(family);
+    await scope.Db.SaveChangesAsync();
+    using (var invalid = MigrationJsonFile.Invalid())
+    {
+        var invalidReport = await NewMigrator(scope.Db).ImportAsync(invalid.Path, family.Id, new MigrationOptions());
+        AssertTrue(!invalidReport.Success && !invalidReport.DatabaseModified, "Dados invalidos deveriam abortar.");
+        AssertTrue(invalidReport.ContasInvalid > 0 && invalidReport.PagamentosInvalid > 0, "Invalidos nao apareceram no relatorio.");
+    }
+
+    await scope.Db.Database.ExecuteSqlRawAsync("CREATE TRIGGER fail_payment BEFORE INSERT ON pagamentos BEGIN SELECT RAISE(ABORT, 'forced'); END;");
+    using var valid = MigrationJsonFile.Valid();
+    var failed = await NewMigrator(scope.Db).ImportAsync(valid.Path, family.Id, new MigrationOptions());
+    AssertTrue(!failed.Success && !failed.DatabaseModified, "Falha estrutural deveria abortar.");
+    AssertEqual(0, await scope.Db.Contas.CountAsync(), "Rollback deixou contas parciais.");
+    AssertEqual(0, await scope.Db.Pagamentos.CountAsync(), "Rollback deixou pagamentos parciais.");
+}
+
+static async Task JsonMigrationWorksOnPostgresAsync()
+{
+    var connectionString = Environment.GetEnvironmentVariable("AGENDADOR_TEST_POSTGRES")!;
+    var options = new DbContextOptionsBuilder<AgendadorDbContext>().UseNpgsql(connectionString).Options;
+    await using var db = new AgendadorDbContext(options);
+    var family = NewFamily($"Migration {Guid.NewGuid():N}");
+    db.Add(family);
+    await db.SaveChangesAsync();
+    using var source = MigrationJsonFile.Valid();
+    try
+    {
+        var report = await NewMigrator(db).ImportAsync(source.Path, family.Id, new MigrationOptions());
+        AssertTrue(report.Success && report.ContasInserted == 2 && report.PagamentosInserted == 2, "Importacao PostgreSQL falhou.");
+    }
+    finally
+    {
+        db.Pagamentos.RemoveRange(db.Pagamentos.Where(x => x.FamilyId == family.Id));
+        db.Contas.RemoveRange(db.Contas.Where(x => x.FamilyId == family.Id));
+        await db.SaveChangesAsync();
+        db.Families.Remove(family);
+        await db.SaveChangesAsync();
+    }
+}
+
+static JsonToPostgresqlMigrator NewMigrator(AgendadorDbContext db) =>
+    new(db, NullLogger<JsonToPostgresqlMigrator>.Instance);
+
 static async Task<string> GetAntiforgeryTokenAsync(HttpClient client)
 {
     using var response = await client.GetAsync("/api/multi-family/antiforgery/token");
@@ -1373,6 +1534,51 @@ internal sealed class TestSession : ISession
 internal sealed class TestHttpContextAccessor : IHttpContextAccessor
 {
     public HttpContext? HttpContext { get; set; }
+}
+
+internal sealed class MigrationJsonFile : IDisposable
+{
+    public string Path { get; }
+
+    private MigrationJsonFile(string json)
+    {
+        Path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"agendador-migration-{Guid.NewGuid():N}.json");
+        File.WriteAllText(Path, json);
+    }
+
+    public static MigrationJsonFile Valid() => new("""
+        {
+          "contas": [
+            { "id": "11111111-1111-1111-1111-111111111111", "nome": "Energia", "valor": 45.50, "country": "UnitedKingdom", "currency": "GBP", "diaVencimento": 10, "dataInicio": "2025-01-01", "duracaoMeses": 0, "ativa": true, "observacoes": "Casa" },
+            { "id": "22222222-2222-2222-2222-222222222222", "nome": "Internet", "valor": 30, "country": "Portugal", "currency": "EUR", "diaVencimento": 20, "dataInicio": "2025-02-01", "duracaoMeses": 12, "ativa": false }
+          ],
+          "pagamentos": [
+            { "contaId": "11111111-1111-1111-1111-111111111111", "ano": 2026, "mes": 7, "pagoEm": "2026-07-10T09:00:00Z" },
+            { "contaId": "11111111-1111-1111-1111-111111111111", "ano": 2026, "mes": 7, "pagoEm": "2026-07-11T09:00:00Z" },
+            { "contaId": "22222222-2222-2222-2222-222222222222", "ano": 2026, "mes": 8, "pagoEm": "2026-08-10T09:00:00Z" }
+          ],
+          "lembretesEnviados": []
+        }
+        """);
+
+    public static MigrationJsonFile Invalid() => new("""
+        {
+          "contas": [
+            { "id": "11111111-1111-1111-1111-111111111111", "nome": "", "valor": -1, "country": 99, "currency": 99, "diaVencimento": 32, "dataInicio": "2025-01-01", "duracaoMeses": -1 }
+          ],
+          "pagamentos": [
+            { "contaId": "99999999-9999-9999-9999-999999999999", "ano": 0, "mes": 13, "pagoEm": "2026-07-10T09:00:00Z" }
+          ]
+        }
+        """);
+
+    public void Dispose()
+    {
+        if (File.Exists(Path))
+        {
+            File.Delete(Path);
+        }
+    }
 }
 
 internal static class TestFixtures

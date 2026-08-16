@@ -1,6 +1,7 @@
 using AgendadorContas.Data;
 using AgendadorContas.Data.Entities;
 using AgendadorContas.Data.Repositories;
+using AgendadorContas.DataMigration;
 using AgendadorContas.Models;
 using AgendadorContas.Options;
 using AgendadorContas.Services;
@@ -131,6 +132,7 @@ if (multiFamilyOptions.Enabled)
     builder.Services.AddScoped<IFamilyAuthorizationService, FamilyAuthorizationService>();
     builder.Services.AddScoped<IContaRepository, ContaRepository>();
     builder.Services.AddScoped<IPagamentoRepository, PagamentoRepository>();
+    builder.Services.AddScoped<IJsonToPostgresqlMigrator, JsonToPostgresqlMigrator>();
     builder.Services.AddSingleton<LoginTimingProtector>();
     builder.Services.AddDistributedMemoryCache();
     builder.Services.AddSession(options =>
