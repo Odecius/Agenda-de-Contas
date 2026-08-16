@@ -242,8 +242,8 @@ public sealed class JsonToPostgresqlMigrator(
 
     private sealed class LegacyStoreData
     {
-        public List<LegacyConta>? Contas { get; set; } = [];
-        public List<LegacyPagamento>? Pagamentos { get; set; } = [];
+        public List<LegacyConta>? Contas { get; set; }
+        public List<LegacyPagamento>? Pagamentos { get; set; }
     }
 
     private sealed class LegacyConta

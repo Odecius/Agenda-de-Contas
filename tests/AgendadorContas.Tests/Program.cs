@@ -66,6 +66,8 @@ var tests = new List<(string Name, Func<Task> Run)>
     ("Migracao respeita pagamento logico preexistente", JsonMigrationRecognizesExistingLogicalPaymentAsync),
     ("Migracao JSON isola familias", JsonMigrationIsTenantIsolatedAsync),
     ("Dry-run nao modifica o banco", JsonMigrationDryRunDoesNotWriteAsync),
+    ("Migracao rejeita colecoes JSON ausentes ou nulas", JsonMigrationRejectsMissingOrNullCollectionsAsync),
+    ("Migracao aceita colecoes JSON explicitamente vazias", JsonMigrationAcceptsExplicitEmptyCollectionsAsync),
     ("Migracao invalida e falha atomica nao deixam escrita parcial", JsonMigrationValidationAndRollbackAsync)
 };
 
@@ -1243,6 +1245,50 @@ static async Task JsonMigrationValidationAndRollbackAsync()
     AssertEqual(0, await scope.Db.Pagamentos.CountAsync(), "Rollback deixou pagamentos parciais.");
 }
 
+static async Task JsonMigrationRejectsMissingOrNullCollectionsAsync()
+{
+    await using var scope = await RelationalTestScope.CreateAsync();
+    var family = NewFamily("Invalid structures");
+    scope.Db.Add(family);
+    await scope.Db.SaveChangesAsync();
+    var invalidDocuments = new[]
+    {
+        "{}",
+        "{ \"contas\": [] }",
+        "{ \"pagamentos\": [] }",
+        "{ \"contas\": null, \"pagamentos\": [] }",
+        "{ \"contas\": [], \"pagamentos\": null }"
+    };
+
+    foreach (var json in invalidDocuments)
+    {
+        using var source = MigrationJsonFile.FromJson(json);
+        var report = await NewMigrator(scope.Db).ImportAsync(source.Path, family.Id, new MigrationOptions());
+        AssertTrue(!report.Success, "Estrutura JSON incompleta foi aceita.");
+        AssertTrue(!report.DatabaseModified, "Estrutura JSON incompleta modificou o banco.");
+        AssertTrue(report.Errors.Any(x => x.Contains("structure", StringComparison.OrdinalIgnoreCase)), "Erro estrutural claro nao foi reportado.");
+    }
+
+    AssertEqual(0, await scope.Db.Contas.CountAsync(), "Estruturas invalidas criaram contas.");
+    AssertEqual(0, await scope.Db.Pagamentos.CountAsync(), "Estruturas invalidas criaram pagamentos.");
+}
+
+static async Task JsonMigrationAcceptsExplicitEmptyCollectionsAsync()
+{
+    await using var scope = await RelationalTestScope.CreateAsync();
+    var family = NewFamily("Empty valid structure");
+    scope.Db.Add(family);
+    await scope.Db.SaveChangesAsync();
+    using var source = MigrationJsonFile.FromJson("{ \"contas\": [], \"pagamentos\": [] }");
+
+    var report = await NewMigrator(scope.Db).ImportAsync(source.Path, family.Id, new MigrationOptions());
+
+    AssertTrue(report.Success, "Colecoes explicitamente vazias deveriam ser validas.");
+    AssertTrue(!report.DatabaseModified, "Importacao vazia nao deveria modificar o banco.");
+    AssertEqual(0, report.TotalContasRead, "Importacao vazia leu contas.");
+    AssertEqual(0, report.TotalPagamentosRead, "Importacao vazia leu pagamentos.");
+}
+
 static async Task JsonMigrationWorksOnPostgresAsync()
 {
     var connectionString = Environment.GetEnvironmentVariable("AGENDADOR_TEST_POSTGRES")!;
@@ -1545,6 +1591,8 @@ internal sealed class MigrationJsonFile : IDisposable
         Path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"agendador-migration-{Guid.NewGuid():N}.json");
         File.WriteAllText(Path, json);
     }
+
+    public static MigrationJsonFile FromJson(string json) => new(json);
 
     public static MigrationJsonFile Valid() => new("""
         {
