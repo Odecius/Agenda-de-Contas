@@ -182,3 +182,10 @@ O plano detalhado esta em `docs/multi-family-postgresql-plan.md`. Esta fase aind
 - `CurrentUserContext`, `CurrentFamilyContext` e selecao familiar server-side.
 - Endpoints minimos de teste, antiforgery, lockout e rate limiting.
 - Proxima subfase: repositories tenant-aware e matriz de autorizacao, ainda sem migrar JSON real.
+
+### Etapa 32.3 - Foundation de migracao controlada
+
+- Importador interno com familia alvo explicita.
+- Dry-run, validacao integral, relatorio seguro, idempotencia e rollback transacional.
+- Testes usam somente arquivos e bancos descartaveis.
+- Cutover, dados reais, settings, Telegram e producao permanecem pendentes.

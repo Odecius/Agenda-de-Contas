@@ -102,6 +102,24 @@
 
 **Impacto:** `Reminder:Hour`, `Reminder:Minute` e `Reminder:TimeZoneId` continuam sendo defaults iniciais. Depois que o horario e salvo pela interface, o Hosted Service passa a ler a configuracao persistida.
 
+## 2026-08-16 - Idempotencia sem alterar o schema
+
+**Descricao:** Contas e pagamentos importados recebem GUIDs deterministas derivados de `FamilyId` e chaves legadas. Duplicados mensais conservam a primeira ocorrencia e geram warning.
+
+**Motivo:** O schema atual ja expressa unicidade e isolamento. O namespace familiar permite importar o mesmo arquivo para tenants distintos e repetir sem duplicar.
+
+**Alternativas consideradas:** Preservar GUID legado, adicionar `LegacyId`, tabela de tracking e nome/valor.
+
+**Impacto:** Nenhuma migration nova. Invalidos abortam antes da escrita e falhas de persistencia fazem rollback completo.
+
+## 2026-08-16 - Importador interno sem endpoint
+
+**Descricao:** A migracao e servico interno apenas no modo experimental multi-family, sem startup hook.
+
+**Motivo:** E uma operacao administrativa excepcional e nao deve ampliar a superficie HTTP nem acontecer acidentalmente.
+
+**Impacto:** A interface operacional devera ser aprovada separadamente antes do cutover.
+
 ## 2026-07-09 - Usar .NET 8 com Minimal API
 
 **Descrição:** O backend usa ASP.NET Core Minimal API em `Program.cs`.

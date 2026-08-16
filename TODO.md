@@ -2,10 +2,11 @@
 
 ## Alta prioridade
 
-- Revisar e versionar a Fase 2.2 antes de planejar importacao ou ativacao de runtime.
+- Revisar a foundation da Fase 3 antes de qualquer ensaio com copia de dados reais.
+- Definir CLI/admin command ou procedimento offline para a futura execucao controlada.
+- Planejar separadamente settings, lembretes e Telegram sem transportar secrets.
 - Trocar sessao em memoria por armazenamento apropriado antes de multiplas replicas.
 - Revisar a migration `InitialMultiTenantSchema` antes de preparar qualquer ambiente PostgreSQL.
-- Criar importador JSON idempotente usando apenas copias controladas.
 - Remover token/chat id de `notas.txt` e limpar histórico Git se o segredo já tiver sido versionado.
 - Confirmar e registrar a rotação de qualquer token Telegram historicamente exposto.
 - Planejar PostgreSQL, autenticação individual e `Family/Tenant` conforme `docs/multi-family-postgresql-plan.md`.
@@ -24,12 +25,15 @@
 
 ## Baixa prioridade
 
+- Corrigir resposta 500 quando nenhuma familia esta selecionada (LOW da Fase 2.2).
+- Restringir tratamento amplo de `DbUpdateException` no pagamento (LOW da Fase 2.2).
 - Avaliar banco leve, como SQLite, se o JSON deixar de ser suficiente.
 - Criar painel mensal com métricas.
 - Avaliar novos canais de notificação.
 
 ## Concluído
 
+- Foundation de importacao JSON idempotente, transacional e tenant-aware com dry-run.
 - Repositories tenant-aware de Conta e Pagamento implementados para o modo experimental.
 - Matriz Owner/Admin/Member aplicada com 404 cross-family e 403 por role insuficiente.
 - Testes PostgreSQL descartaveis cobrem leitura, escrita, pagamentos, parametros adulterados e troca de familia.

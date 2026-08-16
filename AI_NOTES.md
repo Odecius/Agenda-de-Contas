@@ -12,6 +12,8 @@ Na branch `agent/multi-family-runtime-isolation`, a Fase 2.1 adiciona Identity e
 
 Na branch `agent/multi-family-tenant-repositories`, a Fase 2.2 adiciona repositories scoped e endpoints relacionais tenant-aware para contas e pagamentos. Nenhum metodo normal recebe `FamilyId`; o tenant vem de `ICurrentFamilyContext`. Owner possui todas as permissoes, Admin nao pode excluir e Member apenas consulta e registra pagamentos. A branch continua restrita a Development/Testing e nao altera o runtime JSON de producao.
 
+Na branch `agent/multi-family-json-migration`, a Fase 3 adiciona servico interno controlado. A familia alvo nunca vem do JSON. IDs deterministas namespaced garantem idempotencia sem migration nova. Dry-run nao escreve; erros estruturais abortam; contas e pagamentos usam uma unica transacao. Nao ha endpoint, startup hook, cutover ou dado real.
+
 O modelo de contas possui suporte inicial a pais e moeda por conta. Os paises suportados sao `UnitedKingdom`, `Portugal` e `Brazil`; as moedas suportadas sao `GBP`, `EUR` e `BRL`. O sistema nao faz conversao cambial. Totais com moedas diferentes devem ser agrupados por moeda.
 
 A interface possui resumo por pais e moeda baseado nos vencimentos do mes selecionado. Esse resumo e apenas demonstrativo/operacional: ele separa os valores por moeda e nao calcula conversao.
@@ -79,4 +81,4 @@ O horario do lembrete diario pode ser alterado pela interface. `ReminderSettings
 
 ## Onde continuar
 
-Antes de qualquer trabalho, ler `docs/checkpoints/2026-08-13-post-production-checkpoint.md` e o baseline central. O proximo foco e revisar e aprovar `docs/multi-family-postgresql-plan.md`; PostgreSQL, autenticacao e multi-tenancy ainda nao estao implementados.
+Antes de qualquer trabalho, ler `docs/checkpoints/2026-08-13-post-production-checkpoint.md`, o baseline central e `docs/json-to-postgresql-migration.md`. O proximo gate e revisar a Fase 3 e aprovar um ensaio separado; nenhum dado real deve ser usado antes disso.

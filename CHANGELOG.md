@@ -1,6 +1,13 @@
 ﻿# CHANGELOG
 
 
+## 2026-08-16
+
+- Adicionada foundation controlada de migracao JSON para PostgreSQL, sem endpoint ou execucao automatica.
+- Implementados dry-run, relatorio seguro, validacao previa, IDs deterministas por familia, deduplicacao e rollback transacional.
+- Adicionados testes de importacao, tres reexecucoes, isolamento familiar, dry-run, invalidos e falha atomica.
+- Nenhum dado real foi importado; `ContaStore + JSON` permanece o runtime padrao.
+
 ## 2026-08-14
 
 - Adicionados `ContaRepository` e `PagamentoRepository` scoped, com tenant resolvido exclusivamente por `ICurrentFamilyContext`.
