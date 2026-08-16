@@ -1,5 +1,13 @@
 ﻿# DECISIONS
 
+## 2026-08-14 - Repositories resolvem o tenant server-side
+
+**Decisao:** `ContaRepository` e `PagamentoRepository` recebem apenas IDs de recursos; o `FamilyId` vem exclusivamente de `ICurrentFamilyContext`. DTOs de escrita nao possuem campos de tenant e propriedades JSON extras sao ignoradas sem se tornarem autoridade.
+
+**Motivo:** Impedir leitura ou escrita cross-family mesmo quando body, query, headers ou IDs validos de outro tenant forem adulterados.
+
+**Impacto:** Recurso inexistente ou de outra familia retorna 404. Role insuficiente sobre recurso do tenant atual retorna 403. Delete fisico de conta ou pagamento fica restrito a Owner; Admin cria e edita contas e registra pagamentos; Member somente consulta e registra pagamentos.
+
 ## 2026-08-13 - Contexto familiar selecionado em sessao e revalidado
 
 **Decisao:** Usar sessao protegida para guardar a familia escolhida, revalidando usuario, membership e familia no PostgreSQL a cada resolucao do `CurrentFamilyContext`.

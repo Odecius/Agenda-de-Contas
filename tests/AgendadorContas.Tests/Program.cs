@@ -65,6 +65,7 @@ var tests = new List<(string Name, Func<Task> Run)>
 if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("AGENDADOR_TEST_POSTGRES")))
 {
     tests.Add(("Fluxo HTTP Identity e familia funciona em PostgreSQL", MultiFamilyHttpFlowWorksOnPostgresAsync));
+    tests.Add(("Repositories e roles isolam familias em PostgreSQL", TenantAwareBusinessFlowWorksOnPostgresAsync));
 }
 
 tests.Add(("Runtime legado preserva JSON e workers", LegacyRuntimeKeepsJsonAndWorkersAsync));
@@ -869,6 +870,222 @@ static async Task LegacyRuntimeKeepsJsonAndWorkersAsync()
         AllowAutoRedirect = false
     });
     AssertEqual(HttpStatusCode.OK, (await client.GetAsync("/api/contas")).StatusCode, "API JSON deve permanecer ativa no modo legado.");
+}
+
+static async Task TenantAwareBusinessFlowWorksOnPostgresAsync()
+{
+    var connectionString = Environment.GetEnvironmentVariable("AGENDADOR_TEST_POSTGRES")
+        ?? throw new InvalidOperationException("Connection string descartavel de teste ausente.");
+    await using var factory = new MultiFamilyWebFactory(connectionString);
+    var suffix = Guid.NewGuid().ToString("N");
+    const string password = "Tenant-test-123!";
+    var ownerAEmail = $"owner-a-{suffix}@example.test";
+    var adminAEmail = $"admin-a-{suffix}@example.test";
+    var memberAEmail = $"member-a-{suffix}@example.test";
+    var ownerBEmail = $"owner-b-{suffix}@example.test";
+    var userCEmail = $"user-c-{suffix}@example.test";
+
+    Guid familyAId;
+    Guid familyBId;
+    Guid contaA1Id;
+    Guid contaA2Id;
+    Guid contaB1Id;
+    Guid pagamentoB1Id;
+    using (var scope = factory.Services.CreateScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<AgendadorDbContext>();
+        await db.Database.MigrateAsync();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+        var ownerA = await CreateUserAsync(userManager, ownerAEmail, password);
+        var adminA = await CreateUserAsync(userManager, adminAEmail, password);
+        var memberA = await CreateUserAsync(userManager, memberAEmail, password);
+        var ownerB = await CreateUserAsync(userManager, ownerBEmail, password);
+        var userC = await CreateUserAsync(userManager, userCEmail, password);
+        var familyA = NewFamily("Tenant Test Family A");
+        var familyB = NewFamily("Tenant Test Family B");
+        var contaA1 = NewConta(familyA.Id, "Conta A1");
+        var contaA2 = NewConta(familyA.Id, "Conta A2");
+        var contaB1 = NewConta(familyB.Id, "Conta B1");
+        var pagamentoA1 = new PagamentoEntity { FamilyId = familyA.Id, ContaId = contaA1.Id, Ano = 2026, Mes = 1 };
+        var pagamentoB1 = new PagamentoEntity { FamilyId = familyB.Id, ContaId = contaB1.Id, Ano = 2026, Mes = 1 };
+        db.AddRange(familyA, familyB, contaA1, contaA2, contaB1, pagamentoA1, pagamentoB1);
+        db.FamilyUsers.AddRange(
+            new FamilyUser { FamilyId = familyA.Id, UserId = ownerA.Id, Role = FamilyRole.Owner },
+            new FamilyUser { FamilyId = familyA.Id, UserId = adminA.Id, Role = FamilyRole.Admin },
+            new FamilyUser { FamilyId = familyA.Id, UserId = memberA.Id, Role = FamilyRole.Member },
+            new FamilyUser { FamilyId = familyB.Id, UserId = ownerB.Id, Role = FamilyRole.Owner },
+            new FamilyUser { FamilyId = familyA.Id, UserId = userC.Id, Role = FamilyRole.Member },
+            new FamilyUser { FamilyId = familyB.Id, UserId = userC.Id, Role = FamilyRole.Member });
+        await db.SaveChangesAsync();
+        familyAId = familyA.Id;
+        familyBId = familyB.Id;
+        contaA1Id = contaA1.Id;
+        contaA2Id = contaA2.Id;
+        contaB1Id = contaB1.Id;
+        pagamentoB1Id = pagamentoB1.Id;
+    }
+
+    var (ownerAClient, ownerAToken) = await CreateAuthenticatedClientAsync(factory, ownerAEmail, password);
+    using (ownerAClient)
+    {
+        var ownerAList = await ownerAClient.GetStringAsync("/api/multi-family/contas?FamilyId=" + familyBId);
+        AssertTrue(ownerAList.Contains(contaA1Id.ToString(), StringComparison.OrdinalIgnoreCase), "Owner A deveria listar Conta A1.");
+        AssertTrue(!ownerAList.Contains(contaB1Id.ToString(), StringComparison.OrdinalIgnoreCase), "Owner A nunca deveria listar Conta B1.");
+        using (var tamperedRequest = new HttpRequestMessage(HttpMethod.Get, "/api/multi-family/contas?TenantId=" + familyBId))
+        {
+            tamperedRequest.Headers.Add("X-Family-Id", familyBId.ToString());
+            tamperedRequest.Headers.Add("UserId", Guid.NewGuid().ToString());
+            using var tamperedResponse = await ownerAClient.SendAsync(tamperedRequest);
+            AssertEqual(HttpStatusCode.OK, tamperedResponse.StatusCode, "Headers adulterados nao devem mudar o tenant.");
+            AssertTrue(!(await tamperedResponse.Content.ReadAsStringAsync()).Contains(contaB1Id.ToString(), StringComparison.OrdinalIgnoreCase), "Header nao deve expor B.");
+        }
+        AssertEqual(HttpStatusCode.NotFound, (await ownerAClient.GetAsync($"/api/multi-family/contas/{contaB1Id}")).StatusCode, "Conta cross-family deve retornar 404.");
+        AssertEqual(HttpStatusCode.NotFound, (await ownerAClient.GetAsync($"/api/multi-family/contas/{contaB1Id}/pagamentos")).StatusCode, "Pagamentos de conta cross-family devem retornar 404.");
+
+        var createBody = NewContaRequest("Owner A criada");
+        AssertEqual(HttpStatusCode.BadRequest, (await ownerAClient.PostAsJsonAsync("/api/multi-family/contas", createBody)).StatusCode, "Criacao sem antiforgery deve falhar.");
+        using var createdResponse = await PostWithTokenAsync(ownerAClient, "/api/multi-family/contas", new
+        {
+            createBody.Nome,
+            createBody.Valor,
+            createBody.Country,
+            createBody.Currency,
+            createBody.DiaVencimento,
+            createBody.DataInicio,
+            createBody.DuracaoMeses,
+            createBody.Ativa,
+            createBody.Observacoes,
+            FamilyId = familyBId,
+            TenantId = familyBId,
+            UserId = Guid.NewGuid(),
+            FamilyRole = "Owner"
+        }, ownerAToken);
+        AssertEqual(HttpStatusCode.Created, createdResponse.StatusCode, "Owner deve criar conta.");
+        using var createdJson = JsonDocument.Parse(await createdResponse.Content.ReadAsStringAsync());
+        var ownerCreatedId = createdJson.RootElement.GetProperty("id").GetGuid();
+
+        var updateBody = NewContaRequest("Owner atualizou A1") with { Ativa = false };
+        AssertEqual(HttpStatusCode.OK, (await PutWithTokenAsync(ownerAClient, $"/api/multi-family/contas/{contaA1Id}", updateBody, ownerAToken)).StatusCode, "Owner deve editar e desativar A1.");
+        AssertEqual(HttpStatusCode.NotFound, (await PutWithTokenAsync(ownerAClient, $"/api/multi-family/contas/{contaB1Id}", updateBody, ownerAToken)).StatusCode, "Owner A editando B deve receber 404.");
+        AssertEqual(HttpStatusCode.NotFound, (await DeleteWithTokenAsync(ownerAClient, $"/api/multi-family/pagamentos/{pagamentoB1Id}", ownerAToken)).StatusCode, "Delete de pagamento cross-family deve receber 404.");
+        AssertEqual(HttpStatusCode.NoContent, (await DeleteWithTokenAsync(ownerAClient, $"/api/multi-family/contas/{ownerCreatedId}", ownerAToken)).StatusCode, "Owner deve excluir conta propria.");
+    }
+
+    var (adminAClient, adminAToken) = await CreateAuthenticatedClientAsync(factory, adminAEmail, password);
+    using (adminAClient)
+    {
+        using var adminCreate = await PostWithTokenAsync(adminAClient, "/api/multi-family/contas", NewContaRequest("Admin A criada"), adminAToken);
+        AssertEqual(HttpStatusCode.Created, adminCreate.StatusCode, "Admin deve criar conta.");
+        using var adminCreatedJson = JsonDocument.Parse(await adminCreate.Content.ReadAsStringAsync());
+        var adminCreatedId = adminCreatedJson.RootElement.GetProperty("id").GetGuid();
+        AssertEqual(HttpStatusCode.OK, (await PutWithTokenAsync(adminAClient, $"/api/multi-family/contas/{contaA2Id}", NewContaRequest("Admin atualizou A2"), adminAToken)).StatusCode, "Admin deve editar conta.");
+        AssertEqual(HttpStatusCode.Forbidden, (await DeleteWithTokenAsync(adminAClient, $"/api/multi-family/contas/{adminCreatedId}", adminAToken)).StatusCode, "Admin nao deve excluir conta.");
+        using var adminPayment = await PostWithTokenAsync(adminAClient, $"/api/multi-family/contas/{contaA2Id}/pagamentos", new MultiFamilyPagamentoRequest(2026, 3), adminAToken);
+        AssertEqual(HttpStatusCode.Created, adminPayment.StatusCode, "Admin deve registrar pagamento.");
+        using var adminPaymentJson = JsonDocument.Parse(await adminPayment.Content.ReadAsStringAsync());
+        AssertEqual(HttpStatusCode.Forbidden, (await DeleteWithTokenAsync(adminAClient, $"/api/multi-family/pagamentos/{adminPaymentJson.RootElement.GetProperty("id").GetGuid()}", adminAToken)).StatusCode, "Admin nao deve remover pagamento.");
+    }
+
+    var (memberAClient, memberAToken) = await CreateAuthenticatedClientAsync(factory, memberAEmail, password);
+    using (memberAClient)
+    {
+        AssertEqual(HttpStatusCode.Forbidden, (await PostWithTokenAsync(memberAClient, "/api/multi-family/contas", NewContaRequest("Member proibido"), memberAToken)).StatusCode, "Member nao deve criar conta.");
+        AssertEqual(HttpStatusCode.Forbidden, (await PutWithTokenAsync(memberAClient, $"/api/multi-family/contas/{contaA2Id}", NewContaRequest("Member proibido"), memberAToken)).StatusCode, "Member nao deve editar conta propria.");
+        AssertEqual(HttpStatusCode.NotFound, (await PutWithTokenAsync(memberAClient, $"/api/multi-family/contas/{contaB1Id}", NewContaRequest("Cross family"), memberAToken)).StatusCode, "Member editando outra familia deve receber 404 antes de 403.");
+        AssertEqual(HttpStatusCode.Forbidden, (await DeleteWithTokenAsync(memberAClient, $"/api/multi-family/contas/{contaA2Id}", memberAToken)).StatusCode, "Member nao deve excluir conta.");
+        using var memberPayment = await PostWithTokenAsync(memberAClient, $"/api/multi-family/contas/{contaA1Id}/pagamentos", new { Ano = 2026, Mes = 2, FamilyId = familyBId }, memberAToken);
+        AssertEqual(HttpStatusCode.Created, memberPayment.StatusCode, "Member deve registrar pagamento na propria familia.");
+        using var memberPaymentJson = JsonDocument.Parse(await memberPayment.Content.ReadAsStringAsync());
+        var memberPaymentId = memberPaymentJson.RootElement.GetProperty("id").GetGuid();
+        AssertEqual(HttpStatusCode.Forbidden, (await DeleteWithTokenAsync(memberAClient, $"/api/multi-family/pagamentos/{memberPaymentId}", memberAToken)).StatusCode, "Member nao deve remover pagamento.");
+        AssertEqual(HttpStatusCode.NotFound, (await PostWithTokenAsync(memberAClient, $"/api/multi-family/contas/{contaB1Id}/pagamentos", new MultiFamilyPagamentoRequest(2026, 2), memberAToken)).StatusCode, "Pagamento cross-family deve retornar 404.");
+        var paymentsA = await memberAClient.GetStringAsync($"/api/multi-family/contas/{contaA1Id}/pagamentos");
+        AssertTrue(paymentsA.Contains(memberPaymentId.ToString(), StringComparison.OrdinalIgnoreCase), "Pagamento A deve aparecer em A.");
+        AssertTrue(!paymentsA.Contains(pagamentoB1Id.ToString(), StringComparison.OrdinalIgnoreCase), "Pagamento B nunca deve aparecer em A.");
+        var allPaymentsA = await memberAClient.GetStringAsync("/api/multi-family/pagamentos?FamilyId=" + familyBId);
+        AssertTrue(allPaymentsA.Contains(memberPaymentId.ToString(), StringComparison.OrdinalIgnoreCase), "Lista tenant-wide deve conter pagamento A.");
+        AssertTrue(!allPaymentsA.Contains(pagamentoB1Id.ToString(), StringComparison.OrdinalIgnoreCase), "Lista tenant-wide nunca deve misturar pagamento B.");
+    }
+
+    var (ownerBClient, _) = await CreateAuthenticatedClientAsync(factory, ownerBEmail, password);
+    using (ownerBClient)
+    {
+        var ownerBList = await ownerBClient.GetStringAsync("/api/multi-family/contas");
+        AssertTrue(ownerBList.Contains(contaB1Id.ToString(), StringComparison.OrdinalIgnoreCase), "Owner B deveria listar B1.");
+        AssertTrue(!ownerBList.Contains(contaA1Id.ToString(), StringComparison.OrdinalIgnoreCase), "Owner B nunca deveria listar A1.");
+        AssertEqual(HttpStatusCode.NotFound, (await ownerBClient.GetAsync($"/api/multi-family/contas/{contaA1Id}")).StatusCode, "Owner B pedindo A deve receber 404.");
+    }
+
+    var (userCClient, userCToken) = await CreateAuthenticatedClientAsync(factory, userCEmail, password);
+    using (userCClient)
+    {
+        AssertEqual(HttpStatusCode.Conflict, (await userCClient.GetAsync("/api/multi-family/family/current")).StatusCode, "Duas familias devem exigir selecao.");
+        AssertEqual(HttpStatusCode.NoContent, (await PostWithTokenAsync(userCClient, "/api/multi-family/family/select", new FamilySelectionRequest(familyAId), userCToken)).StatusCode, "User C deve selecionar A.");
+        AssertTrue((await userCClient.GetStringAsync("/api/multi-family/contas")).Contains(contaA1Id.ToString(), StringComparison.OrdinalIgnoreCase), "User C em A deve ver A.");
+        AssertEqual(HttpStatusCode.NoContent, (await PostWithTokenAsync(userCClient, "/api/multi-family/family/select", new FamilySelectionRequest(familyBId), userCToken)).StatusCode, "User C deve selecionar B.");
+        var listB = await userCClient.GetStringAsync("/api/multi-family/contas");
+        AssertTrue(listB.Contains(contaB1Id.ToString(), StringComparison.OrdinalIgnoreCase), "User C em B deve ver B.");
+        AssertTrue(!listB.Contains(contaA1Id.ToString(), StringComparison.OrdinalIgnoreCase), "User C em B nao deve manter estado de A.");
+        AssertEqual(HttpStatusCode.NotFound, (await userCClient.GetAsync($"/api/multi-family/contas/{contaA1Id}")).StatusCode, "ID de A em sessao B deve retornar 404.");
+        AssertEqual(HttpStatusCode.NoContent, (await PostWithTokenAsync(userCClient, "/api/multi-family/family/select", new FamilySelectionRequest(familyAId), userCToken)).StatusCode, "User C deve retornar a A.");
+        AssertEqual(HttpStatusCode.OK, (await userCClient.GetAsync($"/api/multi-family/contas/{contaA1Id}")).StatusCode, "Acesso A deve ser restaurado.");
+    }
+
+    using (var scope = factory.Services.CreateScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<AgendadorDbContext>();
+        AssertEqual(0, await db.Contas.CountAsync(x => x.FamilyId == familyBId && x.Nome.Contains("criada")), "FamilyId adulterado nunca deve criar em B.");
+        AssertTrue(await db.Pagamentos.AllAsync(x => x.Conta.FamilyId == x.FamilyId), "Todo pagamento deve manter tenant da conta.");
+    }
+}
+
+static async Task<AppUser> CreateUserAsync(UserManager<AppUser> userManager, string email, string password)
+{
+    var user = new AppUser { Id = Guid.NewGuid(), UserName = email, Email = email };
+    AssertTrue((await userManager.CreateAsync(user, password)).Succeeded, $"Usuario ficticio {email} deveria ser criado.");
+    return user;
+}
+
+static MultiFamilyContaRequest NewContaRequest(string nome) => new(
+    nome,
+    25.50m,
+    AccountCountry.UnitedKingdom,
+    AccountCurrency.GBP,
+    15,
+    new DateOnly(2026, 1, 1),
+    0,
+    true,
+    "Dado ficticio");
+
+static async Task<(HttpClient Client, string Token)> CreateAuthenticatedClientAsync(
+    MultiFamilyWebFactory factory,
+    string email,
+    string password)
+{
+    var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+    {
+        BaseAddress = new Uri("https://localhost"),
+        AllowAutoRedirect = false,
+        HandleCookies = true
+    });
+    var token = await GetAntiforgeryTokenAsync(client);
+    using var login = await PostWithTokenAsync(client, "/api/multi-family/auth/login", new IdentityLoginRequest(email, password), token);
+    AssertEqual(HttpStatusCode.OK, login.StatusCode, $"Login ficticio de {email} deveria funcionar.");
+    return (client, await GetAntiforgeryTokenAsync(client));
+}
+
+static Task<HttpResponseMessage> PutWithTokenAsync<T>(HttpClient client, string path, T body, string token)
+{
+    var request = new HttpRequestMessage(HttpMethod.Put, path) { Content = JsonContent.Create(body) };
+    request.Headers.Add("X-CSRF-TOKEN", token);
+    return client.SendAsync(request);
+}
+
+static Task<HttpResponseMessage> DeleteWithTokenAsync(HttpClient client, string path, string token)
+{
+    var request = new HttpRequestMessage(HttpMethod.Delete, path);
+    request.Headers.Add("X-CSRF-TOKEN", token);
+    return client.SendAsync(request);
 }
 
 static IEnumerable<HttpRequestMessage> LegacyRequests(Guid id)

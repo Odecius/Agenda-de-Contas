@@ -1,5 +1,6 @@
 using AgendadorContas.Data;
 using AgendadorContas.Data.Entities;
+using AgendadorContas.Data.Repositories;
 using AgendadorContas.Models;
 using AgendadorContas.Options;
 using AgendadorContas.Services;
@@ -127,6 +128,9 @@ if (multiFamilyOptions.Enabled)
     builder.Services.AddScoped<ICurrentUserContext, CurrentUserContext>();
     builder.Services.AddScoped<IFamilySelectionService, FamilySelectionService>();
     builder.Services.AddScoped<ICurrentFamilyContext, CurrentFamilyContext>();
+    builder.Services.AddScoped<IFamilyAuthorizationService, FamilyAuthorizationService>();
+    builder.Services.AddScoped<IContaRepository, ContaRepository>();
+    builder.Services.AddScoped<IPagamentoRepository, PagamentoRepository>();
     builder.Services.AddSingleton<LoginTimingProtector>();
     builder.Services.AddDistributedMemoryCache();
     builder.Services.AddSession(options =>

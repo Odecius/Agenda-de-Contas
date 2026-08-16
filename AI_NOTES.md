@@ -10,6 +10,8 @@ Na branch `agent/multi-family-postgresql`, a fundacao relacional local fica em `
 
 Na branch `agent/multi-family-runtime-isolation`, a Fase 2.1 adiciona Identity e contextos de usuario/familia atras de `MultiFamily:Enabled`, desligado por default e proibido fora de Development/Testing. A selecao familiar usa sessao e sempre revalida membership no banco. Com a flag ativa, APIs JSON legadas sao bloqueadas para evitar acesso nao isolado; com a flag desligada, producao continua usando AccessProtection e `ContaStore` sem alteracao.
 
+Na branch `agent/multi-family-tenant-repositories`, a Fase 2.2 adiciona repositories scoped e endpoints relacionais tenant-aware para contas e pagamentos. Nenhum metodo normal recebe `FamilyId`; o tenant vem de `ICurrentFamilyContext`. Owner possui todas as permissoes, Admin nao pode excluir e Member apenas consulta e registra pagamentos. A branch continua restrita a Development/Testing e nao altera o runtime JSON de producao.
+
 O modelo de contas possui suporte inicial a pais e moeda por conta. Os paises suportados sao `UnitedKingdom`, `Portugal` e `Brazil`; as moedas suportadas sao `GBP`, `EUR` e `BRL`. O sistema nao faz conversao cambial. Totais com moedas diferentes devem ser agrupados por moeda.
 
 A interface possui resumo por pais e moeda baseado nos vencimentos do mes selecionado. Esse resumo e apenas demonstrativo/operacional: ele separa os valores por moeda e nao calcula conversao.

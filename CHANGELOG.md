@@ -1,6 +1,15 @@
 ﻿# CHANGELOG
 
 
+## 2026-08-14
+
+- Adicionados `ContaRepository` e `PagamentoRepository` scoped, com tenant resolvido exclusivamente por `ICurrentFamilyContext`.
+- Criados endpoints experimentais tenant-aware para contas e pagamentos sob `/api/multi-family`.
+- Aplicada matriz Owner/Admin/Member, com 404 para recursos cross-family e 403 para role insuficiente no tenant atual.
+- Mutacoes permanecem protegidas por antiforgery; DTOs nao aceitam `FamilyId` como autoridade.
+- Adicionados cenarios PostgreSQL descartaveis para duas familias, troca de tenant e parametros adulterados.
+- Runtime de producao permanece `ContaStore + JSON`; nenhuma migration, importacao ou ativacao real foi realizada.
+
 ## 2026-08-13
 
 - Preparada Fase 2.1 com Identity individual, `CurrentUserContext` e `CurrentFamilyContext` apenas em modo controlado.
