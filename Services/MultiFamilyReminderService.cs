@@ -56,6 +56,7 @@ public sealed class MultiFamilyReminderProcessor(
                 DataVencimento = date,
                 Pago = false
             }).ToList();
+        if (due.Count == 0) return;
         var sent = await sender.SendAsync(telegram, messageBuilder.BuildDailyMessage(due, date), cancellationToken);
         if (!sent) return;
         db.LembretesEnviados.Add(new LembreteEnviadoEntity { FamilyId = familyId, LocalDate = date, Channel = "Telegram", SentAtUtc = utcNow.UtcDateTime });

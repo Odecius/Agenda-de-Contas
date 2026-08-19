@@ -14,7 +14,7 @@ Nao existe cadastro publico ou endpoint de bootstrap. O comando explicito e:
 dotnet run -- bootstrap-multi-family
 ```
 
-Ele somente funciona com a flag ativa em Development/Testing. Email, senha e nome da familia devem vir de `Bootstrap__Email`, `Bootstrap__Password` e `Bootstrap__FamilyName` no ambiente/secret local. A senha nao e impressa nem logada. O comando cria de forma idempotente AppUser, Family, membership Owner e FamilySettings.
+Ele somente funciona com a flag ativa em Development/Testing. Email, senha e nome da familia devem vir de `Bootstrap__Email`, `Bootstrap__Password` e `Bootstrap__FamilyName` no ambiente/secret local. A senha nao e impressa nem logada. O comando cria AppUser, Family, membership Owner e FamilySettings somente quando usuario e familia ainda nao existem. Repetir exatamente a mesma identidade e idempotente. Familia ou usuario preexistente sem a mesma membership Owner falha fechado e exige intervencao administrativa explicita; o bootstrap nunca cria um Owner adicional. Uma membership Owner esperada, mas inativa, so e reativada quando nao existe outro Owner ativo.
 
 ## Login e familia ativa
 
@@ -41,7 +41,7 @@ FamilySettings controla moeda default, timezone IANA e horario/minuto. TelegramS
 
 ## Worker relacional
 
-`MultiFamilyReminderWorker` e registrado somente quando a flag esta ativa. Ele nao usa `ICurrentFamilyContext`: enumera familias ativas e processa cada `FamilyId` explicitamente. Todas as queries de settings, contas, pagamentos e lembretes incluem o tenant. Falha de uma familia gera log tecnico e permite continuar; lembrete so e marcado depois de envio bem-sucedido.
+`MultiFamilyReminderWorker` e registrado somente quando a flag esta ativa. Ele nao usa `ICurrentFamilyContext`: enumera familias ativas e processa cada `FamilyId` explicitamente. Todas as queries de settings, contas, pagamentos e lembretes incluem o tenant. Falha de uma familia gera log tecnico e permite continuar; nenhum Telegram e enviado quando nao ha contas pendentes, e lembrete so e marcado depois de envio bem-sucedido.
 
 ## Frontend
 

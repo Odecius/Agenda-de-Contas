@@ -3,6 +3,7 @@
 
 ## 2026-08-19
 
+- Endurecido o bootstrap administrativo para rejeitar usuarios/familias incompativeis e eliminado envio de lembrete vazio.
 - Adicionado fluxo operacional multi-family local com bootstrap administrativo, login Identity, selecao de familia e UI tenant-aware.
 - Adicionados members e FamilySettings com matriz Owner/Admin/Member e protecao do ultimo Owner.
 - Preparados Telegram por referencia de secret e worker relacional isolado por familia.

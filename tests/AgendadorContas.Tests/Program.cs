@@ -70,7 +70,9 @@ var tests = new List<(string Name, Func<Task> Run)>
     ("Migracao aceita colecoes JSON explicitamente vazias", JsonMigrationAcceptsExplicitEmptyCollectionsAsync),
     ("Migracao invalida e falha atomica nao deixam escrita parcial", JsonMigrationValidationAndRollbackAsync),
     ("Bootstrap multi-family e idempotente", MultiFamilyBootstrapIsIdempotentAsync),
-    ("Worker multi-family isola familias e falhas", MultiFamilyWorkerIsolatesFamiliesAndFailuresAsync)
+    ("Bootstrap rejeita identidades conflitantes sem alterar estado", MultiFamilyBootstrapRejectsConflictsAsync),
+    ("Worker multi-family isola familias e falhas", MultiFamilyWorkerIsolatesFamiliesAndFailuresAsync),
+    ("Worker sem contas pendentes nao envia Telegram", MultiFamilyWorkerSkipsEmptyReminderAsync)
 };
 
 if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("AGENDADOR_TEST_POSTGRES")))
@@ -886,6 +888,52 @@ static async Task MultiFamilyBootstrapIsIdempotentAsync()
     AssertTrue(!first.ToString().Contains("Bootstrap-test", StringComparison.Ordinal), "Resultado do bootstrap expos senha.");
 }
 
+static async Task MultiFamilyBootstrapRejectsConflictsAsync()
+{
+    await using var scope = await IdentityTestScope.CreateAsync();
+    var service = new MultiFamilyBootstrapService(scope.Db, scope.UserManager, NullLogger<MultiFamilyBootstrapService>.Instance);
+    const string password = "Bootstrap-test-123!";
+    var initial = await service.BootstrapAsync("owner-a@example.test", password, "Family A");
+
+    var otherEmailError = await CaptureExceptionAsync(() => service.BootstrapAsync("owner-b@example.test", password, "Family A"));
+    AssertContains("conflicts with existing state", otherEmailError.Message, "Outra identidade deveria ser rejeitada para a mesma familia.");
+    AssertTrue(!otherEmailError.ToString().Contains(password, StringComparison.Ordinal), "Erro de conflito expos password.");
+    AssertEqual(1, await scope.Db.Users.CountAsync(), "Conflito criou usuario adicional.");
+    AssertEqual(1, await scope.Db.FamilyUsers.CountAsync(), "Conflito criou membership adicional.");
+    AssertEqual(1, await scope.Db.FamilyUsers.CountAsync(x => x.Role == FamilyRole.Owner), "Conflito criou Owner adicional.");
+
+    var casingError = await CaptureExceptionAsync(() => service.BootstrapAsync("owner-case@example.test", password, "family a"));
+    AssertContains("conflicts with existing state", casingError.Message, "Variacao de casing nao pode criar outra familia logica.");
+    AssertEqual(1, await scope.Db.Families.CountAsync(), "Variacao de casing duplicou familia.");
+    AssertEqual(1, await scope.Db.Users.CountAsync(), "Variacao de casing criou usuario adicional.");
+    AssertEqual(1, await scope.Db.FamilyUsers.CountAsync(x => x.Role == FamilyRole.Owner), "Variacao de casing criou Owner adicional.");
+
+    var incompatibleFamily = NewFamily("Family B");
+    scope.Db.Families.Add(incompatibleFamily);
+    scope.Db.FamilySettings.Add(new FamilySettings { FamilyId = incompatibleFamily.Id });
+    await scope.Db.SaveChangesAsync();
+    var otherFamilyError = await CaptureExceptionAsync(() => service.BootstrapAsync("owner-a@example.test", password, "Family B"));
+    AssertContains("conflicts with existing state", otherFamilyError.Message, "Mesmo usuario nao deveria assumir outra familia pelo bootstrap.");
+    AssertEqual(1, await scope.Db.FamilyUsers.CountAsync(), "Conflito com outra familia alterou memberships.");
+    AssertEqual(1, await scope.Db.FamilyUsers.CountAsync(x => x.Role == FamilyRole.Owner), "Conflito com outra familia criou Owner.");
+
+    var membership = await scope.Db.FamilyUsers.SingleAsync(x => x.FamilyId == initial.FamilyId && x.UserId == initial.UserId);
+    membership.IsActive = false;
+    await scope.Db.SaveChangesAsync();
+    var reactivated = await service.BootstrapAsync("owner-a@example.test", password, "Family A");
+    AssertTrue(!reactivated.UserCreated && !reactivated.FamilyCreated && !reactivated.MembershipCreated, "Reativacao controlada nao deve criar registros.");
+    AssertTrue((await scope.Db.FamilyUsers.SingleAsync(x => x.FamilyId == initial.FamilyId && x.UserId == initial.UserId)).IsActive, "Owner esperado inativo nao foi reativado.");
+
+    await using var rollbackScope = await IdentityTestScope.CreateAsync();
+    var rollbackService = new MultiFamilyBootstrapService(rollbackScope.Db, rollbackScope.UserManager, NullLogger<MultiFamilyBootstrapService>.Instance);
+    var invalidPassword = "Pw!";
+    var passwordError = await CaptureExceptionAsync(() => rollbackService.BootstrapAsync("rollback@example.test", invalidPassword, "Rollback Family"));
+    AssertTrue(!passwordError.ToString().Contains(invalidPassword, StringComparison.Ordinal), "Falha de bootstrap expos password.");
+    AssertEqual(0, await rollbackScope.Db.Users.CountAsync(), "Rollback deixou usuario parcial.");
+    AssertEqual(0, await rollbackScope.Db.Families.CountAsync(), "Rollback deixou familia parcial.");
+    AssertEqual(0, await rollbackScope.Db.FamilyUsers.CountAsync(), "Rollback deixou membership parcial.");
+}
+
 static async Task MultiFamilyWorkerIsolatesFamiliesAndFailuresAsync()
 {
     await using var scope = await RelationalTestScope.CreateAsync();
@@ -913,6 +961,23 @@ static async Task MultiFamilyWorkerIsolatesFamiliesAndFailuresAsync()
     AssertTrue(sender.Attempts.Single(x => x.FamilyId == familyB.Id).Message.Contains("Only B") && !sender.Attempts.Single(x => x.FamilyId == familyB.Id).Message.Contains("Only A"), "Mensagem B misturou tenant.");
     AssertEqual(0, await scope.Db.LembretesEnviados.CountAsync(x => x.FamilyId == familyA.Id), "Falha A nao pode marcar envio.");
     AssertEqual(1, await scope.Db.LembretesEnviados.CountAsync(x => x.FamilyId == familyB.Id), "Sucesso B deveria marcar envio.");
+}
+
+static async Task MultiFamilyWorkerSkipsEmptyReminderAsync()
+{
+    await using var scope = await RelationalTestScope.CreateAsync();
+    var family = NewFamily("Worker Empty");
+    scope.Db.Families.Add(family);
+    scope.Db.FamilySettings.Add(new FamilySettings { FamilyId = family.Id, TimeZoneId = "Europe/London", ReminderHour = 9 });
+    scope.Db.TelegramSettings.Add(new TelegramSettings { FamilyId = family.Id, IsEnabled = true, ChatId = "fake-empty", BotTokenSecretReference = "fake-empty" });
+    await scope.Db.SaveChangesAsync();
+    var sender = new FakeFamilyTelegramSender(Guid.Empty);
+    var processor = new MultiFamilyReminderProcessor(scope.Db, sender, new ReminderMessageBuilder(new MoneyFormatter()), NullLogger<MultiFamilyReminderProcessor>.Instance);
+
+    await processor.ProcessAsync(new DateTimeOffset(2026, 8, 19, 8, 0, 0, TimeSpan.Zero));
+
+    AssertEqual(0, sender.Attempts.Count, "Worker nao deveria chamar Telegram sem contas pendentes.");
+    AssertEqual(0, await scope.Db.LembretesEnviados.CountAsync(), "Worker nao deveria gravar lembrete sem envio.");
 }
 
 static async Task LegacyRuntimeKeepsJsonAndWorkersAsync()
@@ -1435,6 +1500,20 @@ static void AssertContains(string expected, string actual, string message)
     {
         throw new InvalidOperationException($"{message} Trecho esperado: {expected}.");
     }
+}
+
+static async Task<Exception> CaptureExceptionAsync(Func<Task> action)
+{
+    try
+    {
+        await action();
+    }
+    catch (Exception ex)
+    {
+        return ex;
+    }
+
+    throw new InvalidOperationException("Era esperada uma excecao, mas a operacao concluiu com sucesso.");
 }
 
 static DefaultHttpContext AuthenticatedHttpContext(Guid userId)
