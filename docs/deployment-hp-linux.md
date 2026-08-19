@@ -1,230 +1,35 @@
-# Deployment HP Linux com Docker
+# Deployment Linux com Docker
 
-Este guia prepara o Agendador de Contas para rodar 24/7 no HP Pavilion com Ubuntu Server 24.04 LTS usando Docker Compose, Nginx Proxy Manager e dados persistentes fora do container.
+Este documento registra o modelo publico de deployment do Agendador de Contas. A instalacao validada usa Docker Compose em um servidor Linux, reverse proxy e armazenamento persistente fora do container.
 
-> Status: validado e em operacao no servidor HP. Este guia nao contem segredos reais e nao substitui a configuracao do arquivo `.env` real no servidor.
+Detalhes reais do host, nomes de dispositivos, caminhos, topologia Docker, portas administrativas, destinos de backup e configuracao sensivel pertencem exclusivamente a documentacao privada de infraestrutura.
 
-## Estado operacional confirmado
+## Estado conhecido
 
-- Container: `agendador-contas`.
-- Metodo: Docker Compose.
-- Compose operacional: `/srv/stacks/apps/agendador/docker-compose.yml`.
-- Dados persistentes: `/srv/data/apps/agendador`.
-- Persistencia atual: JSON (`contas.json`).
-- AccessProtection ativa e sessoes persistidas.
-- Chaves Data Protection persistidas no volume de dados.
-- Backups automaticos e health check ativos.
-- Timezone: `Europe/London`.
-- Baseline de codigo: tag `v1.0.4`, commit `e06d30e`.
+- A persistencia atual usa JSON, com `contas.json` como arquivo principal.
+- Configuracao operacional, backups e chaves ASP.NET Data Protection sobrevivem a recriacao do container.
+- AccessProtection, sessoes persistidas, backups automaticos e health check estao ativos.
+- O timezone e fornecido externamente por um identificador IANA.
+- O baseline historico desta implantacao e a tag `v1.0.4`, commit `e06d30e`.
 
-## Metodo recomendado
+## Componentes publicos
 
-Para o servidor HP, o metodo recomendado e Docker Compose.
+- `Dockerfile`: build multi-stage, runtime ASP.NET Core 8 e usuario nao-root.
+- `.dockerignore`: impede inclusao de dados locais, configuracao sensivel e artefatos temporarios.
+- `deploy/docker-compose.hp.yml`: modelo parametrizado de orquestracao, persistencia, rede externa e healthcheck.
+- Arquivos `*.example`: documentam apenas a estrutura de configuracao, sem valores reais.
+- Modelo systemd: alternativa preservada para ambientes sem Docker.
 
-O deploy via `systemd` continua preservado como alternativa em `docs/deployment.md` e `deploy/agendador-contas.service`.
+## Principios operacionais
 
-## Layout no servidor
+- Aplicacao, configuracao e dados persistentes devem permanecer separados.
+- Configuracao sensivel deve ser fornecida externamente e nunca versionada.
+- A porta interna da aplicacao deve ser acessada pelo reverse proxy, sem exposicao direta desnecessaria.
+- O volume de dados deve ter privilegio minimo e permanecer fora do filesystem efemero do container.
+- Atualizacoes devem registrar a versao implantada e preservar um caminho de rollback.
+- Backups devem ser replicados para um destino fora do host e ter restauracao testada.
+- O healthcheck deve retornar somente estado operacional minimo.
 
-```text
-/srv/apps/agendador              # Codigo fonte do projeto
-/srv/data/apps/agendador         # Dados persistentes montados no container
-/srv/stacks/apps/agendador       # Compose e arquivo .env real
-```
+## Limite deste documento
 
-Dentro do container, a aplicacao usa:
-
-```text
-/var/lib/agendador-contas/contas.json
-/var/lib/agendador-contas/settings.json
-/var/lib/agendador-contas/backups/
-/var/lib/agendador-contas/dataprotection-keys/
-```
-
-O volume Docker mapeia:
-
-```text
-/srv/data/apps/agendador:/var/lib/agendador-contas
-```
-
-Esse volume preserva contas, horario configurado do lembrete diario, backups e
-as chaves de protecao do cookie de login. Assim, recriar o container nao invalida
-as sessoes apenas por perda de chaves.
-
-## Rede Docker
-
-O servidor ja possui uma rede externa chamada `proxy`, usada pelo Nginx Proxy Manager.
-
-O compose usa essa rede:
-
-```yaml
-networks:
-  proxy:
-    external: true
-```
-
-Isso permite que o Nginx Proxy Manager alcance o container pelo nome:
-
-```text
-agendador-contas:5005
-```
-
-## Arquivos preparados no repositorio
-
-- `Dockerfile`: build multi-stage com SDK apenas na fase de build e `aspnet:8.0` na fase final. A imagem final instala `curl` exclusivamente para o healthcheck do container e continua executando a aplicacao como usuario nao-root.
-- `.dockerignore`: exclui Git, binarios, dados locais, `.env`, User Secrets, notas locais e arquivos temporarios.
-- `deploy/docker-compose.hp.yml`: compose recomendado para o HP, incluindo healthcheck em `/health`.
-- `deploy/agendador-contas.docker.env.example`: exemplo de ambiente sem segredos reais.
-- `deploy/agendador-contas.service`: alternativa systemd preservada.
-- `deploy/agendador-contas.env.example`: alternativa systemd preservada.
-
-## Preparar diretorios no servidor
-
-No HP:
-
-```bash
-sudo mkdir -p /srv/apps/agendador
-sudo mkdir -p /srv/data/apps/agendador
-sudo mkdir -p /srv/stacks/apps/agendador
-```
-
-Como o container roda como usuario nao-root da imagem oficial .NET, ajuste a permissao do diretorio de dados para o UID/GID do usuario `app` da imagem:
-
-```bash
-sudo chown -R 1654:1654 /srv/data/apps/agendador
-sudo chmod 750 /srv/data/apps/agendador
-```
-
-## Copiar arquivos para o servidor
-
-O codigo deve ficar em:
-
-```text
-/srv/apps/agendador
-```
-
-O compose deve ficar em:
-
-```text
-/srv/stacks/apps/agendador/docker-compose.yml
-```
-
-Exemplo a partir do Windows:
-
-```powershell
-scp -r "C:\Projetos\Abc\Agendador de contas\*" USUARIO@IP_DO_SERVIDOR_HP:/srv/apps/agendador/
-scp "C:\Projetos\Abc\Agendador de contas\deploy\docker-compose.hp.yml" USUARIO@IP_DO_SERVIDOR_HP:/srv/stacks/apps/agendador/docker-compose.yml
-scp "C:\Projetos\Abc\Agendador de contas\deploy\agendador-contas.docker.env.example" USUARIO@IP_DO_SERVIDOR_HP:/srv/stacks/apps/agendador/agendador.env.example
-```
-
-Nao copie `NOTAS.txt`, `.env`, `data/`, `bin/` ou `obj/` para compartilhamento publico.
-
-## Criar arquivo de ambiente real
-
-No servidor:
-
-```bash
-cd /srv/stacks/apps/agendador
-cp agendador.env.example agendador.env
-nano agendador.env
-chmod 600 agendador.env
-```
-
-Preencha no arquivo real:
-
-```text
-AccessProtection__Username=...
-AccessProtection__Password=...
-Telegram__BotToken=...
-Telegram__ChatId=...
-```
-
-Nunca commitar nem enviar o arquivo `agendador.env` para GitHub.
-
-Tambem nao use `appsettings.Production.json` para segredos reais. Configuracoes sensiveis devem ficar no arquivo `.env` real do servidor ou em variaveis de ambiente, nunca no Git.
-
-## Validar compose
-
-No servidor:
-
-```bash
-cd /srv/stacks/apps/agendador
-docker compose config
-```
-
-## Build e subida
-
-No servidor:
-
-```bash
-cd /srv/stacks/apps/agendador
-docker compose build
-docker compose up -d
-```
-
-## Verificar funcionamento
-
-No servidor:
-
-```bash
-docker compose ps
-docker compose logs -f agendador-contas
-docker exec agendador-contas curl --fail --silent http://127.0.0.1:5005/health
-```
-
-O container tambem possui healthcheck interno configurado para chamar:
-
-```text
-http://127.0.0.1:5005/health
-```
-
-Esse endpoint retorna apenas `{"status":"ok"}` e nao deve expor dados sensiveis.
-
-De outro container na rede `proxy`, o alvo interno e:
-
-```text
-http://agendador-contas:5005
-```
-
-## Porta e rede
-
-O compose nao publica a porta `5005` no host. O Nginx Proxy Manager acessa o
-container pelo nome `agendador-contas` na rede externa `proxy`. Para diagnostico
-local, use o healthcheck do Docker ou execute o `curl` dentro do container.
-
-## Nginx Proxy Manager
-
-No Nginx Proxy Manager, configure o Proxy Host apontando para:
-
-```text
-Scheme: http
-Forward Hostname / IP: agendador-contas
-Forward Port: 5005
-```
-
-Ative SSL/HTTPS antes de expor fora da rede local.
-
-## Atualizar uma versao futura
-
-No servidor:
-
-```bash
-cd /srv/apps/agendador
-git pull
-
-cd /srv/stacks/apps/agendador
-docker compose build
-docker compose up -d
-docker compose logs -n 80 agendador-contas
-docker exec agendador-contas curl --fail --silent http://127.0.0.1:5005/health
-```
-
-## Checklist antes de expor fora da rede local
-
-- Confirmar `AccessProtection__Enabled=true`.
-- Confirmar senha forte no arquivo `/srv/stacks/apps/agendador/agendador.env`.
-- Confirmar Telegram funcionando em `Production`.
-- Confirmar backup automatico criando arquivos em `/srv/data/apps/agendador/backups`.
-- Confirmar que `docker compose ps` mostra o container em execucao.
-- Confirmar que `/health` retorna apenas status operacional minimo.
-- Configurar HTTPS no Nginx Proxy Manager.
-- Evitar expor `0.0.0.0:5005` diretamente no servidor.
+Este repositorio explica arquitetura, requisitos e resultado do deployment; ele nao e um dump operacional do servidor. O runbook executavel, inventario e valores reais ficam na documentacao privada controlada.

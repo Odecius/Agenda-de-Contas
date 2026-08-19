@@ -44,9 +44,9 @@
 
 **Decisao:** Registrar a tag `v1.0.4`, commit `e06d30e`, como baseline documental pos-producao do Agendador.
 
-**Motivo:** A aplicacao esta funcional no servidor HP Linux via Docker Compose, superando o baseline de pre-producao de 2026-07-23.
+**Motivo:** A aplicacao esta funcional em um servidor Linux via Docker Compose, superando o baseline de pre-producao de 2026-07-23.
 
-**Impacto:** O repositorio `C:\Projetos\Abc\Agendador de contas` passa a ser a fonte de verdade para novos planejamentos. O snapshot simplificado existente em outros diretorios nao deve ser usado. O proximo ciclo deve preservar a imagem e os dados atuais antes de qualquer evolucao.
+**Impacto:** Este repositorio passa a ser a fonte de verdade para novos planejamentos. Snapshots simplificados existentes em outros diretorios nao devem ser usados. O proximo ciclo deve preservar a imagem e os dados atuais antes de qualquer evolucao.
 
 ## 2026-08-13 - PostgreSQL deve nascer preparado para Family/Tenant
 
@@ -60,9 +60,9 @@
 
 **Decisao:** Registrar a tag `v1.0.4`, commit `e06d30e`, como baseline documental pos-producao do Agendador.
 
-**Motivo:** A aplicacao esta funcional no servidor HP Linux via Docker Compose, superando o baseline de pre-producao de 2026-07-23.
+**Motivo:** A aplicacao esta funcional em um servidor Linux via Docker Compose, superando o baseline de pre-producao de 2026-07-23.
 
-**Impacto:** O repositorio `C:\Projetos\Abc\Agendador de contas` passa a ser a fonte de verdade para novos planejamentos. O snapshot simplificado existente em outros diretorios nao deve ser usado. O proximo ciclo deve preservar a imagem e os dados atuais antes de qualquer evolucao.
+**Impacto:** Este repositorio passa a ser a fonte de verdade para novos planejamentos. Snapshots simplificados existentes em outros diretorios nao devem ser usados. O proximo ciclo deve preservar a imagem e os dados atuais antes de qualquer evolucao.
 
 ## 2026-08-13 - PostgreSQL deve nascer preparado para Family/Tenant
 
@@ -78,21 +78,21 @@
 
 **Motivo:** O Standard recomenda `main`, mas a troca exige coordenar a branch remota e a branch padrao no GitHub. Renomear apenas localmente quebraria o fluxo atual.
 
-## 2026-07-16 - Servidor HP Linux como homologacao
+## 2026-07-16 - Servidor Linux como homologacao
 
-**Decisao:** Preparar o deploy imediato para um servidor HP Linux x64 usando o mesmo modelo de `systemd`, variaveis de ambiente e dados em `/var/lib/agendador-contas`.
+**Decisao:** Preparar o deploy imediato para um servidor Linux x64 usando o mesmo modelo de `systemd`, configuracao externa e armazenamento persistente.
 
-**Motivo:** O Raspberry Pi ainda nao esta disponivel, mas o servidor HP permite validar operacao 24/7, login, Telegram, backups, logs e reinicio automatico antes da migracao futura.
+**Motivo:** O Raspberry Pi ainda nao esta disponivel, mas o servidor Linux permite validar operacao 24/7, login, Telegram, backups, logs e reinicio automatico antes da migracao futura.
 
-**Impacto:** O publish para HP usa runtime `linux-x64`. O publish Raspberry permanece documentado como `linux-arm64`.
+**Impacto:** O publish do servidor usa runtime `linux-x64`. O publish Raspberry permanece documentado como `linux-arm64`.
 
-## 2026-07-16 - Docker Compose recomendado no servidor HP
+## 2026-07-16 - Docker Compose recomendado no servidor Linux
 
-**Decisao:** Usar Docker Compose como metodo recomendado para o HP Pavilion Ubuntu Server 24.04 LTS, mantendo `systemd` como alternativa documentada.
+**Decisao:** Usar Docker Compose como metodo recomendado para o servidor Linux, mantendo `systemd` como alternativa documentada.
 
-**Motivo:** O servidor ja possui Docker, Docker Compose e rede externa `proxy` usada pelo Nginx Proxy Manager. Docker reduz diferencas de ambiente, evita instalar runtime .NET diretamente no host e facilita rebuild/rollback.
+**Motivo:** O ambiente ja possui Docker, Docker Compose e integracao com reverse proxy. Docker reduz diferencas de ambiente, evita instalar runtime .NET diretamente no host e facilita rebuild/rollback.
 
-**Impacto:** O codigo fica em `/srv/apps/agendador`, dados persistentes em `/srv/data/apps/agendador` e configuracao em `/srv/stacks/apps/agendador`. Segredos ficam em arquivo `.env` externo ao Git.
+**Impacto:** Codigo, configuracao e dados persistentes ficam separados. Configuracao sensivel permanece externa ao Git.
 
 ## 2026-07-16 - Horario do lembrete configuravel pela interface
 

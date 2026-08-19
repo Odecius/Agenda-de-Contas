@@ -2,7 +2,7 @@
 
 ## Estado do projeto
 
-O Agendador de Contas esta pronto para uso local e preparado para deploy Docker em Linux. O alvo imediato e o servidor HP Linux x64 com Docker Compose; Raspberry Pi continua como alvo futuro quando o hardware estiver disponivel.
+O Agendador de Contas esta pronto para uso local e preparado para deploy Docker em Linux. O modelo Docker Compose foi validado em producao; Raspberry Pi continua como alvo futuro quando o hardware estiver disponivel.
 
 ## Validacao local
 
@@ -35,20 +35,19 @@ http://localhost:5005/health
 - Confirmar timezone final em `Reminder__TimeZoneId` e `Backup__TimeZoneId`.
 - Confirmar na interface o horario desejado do lembrete diario.
 
-## Pontos que dependem do servidor HP Linux
+## Pontos que dependem do servidor Linux
 
 - Confirmar arquitetura com `uname -m`; normalmente `x86_64`.
 - Confirmar Docker e Docker Compose instalados.
-- Confirmar rede Docker externa `proxy`.
-- Confirmar codigo em `/srv/apps/agendador`.
-- Confirmar dados em `/srv/data/apps/agendador`.
-- Confirmar compose e `.env` real em `/srv/stacks/apps/agendador`.
+- Confirmar rede Docker externa gerenciada pelo reverse proxy.
+- Confirmar separacao entre aplicacao, configuracao e dados persistentes.
+- Confirmar que o Compose e o ambiente real ficam fora do repositorio publico.
 - Confirmar acesso pela rede local a partir de outro aparelho.
 - Confirmar login em producao.
 - Confirmar envio Telegram em producao.
-- Confirmar que alterar o horario do lembrete cria/atualiza `/srv/data/apps/agendador/settings.json`.
-- Confirmar criacao de backup automatico em `/srv/data/apps/agendador/backups`.
-- Confirmar persistencia das chaves em `/srv/data/apps/agendador/dataprotection-keys`.
+- Confirmar que alterar o horario do lembrete atualiza `settings.json` no volume persistente.
+- Confirmar criacao de backup automatico no armazenamento persistente.
+- Confirmar persistencia das chaves Data Protection fora do container.
 - Confirmar reinicio automatico via `restart: unless-stopped`.
 
 ## Pontos futuros que dependem do Raspberry

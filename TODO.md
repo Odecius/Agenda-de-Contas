@@ -24,7 +24,7 @@
 - Melhorar relatorios por moeda e pais.
 - Expandir testes automatizados para endpoints completos com servidor em memoria.
 - Avaliar HTTPS/reverse proxy apos validacao em rede local.
-- Validar Nginx Proxy Manager apontando para `agendador-contas:5005` na rede `proxy`.
+- Validar o reverse proxy apontando para o servico pela rede Docker externa.
 
 ## Baixa prioridade
 
@@ -45,11 +45,11 @@
 - Identity, contextos de usuario/familia e selecao familiar preparados atras de feature flag local.
 - Fundacao local EF Core/PostgreSQL multi-tenant criada, sem conexao com producao.
 - Modelo relacional e primeira migration versionados; testes usam SQLite descartavel.
-- Deploy Docker real validado no servidor HP Linux.
-- Aplicação funcional em produção no container `agendador-contas`.
-- Dados JSON persistidos em `/srv/data/apps/agendador`.
+- Deploy Docker real validado em servidor Linux.
+- Aplicacao funcional em producao via Docker Compose.
+- Dados JSON persistidos fora do filesystem efemero do container.
 - AccessProtection, sessões, Data Protection keys, backups automáticos e health check ativos em produção.
-- Timezone de produção confirmado como `Europe/London`.
+- Timezone de producao configurado externamente com identificador IANA.
 - Baseline pós-produção registrado para `v1.0.4`/`e06d30e`.
 
 - Cadastro e listagem de contas.
@@ -66,7 +66,7 @@
 - Backup automatico configuravel e retencao segura de backups automaticos.
 - Endpoint `/health` para verificacao operacional.
 - Checklist final em `docs/final-checklist.md`.
-- Dockerfile e Docker Compose preparados para HP Linux.
+- Dockerfile e Docker Compose preparados para Linux.
 - Horario do lembrete diario configuravel pela interface.
 - Testes automatizados basicos para protecao de acesso.
 - Cabeçalhos HTTP basicos de seguranca.

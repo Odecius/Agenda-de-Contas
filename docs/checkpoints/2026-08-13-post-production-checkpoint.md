@@ -2,7 +2,7 @@
 
 ## Referencia
 
-- Repositorio: `C:\Projetos\Abc\Agendador de contas`.
+- Repositorio: checkout local do projeto.
 - Branch: `master`.
 - Commit: `e06d30e`.
 - Tag: `v1.0.4`.
@@ -10,9 +10,9 @@
 
 ## Estado consolidado
 
-A aplicacao esta funcional em producao no servidor HP Linux via Docker Compose. O container e `agendador-contas`; o Compose operacional fica em `/srv/stacks/apps/agendador/docker-compose.yml`; os dados persistentes ficam em `/srv/data/apps/agendador`.
+A aplicacao esta funcional em producao em um servidor Linux via Docker Compose. O arquivo Compose e os dados persistentes ficam fora do repositorio e do filesystem efemero do container.
 
-A persistencia continua em JSON, com `contas.json` como arquivo principal. `settings.json`, backups e chaves ASP.NET Data Protection permanecem no mesmo volume persistente. AccessProtection, sessao, backups automaticos e health check estao ativos. O timezone e `Europe/London`.
+A persistencia continua em JSON, com `contas.json` como arquivo principal. `settings.json`, backups e chaves ASP.NET Data Protection permanecem no mesmo volume persistente. AccessProtection, sessao, backups automaticos e health check estao ativos. O timezone e configurado externamente com um identificador IANA.
 
 ## Funcionalidade e seguranca
 

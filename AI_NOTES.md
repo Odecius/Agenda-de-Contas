@@ -4,7 +4,7 @@
 
 Agendador de Contas é uma aplicação ASP.NET Core .NET 8 com frontend estático em `wwwroot`, APIs mínimas em `Program.cs`, armazenamento local em JSON e lembretes diários via Hosted Service.
 
-O baseline atual e pos-producao: branch `master`, tag `v1.0.4`, commit `e06d30e`. A aplicacao esta funcional no servidor HP Linux via Docker Compose, no container `agendador-contas`. Dados, `settings.json`, backups e chaves Data Protection ficam persistidos sob `/srv/data/apps/agendador`. AccessProtection, backups automaticos e health check estao ativos. O timezone de producao e `Europe/London`.
+O baseline atual e pos-producao: branch `master`, tag `v1.0.4`, commit `e06d30e`. A aplicacao esta funcional em um servidor Linux via Docker Compose. Dados, `settings.json`, backups e chaves Data Protection ficam em armazenamento persistente fora do container. AccessProtection, backups automaticos e health check estao ativos. O timezone de producao usa um identificador IANA configurado externamente.
 
 Na branch `agent/multi-family-postgresql`, a fundacao relacional local fica em `Data/`: EF Core, PostgreSQL, Identity, entidades multi-tenant e migration inicial. Ela nao esta registrada no pipeline; `ContaStore` JSON continua sendo o unico runtime. Testes relacionais usam SQLite em memoria e dados sinteticos.
 
@@ -35,10 +35,10 @@ O horario do lembrete diario pode ser alterado pela interface. `ReminderSettings
 ## Pontos críticos
 
 - Segredos Telegram nunca devem ficar em código, Git ou documentação pública.
-- `notas.txt` contém segredo histórico e precisa ser tratado.
+- Qualquer segredo historicamente exposto deve ser rotacionado e mantido fora do repositorio.
 - JSON local precisa de backup.
 - Ha protecao opcional de acesso por cookie, ativada por configuracao `AccessProtection`.
-- Deploy Linux esta preparado em documentacao e modelos. O alvo imediato e servidor HP Pavilion com Ubuntu Server 24.04 LTS usando Docker Compose, rede externa `proxy`, codigo em `/srv/apps/agendador`, dados em `/srv/data/apps/agendador` e configuracao em `/srv/stacks/apps/agendador`. Raspberry Pi continua como alvo futuro.
+- Deploy Linux esta preparado em documentacao e modelos. A instalacao validada usa Docker Compose, reverse proxy e armazenamento persistente externo ao container. Raspberry Pi continua como alvo futuro.
 - Contas antigas sem `country` e `currency` assumem `UnitedKingdom` e `GBP`.
 - Protecao de acesso por cookie existe, mas deve ser ativada por configuracao `AccessProtection` em producao.
 - Backups manuais, automaticos e `pre-restore` ficam em uma pasta `backups` ao lado do arquivo `Data:FilePath`.
@@ -76,7 +76,7 @@ O horario do lembrete diario pode ser alterado pela interface. `ReminderSettings
 - Manter rota `/test-telegram` somente em `Development`.
 - Atualizar docs após alterar rotas, configuração, deploy ou regras de vencimento.
 - Preferir serviços pequenos e testáveis para regras de negócio.
-- Para deploy HP Linux x64, consultar `docs/deployment-hp-linux.md`; Docker Compose e o metodo recomendado.
+- Para deploy Linux x64, consultar `docs/deployment-hp-linux.md`; Docker Compose e o metodo recomendado.
 - Para deploy Raspberry, consultar `docs/deployment.md` e os modelos em `deploy/`.
 - Para fechamento operacional, consultar `docs/final-checklist.md`.
 - Para proteger acesso, configurar `AccessProtection__Enabled=true`, usuario e senha por User Secrets ou variaveis de ambiente.

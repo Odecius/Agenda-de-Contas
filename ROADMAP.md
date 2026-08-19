@@ -132,21 +132,21 @@
 - Retornar HTTP 429 quando o limite for excedido.
 - Reduzir risco de tentativa automatizada de senha.
 
-## Sprint 29 - Deploy HP Linux
+## Sprint 29 - Deploy Linux
 
-- Preparar runbook especifico para servidor HP Linux x64.
+- Preparar runbook privado para servidor Linux x64.
 - Validar publish `linux-x64`.
 - Reusar modelos de `systemd` e variaveis de ambiente sem segredos reais.
 - Deixar deploy real pendente de acesso SSH, .NET Runtime 8 e configuracao do ambiente no servidor.
 
-## Sprint 30 - Deploy Docker HP
+## Sprint 30 - Deploy Docker Linux
 
 - Criar Dockerfile multi-stage com .NET 8.
 - Criar `.dockerignore` com exclusao de segredos, dados locais e artefatos de build.
-- Criar Docker Compose para HP usando rede externa `proxy`.
-- Montar dados persistentes em `/srv/data/apps/agendador`.
-- Usar arquivo `.env` externo em `/srv/stacks/apps/agendador`.
-- Manter porta `5005` sem publicacao no host e acesso publico via Nginx Proxy Manager.
+- Criar Docker Compose parametrizado usando rede externa de reverse proxy.
+- Montar dados em armazenamento persistente fora do container.
+- Usar configuracao sensivel externa ao repositorio.
+- Manter a porta interna sem publicacao direta no host e o acesso publico via reverse proxy.
 
 ## Sprint 31 - Horario do lembrete pela interface
 

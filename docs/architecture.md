@@ -31,11 +31,11 @@ Aplicação ASP.NET Core .NET 8 com Minimal API, frontend estático servido por 
 - Não há banco externo.
 - JSON e `SemaphoreSlim` suportam somente uma instancia coordenada no processo.
 - Nao existe isolamento por usuario ou familia.
-- Deploy Docker no HP Linux esta em producao; deploy Raspberry continua planejado.
+- Deploy Docker em Linux esta em producao; deploy Raspberry continua planejado.
 
 ## Estado de producao
 
-A aplicacao roda via Docker Compose no container `agendador-contas`. Os dados JSON, configuracao do lembrete, backups e chaves ASP.NET Data Protection sao persistidos em `/srv/data/apps/agendador`. AccessProtection, backups automaticos e `/health` estao ativos. O timezone e `Europe/London`.
+A aplicacao roda via Docker Compose em um servidor Linux. Os dados JSON, configuracao do lembrete, backups e chaves ASP.NET Data Protection ficam em armazenamento persistente fora do container. AccessProtection, backups automaticos e `/health` estao ativos. O timezone usa configuracao IANA externa.
 
 O baseline pos-producao e `v1.0.4`, commit `e06d30e`.
 

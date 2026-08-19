@@ -34,7 +34,7 @@
 - Criados modelo relacional, Identity, migration inicial e testes SQLite descartaveis de integridade familiar.
 - Nenhuma migration foi aplicada em producao, nenhum JSON real foi importado e nenhum deploy foi realizado.
 - Encerrado o baseline pos-producao da tag `v1.0.4`, commit `e06d30e`.
-- Registrado o estado operacional validado no servidor HP Linux.
+- Registrado o estado operacional validado em um servidor Linux.
 - Criado checkpoint formal pos-producao.
 - Atualizada documentacao de arquitetura, deploy, continuidade e pendencias.
 - Documentado o plano tecnico JSON -> PostgreSQL -> autenticacao individual -> Family/Tenant, sem implementacao.
@@ -62,11 +62,11 @@
 - Criadas rotas protegidas `/api/settings/reminder` para consultar e atualizar hora/minuto do envio diario.
 - Atualizado `DailyReminderService` para ler o horario configurado dinamicamente sem reiniciar a aplicacao.
 - Adicionados testes automatizados para defaults, persistencia e validacao do horario do lembrete.
-- Adicionados `Dockerfile`, `.dockerignore`, `deploy/docker-compose.hp.yml` e `deploy/agendador-contas.docker.env.example` para deploy Docker seguro no HP Pavilion Ubuntu Server 24.04 LTS.
-- Atualizado `docs/deployment-hp-linux.md` para tornar Docker Compose o metodo recomendado no HP, preservando `systemd` como alternativa.
-- Configurado compose com container previsivel, `restart: unless-stopped`, volume persistente em `/srv/data/apps/agendador`, rede externa `proxy` e porta `5005` limitada a `127.0.0.1`.
-- Criado guia `docs/deployment-hp-linux.md` para deploy em servidor HP Linux x64.
-- Atualizados README, checklist final, roadmap, TODO, decisions e notas de IA para registrar o servidor HP como alvo imediato de homologacao.
+- Adicionados `Dockerfile`, `.dockerignore`, um modelo Compose e um exemplo de ambiente para deploy Docker seguro em Linux.
+- Atualizado `docs/deployment-hp-linux.md` para tornar Docker Compose o metodo recomendado, preservando `systemd` como alternativa.
+- Configurado Compose com reinicio automatico, volume persistente, rede externa e healthcheck interno.
+- Criado guia publico para deploy em servidor Linux x64.
+- Atualizados README, checklist final, roadmap, TODO, decisions e notas de IA para registrar o ambiente Linux como alvo de homologacao.
 - Mantido deploy Raspberry Pi como caminho futuro separado, usando `linux-arm64`.
 
 ## 2026-07-09
