@@ -2,6 +2,9 @@
 
 ## Alta prioridade
 
+- Revisar e aprovar a Fase 4 antes de qualquer ensaio com copia de dados reais.
+- Implementar convite/recovery e politica segura para adicionar novos Owners antes do piloto.
+- Executar testes dedicados de navegador para a UI multi-family.
 - Revisar a foundation da Fase 3 antes de qualquer ensaio com copia de dados reais.
 - Definir CLI/admin command ou procedimento offline para a futura execucao controlada.
 - Planejar separadamente settings, lembretes e Telegram sem transportar secrets.
@@ -33,6 +36,7 @@
 
 ## Concluído
 
+- Fluxo operacional multi-family local: bootstrap, UI, members, settings, Telegram abstrato e worker tenant-aware.
 - Foundation de importacao JSON idempotente, transacional e tenant-aware com dry-run.
 - Repositories tenant-aware de Conta e Pagamento implementados para o modo experimental.
 - Matriz Owner/Admin/Member aplicada com 404 cross-family e 403 por role insuficiente.

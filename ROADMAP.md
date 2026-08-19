@@ -189,3 +189,10 @@ O plano detalhado esta em `docs/multi-family-postgresql-plan.md`. Esta fase aind
 - Dry-run, validacao integral, relatorio seguro, idempotencia e rollback transacional.
 - Testes usam somente arquivos e bancos descartaveis.
 - Cutover, dados reais, settings, Telegram e producao permanecem pendentes.
+
+### Etapa 32.4 - Fluxo operacional local
+
+- Bootstrap administrativo idempotente do primeiro Owner e Family.
+- Login/seleção/CRUD web, members e settings tenant-aware.
+- Telegram por referencia de secret e worker relacional isolado por FamilyId.
+- Validacao com duas familias em PostgreSQL descartavel, sem cutover ou producao.
