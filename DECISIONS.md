@@ -102,6 +102,30 @@
 
 **Impacto:** `Reminder:Hour`, `Reminder:Minute` e `Reminder:TimeZoneId` continuam sendo defaults iniciais. Depois que o horario e salvo pela interface, o Hosted Service passa a ler a configuracao persistida.
 
+## 2026-08-19 - Fluxo operacional permanece atras da feature flag
+
+**Descricao:** Bootstrap, Identity, UI, members, settings, Telegram familiar e worker relacional existem somente no bloco `MultiFamily:Enabled=true`, ainda restrito a Development/Testing.
+
+**Motivo:** Permitir validacao ponta a ponta sem alterar o runtime publicado.
+
+**Impacto:** `MultiFamily=false` nao registra DbContext nem worker relacional e continua usando JSON.
+
+## 2026-08-19 - Administracao de memberships restrita ao Owner
+
+**Descricao:** Admin pode listar members, mas apenas Owner adiciona, altera ou desativa memberships. Novas roles sao Admin/Member e o ultimo Owner e protegido.
+
+**Motivo:** Reduzir risco de escalacao de privilegio na primeira versao operacional.
+
+**Impacto:** Convites, criacao de novos Owners e administracao delegada ficam para fase futura.
+
+## 2026-08-19 - Worker usa FamilyId explicito
+
+**Descricao:** Jobs de background nao simulam request nem usam `ICurrentFamilyContext`; processam cada familia ativa por ID com queries explicitamente filtradas.
+
+**Motivo:** Background nao possui usuario autenticado e precisa isolar falhas por tenant.
+
+**Impacto:** Falha de uma familia nao impede as seguintes e envio so e registrado apos sucesso.
+
 ## 2026-08-16 - Idempotencia sem alterar o schema
 
 **Descricao:** Contas e pagamentos importados recebem GUIDs deterministas derivados de `FamilyId` e chaves legadas. Duplicados mensais conservam a primeira ocorrencia e geram warning.

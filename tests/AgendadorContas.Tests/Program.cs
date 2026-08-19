@@ -68,7 +68,9 @@ var tests = new List<(string Name, Func<Task> Run)>
     ("Dry-run nao modifica o banco", JsonMigrationDryRunDoesNotWriteAsync),
     ("Migracao rejeita colecoes JSON ausentes ou nulas", JsonMigrationRejectsMissingOrNullCollectionsAsync),
     ("Migracao aceita colecoes JSON explicitamente vazias", JsonMigrationAcceptsExplicitEmptyCollectionsAsync),
-    ("Migracao invalida e falha atomica nao deixam escrita parcial", JsonMigrationValidationAndRollbackAsync)
+    ("Migracao invalida e falha atomica nao deixam escrita parcial", JsonMigrationValidationAndRollbackAsync),
+    ("Bootstrap multi-family e idempotente", MultiFamilyBootstrapIsIdempotentAsync),
+    ("Worker multi-family isola familias e falhas", MultiFamilyWorkerIsolatesFamiliesAndFailuresAsync)
 };
 
 if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("AGENDADOR_TEST_POSTGRES")))
@@ -785,6 +787,7 @@ static async Task MultiFamilyHttpFlowWorksOnPostgresAsync()
     var hostedServices = factory.Services.GetServices<IHostedService>().ToList();
     AssertTrue(hostedServices.All(service => service is not DailyReminderService), "Worker de lembretes JSON nao deve executar no modo multi-family.");
     AssertTrue(hostedServices.All(service => service is not AutomaticBackupService), "Worker de backup JSON nao deve executar no modo multi-family.");
+    AssertTrue(hostedServices.Any(service => service is MultiFamilyReminderWorker), "Worker relacional deve executar somente no modo multi-family.");
 
     Guid userAId;
     Guid familyAId;
@@ -817,6 +820,8 @@ static async Task MultiFamilyHttpFlowWorksOnPostgresAsync()
         HandleCookies = true
     });
     AssertEqual(HttpStatusCode.Unauthorized, (await anonymousClient.GetAsync("/api/multi-family/me")).StatusCode, "Usuario anonimo deveria receber 401.");
+    AssertEqual(HttpStatusCode.OK, (await anonymousClient.GetAsync("/api/multi-family/mode")).StatusCode, "UI deve detectar modo multi-family.");
+    AssertContains("familySelect", await anonymousClient.GetStringAsync("/multi-family.html"), "UI multi-family deve conter seletor familiar.");
     AssertEqual(HttpStatusCode.BadRequest, (await anonymousClient.PostAsJsonAsync("/api/multi-family/auth/login", new IdentityLoginRequest("user-a@example.test", "Test-password-123!"))).StatusCode, "Login sem antiforgery deveria ser rejeitado.");
     foreach (var request in LegacyRequests(familyAId))
     {
@@ -865,12 +870,58 @@ static async Task MultiFamilyHttpFlowWorksOnPostgresAsync()
     AssertEqual(HttpStatusCode.TooManyRequests, lastStatus, "Sexta tentativa na janela deveria receber 429.");
 }
 
+static async Task MultiFamilyBootstrapIsIdempotentAsync()
+{
+    await using var scope = await IdentityTestScope.CreateAsync();
+    var service = new MultiFamilyBootstrapService(scope.Db, scope.UserManager, NullLogger<MultiFamilyBootstrapService>.Instance);
+    var first = await service.BootstrapAsync("owner@example.test", "Bootstrap-test-123!", "Bootstrap Family");
+    var second = await service.BootstrapAsync("owner@example.test", "Bootstrap-test-123!", "Bootstrap Family");
+
+    AssertTrue(first.UserCreated && first.FamilyCreated && first.MembershipCreated, "Primeiro bootstrap deveria criar todos os registros.");
+    AssertTrue(!second.UserCreated && !second.FamilyCreated && !second.MembershipCreated, "Segundo bootstrap deveria ser idempotente.");
+    AssertEqual(1, await scope.Db.Users.CountAsync(), "Bootstrap duplicou usuario.");
+    AssertEqual(1, await scope.Db.Families.CountAsync(), "Bootstrap duplicou familia.");
+    AssertEqual(FamilyRole.Owner, (await scope.Db.FamilyUsers.SingleAsync()).Role, "Bootstrap nao criou Owner.");
+    AssertEqual(1, await scope.Db.FamilySettings.CountAsync(), "Bootstrap nao criou settings unicos.");
+    AssertTrue(!first.ToString().Contains("Bootstrap-test", StringComparison.Ordinal), "Resultado do bootstrap expos senha.");
+}
+
+static async Task MultiFamilyWorkerIsolatesFamiliesAndFailuresAsync()
+{
+    await using var scope = await RelationalTestScope.CreateAsync();
+    var familyA = NewFamily("Worker A");
+    var familyB = NewFamily("Worker B");
+    var date = new DateOnly(2026, 8, 19);
+    scope.Db.AddRange(familyA, familyB);
+    scope.Db.FamilySettings.AddRange(
+        new FamilySettings { FamilyId = familyA.Id, TimeZoneId = "Europe/London", ReminderHour = 9 },
+        new FamilySettings { FamilyId = familyB.Id, TimeZoneId = "Europe/London", ReminderHour = 9 });
+    scope.Db.TelegramSettings.AddRange(
+        new TelegramSettings { FamilyId = familyA.Id, IsEnabled = true, ChatId = "fake-a", BotTokenSecretReference = "fake-a" },
+        new TelegramSettings { FamilyId = familyB.Id, IsEnabled = true, ChatId = "fake-b", BotTokenSecretReference = "fake-b" });
+    scope.Db.Contas.AddRange(
+        new ContaEntity { Id = Guid.NewGuid(), FamilyId = familyA.Id, Nome = "Only A", Valor = 10, DiaVencimento = date.Day, DataInicio = date },
+        new ContaEntity { Id = Guid.NewGuid(), FamilyId = familyB.Id, Nome = "Only B", Valor = 20, DiaVencimento = date.Day, DataInicio = date });
+    await scope.Db.SaveChangesAsync();
+    var sender = new FakeFamilyTelegramSender(familyA.Id);
+    var processor = new MultiFamilyReminderProcessor(scope.Db, sender, new ReminderMessageBuilder(new MoneyFormatter()), NullLogger<MultiFamilyReminderProcessor>.Instance);
+
+    await processor.ProcessAsync(new DateTimeOffset(2026, 8, 19, 8, 0, 0, TimeSpan.Zero));
+
+    AssertEqual(2, sender.Attempts.Count, "Falha de A deveria permitir tentativa de B.");
+    AssertTrue(sender.Attempts.Single(x => x.FamilyId == familyA.Id).Message.Contains("Only A") && !sender.Attempts.Single(x => x.FamilyId == familyA.Id).Message.Contains("Only B"), "Mensagem A misturou tenant.");
+    AssertTrue(sender.Attempts.Single(x => x.FamilyId == familyB.Id).Message.Contains("Only B") && !sender.Attempts.Single(x => x.FamilyId == familyB.Id).Message.Contains("Only A"), "Mensagem B misturou tenant.");
+    AssertEqual(0, await scope.Db.LembretesEnviados.CountAsync(x => x.FamilyId == familyA.Id), "Falha A nao pode marcar envio.");
+    AssertEqual(1, await scope.Db.LembretesEnviados.CountAsync(x => x.FamilyId == familyB.Id), "Sucesso B deveria marcar envio.");
+}
+
 static async Task LegacyRuntimeKeepsJsonAndWorkersAsync()
 {
     await using var factory = new LegacyWebFactory();
     var hostedServices = factory.Services.GetServices<IHostedService>().ToList();
     AssertTrue(hostedServices.Any(service => service is DailyReminderService), "Worker de lembretes JSON deve permanecer ativo no modo legado.");
     AssertTrue(hostedServices.Any(service => service is AutomaticBackupService), "Worker de backup JSON deve permanecer ativo no modo legado.");
+    AssertTrue(hostedServices.All(service => service is not MultiFamilyReminderWorker), "Worker relacional nao pode executar no modo legado.");
     AssertTrue(factory.Services.GetService<ContaStore>() is not null, "ContaStore deve permanecer registrado no modo legado.");
     AssertTrue(factory.Services.GetService<AgendadorDbContext>() is null, "PostgreSQL nao deve ser registrado no modo legado.");
 
@@ -880,6 +931,8 @@ static async Task LegacyRuntimeKeepsJsonAndWorkersAsync()
         AllowAutoRedirect = false
     });
     AssertEqual(HttpStatusCode.OK, (await client.GetAsync("/api/contas")).StatusCode, "API JSON deve permanecer ativa no modo legado.");
+    AssertEqual(HttpStatusCode.NotFound, (await client.GetAsync("/api/multi-family/mode")).StatusCode, "Modo legado nao deve anunciar multi-family.");
+    AssertContains("/api/contas", await client.GetStringAsync("/app.js"), "UI legada deve continuar usando API JSON.");
 }
 
 static async Task TenantAwareBusinessFlowWorksOnPostgresAsync()
@@ -901,6 +954,8 @@ static async Task TenantAwareBusinessFlowWorksOnPostgresAsync()
     Guid contaA2Id;
     Guid contaB1Id;
     Guid pagamentoB1Id;
+    Guid ownerAId;
+    Guid userCId;
     using (var scope = factory.Services.CreateScope())
     {
         var db = scope.ServiceProvider.GetRequiredService<AgendadorDbContext>();
@@ -919,6 +974,9 @@ static async Task TenantAwareBusinessFlowWorksOnPostgresAsync()
         var pagamentoA1 = new PagamentoEntity { FamilyId = familyA.Id, ContaId = contaA1.Id, Ano = 2026, Mes = 1 };
         var pagamentoB1 = new PagamentoEntity { FamilyId = familyB.Id, ContaId = contaB1.Id, Ano = 2026, Mes = 1 };
         db.AddRange(familyA, familyB, contaA1, contaA2, contaB1, pagamentoA1, pagamentoB1);
+        db.FamilySettings.AddRange(
+            new FamilySettings { FamilyId = familyA.Id, TimeZoneId = "Europe/London", ReminderHour = 8 },
+            new FamilySettings { FamilyId = familyB.Id, TimeZoneId = "Europe/Lisbon", ReminderHour = 9 });
         db.FamilyUsers.AddRange(
             new FamilyUser { FamilyId = familyA.Id, UserId = ownerA.Id, Role = FamilyRole.Owner },
             new FamilyUser { FamilyId = familyA.Id, UserId = adminA.Id, Role = FamilyRole.Admin },
@@ -929,6 +987,8 @@ static async Task TenantAwareBusinessFlowWorksOnPostgresAsync()
         await db.SaveChangesAsync();
         familyAId = familyA.Id;
         familyBId = familyB.Id;
+        ownerAId = ownerA.Id;
+        userCId = userC.Id;
         contaA1Id = contaA1.Id;
         contaA2Id = contaA2.Id;
         contaB1Id = contaB1.Id;
@@ -979,6 +1039,13 @@ static async Task TenantAwareBusinessFlowWorksOnPostgresAsync()
         AssertEqual(HttpStatusCode.NotFound, (await PutWithTokenAsync(ownerAClient, $"/api/multi-family/contas/{contaB1Id}", updateBody, ownerAToken)).StatusCode, "Owner A editando B deve receber 404.");
         AssertEqual(HttpStatusCode.NotFound, (await DeleteWithTokenAsync(ownerAClient, $"/api/multi-family/pagamentos/{pagamentoB1Id}", ownerAToken)).StatusCode, "Delete de pagamento cross-family deve receber 404.");
         AssertEqual(HttpStatusCode.NoContent, (await DeleteWithTokenAsync(ownerAClient, $"/api/multi-family/contas/{ownerCreatedId}", ownerAToken)).StatusCode, "Owner deve excluir conta propria.");
+        var membersA = await ownerAClient.GetStringAsync("/api/multi-family/members?FamilyId=" + familyBId);
+        AssertTrue(membersA.Contains(ownerAEmail) && !membersA.Contains(ownerBEmail), "Lista de members deve usar somente familia atual.");
+        AssertEqual(HttpStatusCode.Conflict, (await PutWithTokenAsync(ownerAClient, $"/api/multi-family/members/{ownerAId}/role", new FamilyMemberRoleRequest(FamilyRole.Member), ownerAToken)).StatusCode, "Ultimo Owner nao pode ser rebaixado.");
+        AssertEqual(HttpStatusCode.Conflict, (await PostWithTokenAsync(ownerAClient, "/api/multi-family/members", new FamilyMemberCreateRequest(ownerAEmail, FamilyRole.Member), ownerAToken)).StatusCode, "Reativacao nao pode contornar a protecao do ultimo Owner.");
+        AssertEqual(HttpStatusCode.NoContent, (await PutWithTokenAsync(ownerAClient, $"/api/multi-family/members/{userCId}/role", new FamilyMemberRoleRequest(FamilyRole.Admin), ownerAToken)).StatusCode, "Owner deve promover Member para Admin.");
+        AssertEqual(HttpStatusCode.NoContent, (await PutWithTokenAsync(ownerAClient, $"/api/multi-family/members/{userCId}/role", new FamilyMemberRoleRequest(FamilyRole.Member), ownerAToken)).StatusCode, "Owner deve restaurar Member.");
+        AssertEqual(HttpStatusCode.OK, (await PutWithTokenAsync(ownerAClient, "/api/multi-family/settings?FamilyId=" + familyBId, new FamilySettingsRequest(AccountCurrency.EUR, "Europe/London", 7, 30), ownerAToken)).StatusCode, "Owner deve alterar settings da propria familia.");
     }
 
     var (adminAClient, adminAToken) = await CreateAuthenticatedClientAsync(factory, adminAEmail, password);
@@ -994,6 +1061,9 @@ static async Task TenantAwareBusinessFlowWorksOnPostgresAsync()
         AssertEqual(HttpStatusCode.Created, adminPayment.StatusCode, "Admin deve registrar pagamento.");
         using var adminPaymentJson = JsonDocument.Parse(await adminPayment.Content.ReadAsStringAsync());
         AssertEqual(HttpStatusCode.Forbidden, (await DeleteWithTokenAsync(adminAClient, $"/api/multi-family/pagamentos/{adminPaymentJson.RootElement.GetProperty("id").GetGuid()}", adminAToken)).StatusCode, "Admin nao deve remover pagamento.");
+        AssertEqual(HttpStatusCode.OK, (await adminAClient.GetAsync("/api/multi-family/members")).StatusCode, "Admin deve listar members.");
+        AssertEqual(HttpStatusCode.Forbidden, (await PutWithTokenAsync(adminAClient, $"/api/multi-family/members/{userCId}/role", new FamilyMemberRoleRequest(FamilyRole.Admin), adminAToken)).StatusCode, "Admin nao deve mutar memberships.");
+        AssertEqual(HttpStatusCode.OK, (await PutWithTokenAsync(adminAClient, "/api/multi-family/settings", new FamilySettingsRequest(AccountCurrency.GBP, "Europe/London", 8, 15), adminAToken)).StatusCode, "Admin deve alterar settings.");
     }
 
     var (memberAClient, memberAToken) = await CreateAuthenticatedClientAsync(factory, memberAEmail, password);
@@ -1015,6 +1085,9 @@ static async Task TenantAwareBusinessFlowWorksOnPostgresAsync()
         var allPaymentsA = await memberAClient.GetStringAsync("/api/multi-family/pagamentos?FamilyId=" + familyBId);
         AssertTrue(allPaymentsA.Contains(memberPaymentId.ToString(), StringComparison.OrdinalIgnoreCase), "Lista tenant-wide deve conter pagamento A.");
         AssertTrue(!allPaymentsA.Contains(pagamentoB1Id.ToString(), StringComparison.OrdinalIgnoreCase), "Lista tenant-wide nunca deve misturar pagamento B.");
+        AssertEqual(HttpStatusCode.Forbidden, (await memberAClient.GetAsync("/api/multi-family/members")).StatusCode, "Member nao deve listar members.");
+        AssertEqual(HttpStatusCode.OK, (await memberAClient.GetAsync("/api/multi-family/settings?FamilyId=" + familyBId)).StatusCode, "Member deve ler settings da propria familia.");
+        AssertEqual(HttpStatusCode.Forbidden, (await PutWithTokenAsync(memberAClient, "/api/multi-family/settings", new FamilySettingsRequest(AccountCurrency.BRL, "Europe/London", 10, 0), memberAToken)).StatusCode, "Member nao deve alterar settings.");
     }
 
     var (ownerBClient, _) = await CreateAuthenticatedClientAsync(factory, ownerBEmail, password);
@@ -1472,12 +1545,14 @@ internal sealed class IdentityTestScope : IAsyncDisposable
     private readonly SqliteConnection _connection;
     private readonly ServiceProvider _services;
     public UserManager<AppUser> UserManager { get; }
+    public AgendadorDbContext Db { get; }
 
     private IdentityTestScope(SqliteConnection connection, ServiceProvider services, UserManager<AppUser> userManager)
     {
         _connection = connection;
         _services = services;
         UserManager = userManager;
+        Db = services.GetRequiredService<AgendadorDbContext>();
     }
 
     public static async Task<IdentityTestScope> CreateAsync()
@@ -1503,6 +1578,18 @@ internal sealed class IdentityTestScope : IAsyncDisposable
     {
         await _services.DisposeAsync();
         await _connection.DisposeAsync();
+    }
+}
+
+internal sealed class FakeFamilyTelegramSender(Guid failingFamilyId) : IFamilyTelegramSender
+{
+    public List<(Guid FamilyId, string Message)> Attempts { get; } = [];
+
+    public Task<bool> SendAsync(TelegramSettings settings, string message, CancellationToken cancellationToken = default)
+    {
+        Attempts.Add((settings.FamilyId, message));
+        if (settings.FamilyId == failingFamilyId) throw new InvalidOperationException("Synthetic family failure.");
+        return Task.FromResult(true);
     }
 }
 

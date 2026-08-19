@@ -133,6 +133,14 @@ if (multiFamilyOptions.Enabled)
     builder.Services.AddScoped<IContaRepository, ContaRepository>();
     builder.Services.AddScoped<IPagamentoRepository, PagamentoRepository>();
     builder.Services.AddScoped<IJsonToPostgresqlMigrator, JsonToPostgresqlMigrator>();
+    if (multiFamilyOptions.Enabled)
+    {
+        builder.Services.AddScoped<MultiFamilyBootstrapService>();
+        builder.Services.AddScoped<IMultiFamilyReminderProcessor, MultiFamilyReminderProcessor>();
+        builder.Services.AddScoped<IFamilyTelegramSender, FamilyTelegramSender>();
+        builder.Services.AddSingleton(TimeProvider.System);
+        builder.Services.AddHostedService<MultiFamilyReminderWorker>();
+    }
     builder.Services.AddSingleton<LoginTimingProtector>();
     builder.Services.AddDistributedMemoryCache();
     builder.Services.AddSession(options =>
@@ -195,6 +203,28 @@ builder.Services.AddRateLimiter(options =>
 });
 
 var app = builder.Build();
+
+if (args.Contains("bootstrap-multi-family", StringComparer.OrdinalIgnoreCase))
+{
+    if (!multiFamilyOptions.Enabled || (!app.Environment.IsDevelopment() && !app.Environment.IsEnvironment("Testing")))
+    {
+        throw new InvalidOperationException("Multi-family bootstrap is allowed only with MultiFamily enabled in Development or Testing.");
+    }
+
+    var email = app.Configuration["Bootstrap:Email"];
+    var password = app.Configuration["Bootstrap:Password"];
+    var familyName = app.Configuration["Bootstrap:FamilyName"];
+    if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password) || string.IsNullOrWhiteSpace(familyName))
+    {
+        throw new InvalidOperationException("Bootstrap email, password and family name must be supplied through configuration.");
+    }
+
+    using var bootstrapScope = app.Services.CreateScope();
+    var result = await bootstrapScope.ServiceProvider.GetRequiredService<MultiFamilyBootstrapService>()
+        .BootstrapAsync(email, password, familyName);
+    Console.WriteLine($"Bootstrap complete. UserCreated={result.UserCreated}; FamilyCreated={result.FamilyCreated}; MembershipCreated={result.MembershipCreated}.");
+    return;
+}
 
 app.UseSecurityHeaders(includeHsts: app.Environment.IsProduction());
 if (multiFamilyOptions.Enabled)

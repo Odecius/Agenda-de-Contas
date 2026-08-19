@@ -1,9 +1,11 @@
+using AgendadorContas.Data;
 using AgendadorContas.Data.Entities;
 using AgendadorContas.Data.Repositories;
 using AgendadorContas.Models;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using System.Data;
 
 namespace AgendadorContas.Tenancy;
 
@@ -20,6 +22,10 @@ public sealed record MultiFamilyContaRequest(
     bool Ativa = true,
     string? Observacoes = null);
 public sealed record MultiFamilyPagamentoRequest(int Ano, int Mes);
+public sealed record FamilyMemberCreateRequest(string Email, FamilyRole Role);
+public sealed record FamilyMemberRoleRequest(FamilyRole Role);
+public sealed record FamilySettingsRequest(AccountCurrency DefaultCurrency, string TimeZoneId, int ReminderHour, int ReminderMinute);
+public sealed record TelegramSettingsRequest(bool IsEnabled, string? ChatId, string? BotTokenSecretReference);
 public sealed record MultiFamilyContaResponse(
     Guid Id,
     string Nome,
@@ -38,6 +44,16 @@ public static class MultiFamilyEndpointExtensions
     public static IEndpointRouteBuilder MapMultiFamilyEndpoints(this IEndpointRouteBuilder endpoints)
     {
         var group = endpoints.MapGroup("/api/multi-family");
+        group.AddEndpointFilter(async (context, next) =>
+        {
+            try { return await next(context); }
+            catch (InvalidOperationException ex) when (ex.Message == "An authorized active family must be selected.")
+            {
+                return Results.Conflict(new { erro = "Selecione uma familia autorizada." });
+            }
+        });
+
+        group.MapGet("/mode", () => Results.Ok(new { enabled = true })).AllowAnonymous();
 
         group.MapGet("/antiforgery/token", (HttpContext context, IAntiforgery antiforgery) =>
         {
@@ -106,9 +122,143 @@ public static class MultiFamilyEndpointExtensions
 
         MapContaEndpoints(group);
         MapPagamentoEndpoints(group);
+        MapMemberEndpoints(group);
+        MapSettingsEndpoints(group);
 
         return endpoints;
     }
+
+    private static void MapMemberEndpoints(RouteGroupBuilder group)
+    {
+        group.MapGet("/members", async (ICurrentFamilyContext current, AgendadorDbContext db, CancellationToken ct) =>
+        {
+            var tenant = await current.RequireAsync(ct);
+            if (tenant.Role == FamilyRole.Member) return Results.Forbid();
+            var members = await db.FamilyUsers.AsNoTracking()
+                .Where(x => x.FamilyId == tenant.FamilyId)
+                .OrderBy(x => x.User.Email)
+                .Select(x => new { x.UserId, x.User.Email, x.Role, x.IsActive })
+                .ToListAsync(ct);
+            return Results.Ok(members);
+        }).RequireAuthorization();
+
+        group.MapPost("/members", async (FamilyMemberCreateRequest request, ICurrentFamilyContext current, UserManager<AppUser> users, AgendadorDbContext db, CancellationToken ct) =>
+        {
+            var tenant = await current.RequireAsync(ct);
+            if (tenant.Role != FamilyRole.Owner) return Results.Forbid();
+            if (request.Role is not (FamilyRole.Admin or FamilyRole.Member)) return Results.BadRequest(new { erro = "Role permitida: Admin ou Member." });
+            var user = await users.FindByEmailAsync(request.Email.Trim());
+            if (user is null || !user.IsActive) return Results.NotFound();
+            await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+            var membership = await db.FamilyUsers.FindAsync([tenant.FamilyId, user.Id], ct);
+            if (membership is null)
+            {
+                db.FamilyUsers.Add(new FamilyUser { FamilyId = tenant.FamilyId, UserId = user.Id, Role = request.Role });
+            }
+            else
+            {
+                if (membership.Role == FamilyRole.Owner &&
+                    await db.FamilyUsers.CountAsync(x => x.FamilyId == tenant.FamilyId && x.IsActive && x.Role == FamilyRole.Owner, ct) <= 1)
+                    return Results.Conflict(new { erro = "A familia deve manter pelo menos um Owner ativo." });
+                membership.Role = request.Role;
+                membership.IsActive = true;
+            }
+            await db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
+            return Results.Ok(new { userId = user.Id, user.Email, role = request.Role, isActive = true });
+        }).RequireAuthorization().RequireAntiforgeryValidation();
+
+        group.MapPut("/members/{userId:guid}/role", async (Guid userId, FamilyMemberRoleRequest request, ICurrentFamilyContext current, AgendadorDbContext db, CancellationToken ct) =>
+        {
+            var tenant = await current.RequireAsync(ct);
+            if (tenant.Role != FamilyRole.Owner) return Results.Forbid();
+            if (request.Role is not (FamilyRole.Admin or FamilyRole.Member)) return Results.BadRequest(new { erro = "Role permitida: Admin ou Member." });
+            await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+            var membership = await db.FamilyUsers.SingleOrDefaultAsync(x => x.FamilyId == tenant.FamilyId && x.UserId == userId, ct);
+            if (membership is null) return Results.NotFound();
+            if (membership.Role == FamilyRole.Owner && await db.FamilyUsers.CountAsync(x => x.FamilyId == tenant.FamilyId && x.IsActive && x.Role == FamilyRole.Owner, ct) <= 1)
+                return Results.Conflict(new { erro = "A familia deve manter pelo menos um Owner ativo." });
+            membership.Role = request.Role;
+            membership.IsActive = true;
+            await db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
+            return Results.NoContent();
+        }).RequireAuthorization().RequireAntiforgeryValidation();
+
+        group.MapDelete("/members/{userId:guid}", async (Guid userId, ICurrentFamilyContext current, AgendadorDbContext db, CancellationToken ct) =>
+        {
+            var tenant = await current.RequireAsync(ct);
+            if (tenant.Role != FamilyRole.Owner) return Results.Forbid();
+            await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+            var membership = await db.FamilyUsers.SingleOrDefaultAsync(x => x.FamilyId == tenant.FamilyId && x.UserId == userId, ct);
+            if (membership is null) return Results.NotFound();
+            if (membership.Role == FamilyRole.Owner && await db.FamilyUsers.CountAsync(x => x.FamilyId == tenant.FamilyId && x.IsActive && x.Role == FamilyRole.Owner, ct) <= 1)
+                return Results.Conflict(new { erro = "A familia deve manter pelo menos um Owner ativo." });
+            membership.IsActive = false;
+            await db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
+            return Results.NoContent();
+        }).RequireAuthorization().RequireAntiforgeryValidation();
+    }
+
+    private static void MapSettingsEndpoints(RouteGroupBuilder group)
+    {
+        group.MapGet("/settings", async (ICurrentFamilyContext current, AgendadorDbContext db, CancellationToken ct) =>
+        {
+            var tenant = await current.RequireAsync(ct);
+            var settings = await db.FamilySettings.AsNoTracking().SingleOrDefaultAsync(x => x.FamilyId == tenant.FamilyId, ct);
+            return settings is null ? Results.NotFound() : Results.Ok(new { settings.DefaultCurrency, settings.TimeZoneId, settings.ReminderHour, settings.ReminderMinute });
+        }).RequireAuthorization();
+
+        group.MapPut("/settings", async (FamilySettingsRequest request, ICurrentFamilyContext current, AgendadorDbContext db, CancellationToken ct) =>
+        {
+            var tenant = await current.RequireAsync(ct);
+            if (tenant.Role == FamilyRole.Member) return Results.Forbid();
+            if (!Enum.IsDefined(request.DefaultCurrency) || request.ReminderHour is < 0 or > 23 || request.ReminderMinute is < 0 or > 59 || !IsValidTimeZone(request.TimeZoneId))
+                return Results.BadRequest(new { erro = "Configuracao familiar invalida." });
+            var settings = await db.FamilySettings.SingleOrDefaultAsync(x => x.FamilyId == tenant.FamilyId, ct);
+            if (settings is null) { settings = new FamilySettings { FamilyId = tenant.FamilyId }; db.FamilySettings.Add(settings); }
+            settings.DefaultCurrency = request.DefaultCurrency;
+            settings.TimeZoneId = request.TimeZoneId.Trim();
+            settings.ReminderHour = request.ReminderHour;
+            settings.ReminderMinute = request.ReminderMinute;
+            settings.UpdatedAtUtc = DateTime.UtcNow;
+            await db.SaveChangesAsync(ct);
+            return Results.Ok(new { settings.DefaultCurrency, settings.TimeZoneId, settings.ReminderHour, settings.ReminderMinute });
+        }).RequireAuthorization().RequireAntiforgeryValidation();
+
+        group.MapGet("/telegram-settings", async (ICurrentFamilyContext current, AgendadorDbContext db, CancellationToken ct) =>
+        {
+            var tenant = await current.RequireAsync(ct);
+            var settings = await db.TelegramSettings.AsNoTracking().SingleOrDefaultAsync(x => x.FamilyId == tenant.FamilyId, ct);
+            return Results.Ok(new { isEnabled = settings?.IsEnabled ?? false, chatIdMasked = Mask(settings?.ChatId), secretReferenceConfigured = !string.IsNullOrWhiteSpace(settings?.BotTokenSecretReference) });
+        }).RequireAuthorization();
+
+        group.MapPut("/telegram-settings", async (TelegramSettingsRequest request, ICurrentFamilyContext current, AgendadorDbContext db, CancellationToken ct) =>
+        {
+            var tenant = await current.RequireAsync(ct);
+            if (tenant.Role != FamilyRole.Owner) return Results.Forbid();
+            if (request.ChatId?.Length > 100 || request.BotTokenSecretReference?.Length > 200) return Results.BadRequest(new { erro = "Configuracao Telegram invalida." });
+            var settings = await db.TelegramSettings.SingleOrDefaultAsync(x => x.FamilyId == tenant.FamilyId, ct);
+            if (settings is null) { settings = new TelegramSettings { FamilyId = tenant.FamilyId }; db.TelegramSettings.Add(settings); }
+            settings.IsEnabled = request.IsEnabled;
+            settings.ChatId = string.IsNullOrWhiteSpace(request.ChatId) ? null : request.ChatId.Trim();
+            settings.BotTokenSecretReference = string.IsNullOrWhiteSpace(request.BotTokenSecretReference) ? null : request.BotTokenSecretReference.Trim();
+            settings.UpdatedAtUtc = DateTime.UtcNow;
+            await db.SaveChangesAsync(ct);
+            return Results.Ok(new { settings.IsEnabled, chatIdMasked = Mask(settings.ChatId), secretReferenceConfigured = !string.IsNullOrWhiteSpace(settings.BotTokenSecretReference) });
+        }).RequireAuthorization().RequireAntiforgeryValidation();
+    }
+
+    private static bool IsValidTimeZone(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length > 100) return false;
+        try { _ = TimeZoneInfo.FindSystemTimeZoneById(value); return true; }
+        catch (TimeZoneNotFoundException) { return false; }
+        catch (InvalidTimeZoneException) { return false; }
+    }
+
+    private static string? Mask(string? value) => string.IsNullOrWhiteSpace(value) ? null : $"***{value[^Math.Min(4, value.Length)..]}";
 
     private static void MapContaEndpoints(RouteGroupBuilder group)
     {

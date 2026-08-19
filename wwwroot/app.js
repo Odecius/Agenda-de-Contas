@@ -114,7 +114,16 @@ selectors.currencyFilter.addEventListener("change", () => {
   renderAccounts();
 });
 
-initialize();
+initializeMode();
+
+async function initializeMode() {
+  const response = await fetch("/api/multi-family/mode").catch(() => null);
+  if (response?.ok) {
+    window.location.replace("/multi-family.html");
+    return;
+  }
+  await initialize();
+}
 
 async function initialize() {
   await loadAuthStatus();

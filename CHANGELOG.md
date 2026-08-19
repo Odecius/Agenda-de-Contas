@@ -1,6 +1,13 @@
 ﻿# CHANGELOG
 
 
+## 2026-08-19
+
+- Adicionado fluxo operacional multi-family local com bootstrap administrativo, login Identity, selecao de familia e UI tenant-aware.
+- Adicionados members e FamilySettings com matriz Owner/Admin/Member e protecao do ultimo Owner.
+- Preparados Telegram por referencia de secret e worker relacional isolado por familia.
+- Mantido integralmente o runtime legado `ContaStore + JSON` quando a feature flag esta desligada.
+
 ## 2026-08-16
 
 - Adicionada foundation controlada de migracao JSON para PostgreSQL, sem endpoint ou execucao automatica.

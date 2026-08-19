@@ -14,6 +14,8 @@ Na branch `agent/multi-family-tenant-repositories`, a Fase 2.2 adiciona reposito
 
 Na branch `agent/multi-family-json-migration`, a Fase 3 adiciona servico interno controlado. A familia alvo nunca vem do JSON. IDs deterministas namespaced garantem idempotencia sem migration nova. Dry-run nao escreve; erros estruturais abortam; contas e pagamentos usam uma unica transacao. Nao ha endpoint, startup hook, cutover ou dado real.
 
+Na branch `agent/multi-family-operational-flow`, a Fase 4 adiciona bootstrap administrativo Development/Testing, UI Identity com selecao familiar, members/settings, Telegram por referencia de secret e worker relacional por `FamilyId`. Admin lista members sem mutar; apenas Owner administra e o ultimo Owner e protegido. Tudo permanece atras de `MultiFamily:Enabled`; runtime JSON continua default.
+
 O modelo de contas possui suporte inicial a pais e moeda por conta. Os paises suportados sao `UnitedKingdom`, `Portugal` e `Brazil`; as moedas suportadas sao `GBP`, `EUR` e `BRL`. O sistema nao faz conversao cambial. Totais com moedas diferentes devem ser agrupados por moeda.
 
 A interface possui resumo por pais e moeda baseado nos vencimentos do mes selecionado. Esse resumo e apenas demonstrativo/operacional: ele separa os valores por moeda e nao calcula conversao.
