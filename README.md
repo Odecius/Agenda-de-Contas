@@ -1,143 +1,108 @@
-﻿# Agendador de Contas
+# Bill Scheduler / Agendador de Contas
 
-Aplicação web em .NET 8 para cadastrar contas, acompanhar vencimentos mensais, marcar pagamentos e enviar lembretes diários via Telegram.
+A .NET 8 web application for managing recurring bills, monthly due dates, payments and reminders.
 
-## Objetivo do projeto
+## Project Overview
 
-Controlar contas recorrentes ou com duração definida, mostrando vencimentos por mês e enviando alertas automáticos para evitar atrasos. O projeto foi pensado para rodar localmente e 24/7 em Linux, começando pelo servidor HP antigo e mantendo Raspberry Pi como caminho futuro.
+Agendador de Contas began as a small JSON-backed bill tracker and evolved into a more structured ASP.NET Core application. The current production runtime remains intentionally simple and stable, while a PostgreSQL, Identity and multi-family architecture is developed behind a disabled feature flag.
 
-## Tecnologias utilizadas
+## Problem It Solves
 
-- .NET 8 / ASP.NET Core Minimal API.
-- Hosted Service para lembretes diários.
-- HTML, CSS e JavaScript em `wwwroot`.
-- Armazenamento local em JSON via `ContaStore`.
-- Telegram Bot API via `HttpClientFactory`.
-- Options Pattern, validação de configuração e User Secrets em desenvolvimento.
-- Protecao de acesso opcional por cookie.
-- Docker/Docker Compose para deploy recomendado no servidor HP Linux.
+Recurring expenses are easy to miss when information is spread across notes and calendars. The application centralizes accounts, calculates monthly due dates, tracks payments and sends daily reminders without incorrectly combining totals from different currencies.
 
-## Estrutura do projeto
+## Current Features
 
-```text
-.
-├── Program.cs
-├── AgendadorContas.csproj
-├── Models/
-├── Options/
-├── Services/
-├── Properties/
-├── wwwroot/
-│   ├── index.html
-│   ├── app.js
-│   ├── styles.css
-│   └── assets/
-└── docs/
-```
+- Recurring and fixed-duration bills
+- Monthly due-date and payment tracking
+- Country and currency support for GBP, EUR and BRL
+- Telegram reminders
+- Configurable reminder schedule and timezone
+- CSV export
+- Manual and automatic JSON backups with guarded restore
+- Health check and access-protection middleware
+- Responsive HTML, CSS and JavaScript interface
+- Docker support and automated tests
 
-## Como executar
+## Architecture
 
-```powershell
-cd "C:\Projetos\Abc\Agendador de contas"
-dotnet run --urls http://localhost:5005
-```
+### Current production runtime
 
-Acesse `http://localhost:5005`.
+- ASP.NET Core 8 Minimal APIs
+- `ContaStore` with JSON persistence
+- Legacy access protection based on a secure cookie
+- Background reminder and backup services
+- Docker Compose deployment on Linux
 
-## Como testar
+This is still the active production path. PostgreSQL is not required when `MultiFamily:Enabled=false`, which remains the default.
 
-```powershell
-dotnet build
-dotnet run --project tests\AgendadorContas.Tests\AgendadorContas.Tests.csproj
-```
+### Multi-family evolution
 
-Em desenvolvimento, com User Secrets configurado:
+The repository also contains a controlled relational foundation for:
 
-```powershell
-$env:ASPNETCORE_ENVIRONMENT="Development"
-dotnet run --urls http://localhost:5005
-```
+- PostgreSQL and Entity Framework Core
+- ASP.NET Core Identity
+- Individual user accounts
+- Family membership with Owner, Admin and Member roles
+- Server-side active-family selection
+- Tenant-aware repositories and APIs
+- Explicit `FamilyId` isolation
+- Family-specific settings and Telegram configuration
+- An idempotent administrative bootstrap
+- A controlled, transactional JSON-to-PostgreSQL migrator
 
-Depois acesse `http://localhost:5005/test-telegram`.
+The multi-family mode is limited to development and testing. It does not run automatically, does not execute migrations at startup and has not replaced the JSON production runtime.
 
-## Como fazer deploy
+## Security
 
-Para o servidor HP Linux x64, o metodo recomendado e Docker Compose:
+- Tenant identity is resolved server-side rather than accepted from request payloads.
+- Cross-family reads and writes are covered by integration tests.
+- Mutations use antiforgery protection.
+- Identity includes password hashing, lockout and rate limiting.
+- The last active Owner cannot be silently removed or downgraded.
+- Telegram tokens and production credentials stay outside source control.
+- The migration workflow supports validation, dry-run, idempotency and transactional rollback.
+
+See [SECURITY.md](SECURITY.md) and [the multi-family operational documentation](docs/multi-family-operational-flow.md).
+
+## Testing
+
+The test harness covers the JSON domain, backup/restore behavior, Identity, tenant selection, role authorization, cross-family isolation, PostgreSQL constraints, the migration workflow and multi-family reminders. PostgreSQL-specific scenarios run against a disposable PostgreSQL 16 instance.
 
 ```bash
-cd /srv/stacks/apps/agendador
-docker compose -f docker-compose.yml up -d --build
+dotnet build
+dotnet run --project tests/AgendadorContas.Tests
+dotnet format --verify-no-changes
 ```
 
-O compose usa:
+## Local Development
 
-- Codigo em `/srv/apps/agendador`.
-- Dados em `/srv/data/apps/agendador`.
-- Configuracao em `/srv/stacks/apps/agendador`.
-- Rede Docker externa `proxy`.
-- Porta `5005` acessivel somente dentro da rede Docker `proxy`, sem publicacao no host.
-
-O deploy via `systemd` continua documentado como alternativa.
-
-Consulte `docs/deployment-hp-linux.md` para o servidor HP e `docs/deployment.md` para Raspberry Pi. A pasta `deploy/` contem modelos de `systemd` e arquivo de ambiente sem segredos reais.
-
-O endpoint `/health` pode ser usado para confirmar rapidamente se a aplicacao esta respondendo.
-
-Para fechamento e preparação de produção, consulte `docs/final-checklist.md`.
-
-## Status atual
-
-Aplicação funcional em produção no servidor HP Linux. O método operacional atual é Docker Compose, com o container `agendador-contas`, persistência JSON em `/srv/data/apps/agendador`, AccessProtection ativa, chaves ASP.NET Data Protection persistentes, backups automáticos e health check ativos. O timezone de produção é `Europe/London`.
-
-O baseline pós-produção corresponde à tag `v1.0.4`, commit `e06d30e`, na branch `master`. Consulte `docs/checkpoints/2026-08-13-post-production-checkpoint.md`.
-
-## Lembrete diario
-
-O horario do lembrete diario pode ser alterado pela interface, na secao "Lembrete diario". A aplicacao usa os valores de `Reminder` como padrao inicial e, depois que o usuario salva um novo horario, persiste a configuracao em `settings.json` ao lado de `contas.json`.
-
-Em Docker, esse arquivo fica no volume persistente mapeado para `/var/lib/agendador-contas`, junto com contas e backups.
-
-## Backups
-
-O sistema permite criar backups manuais do arquivo de dados local e restaurar um backup pela interface. Antes de restaurar, a aplicação cria automaticamente um backup `pre-restore` dos dados atuais.
-
-Os backups ficam na pasta `backups` ao lado do arquivo configurado em `Data:FilePath`. Como `data/` esta no `.gitignore`, os backups locais não são enviados ao GitHub.
-
-Backups automaticos podem ser ativados por configuracao `Backup__AutomaticEnabled=true`. Copias identicas ao backup mais recente sao ignoradas, mas `Backup__ForceBackupAfterDays` forca uma nova copia periodica (sete dias por padrao). A retencao automatica remove apenas arquivos `contas.auto.*.json`, preservando backups manuais e `pre-restore`.
-
-## Paises e moedas
-
-Cada conta possui um pais e uma moeda. Inicialmente, o projeto suporta:
-
-- United Kingdom / GBP
-- Portugal / EUR
-- Brazil / BRL
-
-Novas contas usam `UnitedKingdom` e `GBP` como padrao. Contas antigas salvas sem esses campos tambem assumem esses valores ao serem carregadas.
-
-O sistema ainda nao faz conversao cambial. Totais com moedas diferentes sao apresentados agrupados por moeda para evitar soma incorreta entre GBP, EUR e BRL. A interface tambem possui um resumo por pais e moeda para o mes selecionado.
-
-## Exportacao CSV
-
-A tela de vencimentos permite exportar um CSV do mes selecionado. O arquivo inclui conta, pais, moeda, valor, valor formatado, status de pagamento e observacoes.
-
-## Próximos passos
-
-- Planejar a evolução segura de JSON para PostgreSQL já preparado para `Family/Tenant`.
-- Planejar autenticação individual e isolamento por família antes de aceitar famílias piloto.
-- Validar deploy real em Raspberry Pi quando o hardware estiver disponivel.
-- Avaliar conversao cambial futura com API externa.
-- Melhorar relatorios por moeda e pais.
-
-## Segurança
-
-Segredos do Telegram e senha de acesso devem ficar fora do Git, em User Secrets no desenvolvimento e variáveis de ambiente em produção. O arquivo `notas.txt` contém histórico sensível e deve ser limpo/removido do histórico antes de compartilhar o repositório.
-
-Para ativar login em producao:
-
-```text
-AccessProtection__Enabled=true
-AccessProtection__Username=admin
-AccessProtection__Password=SENHA_FORTE
-AccessProtection__SessionHours=12
+```bash
+dotnet restore
+dotnet run
 ```
+
+Development secrets should be supplied with .NET User Secrets or environment variables. No real credential belongs in the repository.
+
+## Current Status
+
+- **Production:** stable single-family runtime using `ContaStore + JSON`.
+- **Implemented behind a controlled flag:** PostgreSQL schema, Identity, tenant isolation, multi-family APIs, operational UI, reminder processing and migration tooling.
+- **Not completed:** production cutover, real JSON import, production activation of PostgreSQL/multi-family, invitation flow and distributed session/worker coordination.
+
+## Key Lessons Learned
+
+- A safe migration path is more important than replacing working persistence quickly.
+- Multi-tenancy requires server-side authorization at every data boundary.
+- Feature flags can preserve a stable runtime while a replacement architecture is validated.
+- Backups need guarded restore behavior and explicit retention rules.
+- Database constraints and disposable-provider tests complement application-level validation.
+
+## Roadmap
+
+- Review and plan the production cutover separately.
+- Add invitation and password-recovery workflows.
+- Replace in-memory session coordination before multiple replicas.
+- Add distributed coordination for background reminders.
+- Expand browser-level testing and reporting.
+
+Detailed decisions and phase history are available in [ROADMAP.md](ROADMAP.md), [DECISIONS.md](DECISIONS.md) and [CHANGELOG.md](CHANGELOG.md).
