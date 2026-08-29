@@ -11,6 +11,7 @@ public sealed class AgendadorDbContext(
 {
     public DbSet<Family> Families => Set<Family>();
     public DbSet<FamilyUser> FamilyUsers => Set<FamilyUser>();
+    public DbSet<FamilyInvitation> FamilyInvitations => Set<FamilyInvitation>();
     public DbSet<FamilySettings> FamilySettings => Set<FamilySettings>();
     public DbSet<TelegramSettings> TelegramSettings => Set<TelegramSettings>();
     public DbSet<ContaEntity> Contas => Set<ContaEntity>();
@@ -62,6 +63,27 @@ public sealed class AgendadorDbContext(
             entity.HasIndex(x => new { x.UserId, x.IsActive });
             entity.HasOne(x => x.Family).WithMany(x => x.Users).HasForeignKey(x => x.FamilyId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(x => x.User).WithMany(x => x.Families).HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<FamilyInvitation>(entity =>
+        {
+            entity.ToTable("family_invitations", table =>
+            {
+                table.HasCheckConstraint("ck_family_invitations_role", "\"Role\" IN ('Admin', 'Member')");
+                table.HasCheckConstraint("ck_family_invitations_expiry", "\"ExpiresAtUtc\" > \"CreatedAtUtc\"");
+                table.HasCheckConstraint("ck_family_invitations_resolution", "NOT (\"AcceptedAtUtc\" IS NOT NULL AND \"RevokedAtUtc\" IS NOT NULL)");
+                table.HasCheckConstraint("ck_family_invitations_acceptor", "(\"AcceptedAtUtc\" IS NULL) = (\"AcceptedByUserId\" IS NULL)");
+            });
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Email).HasMaxLength(256).IsRequired();
+            entity.Property(x => x.NormalizedEmail).HasMaxLength(256).IsRequired();
+            entity.Property(x => x.Role).HasConversion<string>().HasMaxLength(16).IsRequired();
+            entity.Property(x => x.TokenHash).HasMaxLength(64).IsFixedLength().IsRequired();
+            entity.HasIndex(x => x.TokenHash).IsUnique();
+            entity.HasIndex(x => new { x.FamilyId, x.NormalizedEmail, x.CreatedAtUtc });
+            entity.HasOne(x => x.Family).WithMany().HasForeignKey(x => x.FamilyId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.CreatedByUser).WithMany().HasForeignKey(x => x.CreatedByUserId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.AcceptedByUser).WithMany().HasForeignKey(x => x.AcceptedByUserId).OnDelete(DeleteBehavior.Restrict);
         });
 
         builder.Entity<FamilySettings>(entity =>

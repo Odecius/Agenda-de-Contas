@@ -3,17 +3,20 @@ using System;
 using AgendadorContas.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace AgendadorContas.Data.Migrations
+namespace AgendadorContas.data.Migrations
 {
     [DbContext(typeof(AgendadorDbContext))]
-    partial class AgendadorDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260829095755_AddFamilyInvitations")]
+    partial class AddFamilyInvitations
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

@@ -7,6 +7,15 @@
 - Adicionados UI, resposta nao enumeravel, antiforgery, limites por IP e hashes de email/token e entrega abstrata sem provider externo.
 - Mantidos `MultiFamily:Enabled=false` e `ContaStore + JSON` sem alteracoes.
 
+- Adicionado onboarding multi-family por convite de uso unico para Admin e Member.
+- Tokens de convite agora possuem alta entropia, expiracao configuravel e persistencia somente por hash.
+- Aceite cria uma identidade nova ou valida a senha e o lockout Identity de uma conta existente.
+- Adicionados listagem e revogacao tenant-aware, UI de criacao/aceite e migration `AddFamilyInvitations`.
+- Removido o cadastro direto de membership por email; novos Admins e Members passam obrigatoriamente pelo convite.
+- Atualizado o provider PostgreSQL para `Npgsql.EntityFrameworkCore.PostgreSQL` 8.0.11, removendo a dependencia vulneravel Npgsql 8.0.0.
+- Atualizado o bundle SQLite apenas do harness de testes para remover a biblioteca nativa vulneravel legada.
+- Validado o fluxo em PostgreSQL 16 descartavel: migration em banco vazio, isolamento, concorrencia com um unico vencedor, rollback transacional, constraints e cleanup; 59/59 testes passaram.
+- Mantidos `MultiFamily:Enabled=false` como default e `ContaStore + JSON` como runtime legado.
 
 ## 2026-08-19
 

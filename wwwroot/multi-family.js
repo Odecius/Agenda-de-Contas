@@ -1,5 +1,5 @@
 const api = "/api/multi-family";
-const state = { token: null, families: [], current: null, accounts: [], payments: [], settings: null, members: [] };
+const state = { token: null, families: [], current: null, accounts: [], payments: [], settings: null, members: [], invitations: [] };
 const $ = id => document.getElementById(id);
 
 initialize();
@@ -36,7 +36,8 @@ async function loadTenantData() {
   state.payments = await request("/pagamentos");
   state.settings = await request("/settings");
   if (state.current.role !== "Member") state.members = await request("/members"); else state.members = [];
-  renderAccounts(); renderSettings(); renderMembers(); applyRole();
+  if (state.current.role === "Owner") state.invitations = await request("/invitations"); else state.invitations = [];
+  renderAccounts(); renderSettings(); renderMembers(); renderInvitations(); applyRole();
 }
 
 function renderFamilySelector() {
@@ -46,7 +47,8 @@ function renderFamilySelector() {
 
 async function selectFamily(familyId) {
   await request("/family/select", { method: "POST", body: { familyId } });
-  state.accounts = []; state.payments = []; state.settings = null; state.members = [];
+  state.accounts = []; state.payments = []; state.settings = null; state.members = []; state.invitations = [];
+  $("invitationLink").value = ""; $("invitationResult").hidden = true;
 }
 
 $("familySelect").addEventListener("change", async event => { await selectFamily(event.target.value); await loadCurrentFamily(); });
@@ -74,12 +76,14 @@ $("accountsTable").addEventListener("click", async event => {
 });
 
 $("settingsForm").addEventListener("submit", async event => { event.preventDefault(); const [hour, minute] = $("reminderTime").value.split(":").map(Number); await request("/settings", { method: "PUT", body: { defaultCurrency: $("defaultCurrency").value, timeZoneId: $("timeZoneId").value, reminderHour: hour, reminderMinute: minute } }); await loadTenantData(); });
-$("memberForm").addEventListener("submit", async event => { event.preventDefault(); await request("/members", { method: "POST", body: { email: $("memberEmail").value, role: $("memberRole").value } }); event.target.reset(); await loadTenantData(); });
+$("memberForm").addEventListener("submit", async event => { event.preventDefault(); const invitation = await request("/invitations", { method: "POST", body: { email: $("memberEmail").value, role: $("memberRole").value } }); const link = `${window.location.origin}/invite.html#token=${encodeURIComponent(invitation.token)}`; $("invitationLink").value = link; $("invitationResult").hidden = false; event.target.reset(); await loadTenantData(); });
 $("membersList").addEventListener("click", async event => { const b = event.target.closest("button[data-user]"); if (!b) return; if (b.dataset.action === "remove") await request(`/members/${b.dataset.user}`, { method: "DELETE" }); else await request(`/members/${b.dataset.user}/role`, { method: "PUT", body: { role: b.dataset.action } }); await loadTenantData(); });
+$("invitationsList").addEventListener("click", async event => { const b = event.target.closest("button[data-invitation]"); if (!b) return; await request(`/invitations/${b.dataset.invitation}`, { method: "DELETE" }); $("invitationLink").value = ""; $("invitationResult").hidden = true; await loadTenantData(); });
 
 function renderAccounts() { const now = new Date(); $("accountsTable").innerHTML = state.accounts.map(x => { const payment = state.payments.find(p => p.contaId === x.id && p.ano === now.getFullYear() && p.mes === now.getMonth() + 1); return `<tr><td>${escapeHtml(x.nome)}</td><td>${x.currency} ${Number(x.valor).toFixed(2)}</td><td>${x.diaVencimento}</td><td>${x.ativa ? "Ativa" : "Pausada"}</td><td>${payment ? `<span>Pago</span> <button class="owner-only" data-action="unpay" data-id="${x.id}" data-payment="${payment.id}">Desmarcar</button>` : `<button data-action="pay" data-id="${x.id}">Pagar</button>`} <button class="manage-account" data-action="edit" data-id="${x.id}">Editar</button> <button class="manage-account" data-action="toggle" data-id="${x.id}">${x.ativa ? "Pausar" : "Ativar"}</button> <button class="owner-only" data-action="delete" data-id="${x.id}">Excluir</button></td></tr>`; }).join(""); }
 function renderSettings() { $("defaultCurrency").value = state.settings.defaultCurrency; $("timeZoneId").value = state.settings.timeZoneId; $("reminderTime").value = `${String(state.settings.reminderHour).padStart(2,"0")}:${String(state.settings.reminderMinute).padStart(2,"0")}`; }
 function renderMembers() { $("membersPanel").hidden = state.current.role === "Member"; $("memberForm").hidden = state.current.role !== "Owner"; $("membersList").innerHTML = state.members.map(x => `<p>${escapeHtml(x.email)} · ${x.role} · ${x.isActive ? "ativo" : "inativo"}${state.current.role === "Owner" ? ` <button data-user="${x.userId}" data-action="Admin">Admin</button> <button data-user="${x.userId}" data-action="Member">Member</button> <button data-user="${x.userId}" data-action="remove">Desativar</button>` : ""}</p>`).join(""); }
+function renderInvitations() { $("invitationsList").innerHTML = state.invitations.map(x => { const pending = !x.acceptedAtUtc && !x.revokedAtUtc && new Date(x.expiresAtUtc) > new Date(); return `<p>${escapeHtml(x.email)} · ${x.role} · ${pending ? "pendente" : x.acceptedAtUtc ? "aceito" : "encerrado"}${pending ? ` <button data-invitation="${x.id}">Revogar</button>` : ""}</p>`; }).join(""); }
 function applyRole() { const member = state.current.role === "Member"; document.querySelectorAll(".manage-account").forEach(x => x.hidden = member); document.querySelectorAll(".owner-only").forEach(x => x.hidden = state.current.role !== "Owner"); $("accountForm").hidden = member; $("settingsForm").querySelector("button").hidden = member; }
 
 async function request(path, options = {}) { const init = { method: options.method || "GET", headers: {} }; if (options.body) { init.headers["Content-Type"] = "application/json"; init.body = JSON.stringify(options.body); } if (init.method !== "GET" && state.token) init.headers["X-CSRF-TOKEN"] = state.token; const response = await fetch(api + path, init); if (!response.ok) throw await apiError(response); return response.status === 204 ? null : response.json(); }

@@ -19,7 +19,7 @@
       <div class="table-wrap"><table><thead><tr><th>Conta</th><th>Valor</th><th>Vencimento</th><th>Status</th><th>Ações</th></tr></thead><tbody id="accountsTable"></tbody></table></div>
     </section>
     <section class="panel"><div class="section-title"><h2>Configuração familiar</h2></div><form id="settingsForm"><div class="grid two"><label>Moeda<select id="defaultCurrency"><option>GBP</option><option>EUR</option><option>BRL</option></select></label><label>Timezone<input id="timeZoneId" required></label></div><label>Horário<input id="reminderTime" type="time" required></label><button class="primary">Guardar</button></form></section>
-    <section id="membersPanel" class="panel" hidden><div class="section-title"><h2>Membros</h2></div><form id="memberForm"><div class="grid two"><label>Email<input id="memberEmail" type="email" required></label><label>Role<select id="memberRole"><option>Member</option><option>Admin</option></select></label></div><button class="primary">Adicionar/reativar</button></form><div id="membersList"></div></section>
+    <section id="membersPanel" class="panel" hidden><div class="section-title"><h2>Membros</h2></div><form id="memberForm"><div class="grid two"><label>Email<input id="memberEmail" type="email" maxlength="256" required></label><label>Role<select id="memberRole"><option>Member</option><option>Admin</option></select></label></div><button class="primary">Criar convite</button></form><div id="invitationResult" hidden><label>Link do convite<input id="invitationLink" readonly></label><p class="section-note">Este link e exibido uma unica vez. Compartilhe-o por um canal seguro.</p></div><div id="invitationsList"></div><div id="membersList"></div></section>
   </main>
   <script src="/multi-family.js"></script>
 </body>
