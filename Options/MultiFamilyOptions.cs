@@ -13,4 +13,7 @@ public sealed class MultiFamilyOptions
 
     [Range(1, 168)]
     public int SessionHours { get; set; } = 8;
+
+    [Range(1, 168)]
+    public int InvitationHours { get; set; } = 48;
 }

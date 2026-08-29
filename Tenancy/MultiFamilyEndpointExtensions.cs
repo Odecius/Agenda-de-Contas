@@ -22,8 +22,9 @@ public sealed record MultiFamilyContaRequest(
     bool Ativa = true,
     string? Observacoes = null);
 public sealed record MultiFamilyPagamentoRequest(int Ano, int Mes);
-public sealed record FamilyMemberCreateRequest(string Email, FamilyRole Role);
 public sealed record FamilyMemberRoleRequest(FamilyRole Role);
+public sealed record FamilyInvitationCreateRequest(string Email, FamilyRole Role);
+public sealed record FamilyInvitationAcceptRequest(string Token, string Email, string Password);
 public sealed record FamilySettingsRequest(AccountCurrency DefaultCurrency, string TimeZoneId, int ReminderHour, int ReminderMinute);
 public sealed record TelegramSettingsRequest(bool IsEnabled, string? ChatId, string? BotTokenSecretReference);
 public sealed record MultiFamilyContaResponse(
@@ -123,6 +124,7 @@ public static class MultiFamilyEndpointExtensions
         MapContaEndpoints(group);
         MapPagamentoEndpoints(group);
         MapMemberEndpoints(group);
+        MapInvitationEndpoints(group);
         MapSettingsEndpoints(group);
 
         return endpoints;
@@ -141,32 +143,6 @@ public static class MultiFamilyEndpointExtensions
                 .ToListAsync(ct);
             return Results.Ok(members);
         }).RequireAuthorization();
-
-        group.MapPost("/members", async (FamilyMemberCreateRequest request, ICurrentFamilyContext current, UserManager<AppUser> users, AgendadorDbContext db, CancellationToken ct) =>
-        {
-            var tenant = await current.RequireAsync(ct);
-            if (tenant.Role != FamilyRole.Owner) return Results.Forbid();
-            if (request.Role is not (FamilyRole.Admin or FamilyRole.Member)) return Results.BadRequest(new { erro = "Role permitida: Admin ou Member." });
-            var user = await users.FindByEmailAsync(request.Email.Trim());
-            if (user is null || !user.IsActive) return Results.NotFound();
-            await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
-            var membership = await db.FamilyUsers.FindAsync([tenant.FamilyId, user.Id], ct);
-            if (membership is null)
-            {
-                db.FamilyUsers.Add(new FamilyUser { FamilyId = tenant.FamilyId, UserId = user.Id, Role = request.Role });
-            }
-            else
-            {
-                if (membership.Role == FamilyRole.Owner &&
-                    await db.FamilyUsers.CountAsync(x => x.FamilyId == tenant.FamilyId && x.IsActive && x.Role == FamilyRole.Owner, ct) <= 1)
-                    return Results.Conflict(new { erro = "A familia deve manter pelo menos um Owner ativo." });
-                membership.Role = request.Role;
-                membership.IsActive = true;
-            }
-            await db.SaveChangesAsync(ct);
-            await transaction.CommitAsync(ct);
-            return Results.Ok(new { userId = user.Id, user.Email, role = request.Role, isActive = true });
-        }).RequireAuthorization().RequireAntiforgeryValidation();
 
         group.MapPut("/members/{userId:guid}/role", async (Guid userId, FamilyMemberRoleRequest request, ICurrentFamilyContext current, AgendadorDbContext db, CancellationToken ct) =>
         {
@@ -199,6 +175,87 @@ public static class MultiFamilyEndpointExtensions
             await transaction.CommitAsync(ct);
             return Results.NoContent();
         }).RequireAuthorization().RequireAntiforgeryValidation();
+    }
+
+    private static void MapInvitationEndpoints(RouteGroupBuilder group)
+    {
+        group.MapGet("/invitations", async (IFamilyInvitationService invitations, CancellationToken ct) =>
+        {
+            try
+            {
+                return Results.Ok(await invitations.ListAsync(ct));
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Results.Forbid();
+            }
+        }).RequireAuthorization();
+
+        group.MapPost("/invitations", async (
+            FamilyInvitationCreateRequest request,
+            IFamilyInvitationService invitations,
+            CancellationToken ct) =>
+        {
+            try
+            {
+                var invitation = await invitations.CreateAsync(request.Email, request.Role, ct);
+                return Results.Created($"/api/multi-family/invitations/{invitation.Id}", invitation);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Results.Forbid();
+            }
+            catch (ArgumentException)
+            {
+                return Results.BadRequest(new { erro = "Email ou role de convite invalido." });
+            }
+            catch (FamilyInvitationConflictException)
+            {
+                return Results.Conflict(new { erro = "O usuario ja pertence a esta familia." });
+            }
+        }).RequireAuthorization().RequireAntiforgeryValidation();
+
+        group.MapDelete("/invitations/{invitationId:guid}", async (
+            Guid invitationId,
+            IFamilyInvitationService invitations,
+            CancellationToken ct) =>
+        {
+            try
+            {
+                return await invitations.RevokeAsync(invitationId, ct)
+                    ? Results.NoContent()
+                    : Results.NotFound();
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Results.Forbid();
+            }
+        }).RequireAuthorization().RequireAntiforgeryValidation();
+
+        group.MapPost("/invitations/accept", async (
+            FamilyInvitationAcceptRequest request,
+            IFamilyInvitationService invitations,
+            UserManager<AppUser> users,
+            SignInManager<AppUser> signInManager,
+            IFamilySelectionService selection,
+            CancellationToken ct) =>
+        {
+            var accepted = await invitations.AcceptAsync(request.Token, request.Email, request.Password, ct);
+            if (accepted is null)
+            {
+                return Results.BadRequest(new { erro = "Convite invalido, expirado ou ja utilizado." });
+            }
+
+            var user = await users.FindByIdAsync(accepted.UserId.ToString());
+            if (user is null || !user.IsActive)
+            {
+                return Results.BadRequest(new { erro = "Convite invalido, expirado ou ja utilizado." });
+            }
+
+            selection.Clear();
+            await signInManager.SignInAsync(user, isPersistent: false);
+            return Results.Ok(new { accepted.UserId, accepted.FamilyId, accepted.UserCreated });
+        }).AllowAnonymous().RequireRateLimiting("multi-family-invitation").RequireAntiforgeryValidation();
     }
 
     private static void MapSettingsEndpoints(RouteGroupBuilder group)

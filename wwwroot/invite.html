@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="pt">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Aceitar convite - Agendador de Contas</title>
+  <link rel="stylesheet" href="/login.css">
+</head>
+<body>
+  <main>
+    <h1>Aceitar convite</h1>
+    <p>Confirme o email convidado e defina sua senha. Se voce ja possui conta, use a senha atual.</p>
+    <form id="invitationForm">
+      <label>Email<input id="email" type="email" autocomplete="email" maxlength="256" required autofocus></label>
+      <label>Senha<input id="password" type="password" autocomplete="new-password" maxlength="200" required></label>
+      <button id="submitButton" type="submit">Entrar na familia</button>
+      <div id="feedback" class="feedback" role="alert" hidden></div>
+    </form>
+  </main>
+  <script src="/invite.js"></script>
+</body>
+</html>

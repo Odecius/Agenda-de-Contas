@@ -2,10 +2,9 @@
 
 ## Alta prioridade
 
-- Revisar e aprovar a Fase 4 antes de qualquer ensaio com copia de dados reais.
-- Implementar convite/recovery e politica segura para adicionar novos Owners antes do piloto.
+- Implementar password recovery e entrega automatizada dos convites antes do piloto.
+- Definir politica segura e fluxo separado para adicionar novos Owners.
 - Executar testes dedicados de navegador para a UI multi-family.
-- Revisar a foundation da Fase 3 antes de qualquer ensaio com copia de dados reais.
 - Definir CLI/admin command ou procedimento offline para a futura execucao controlada.
 - Planejar separadamente settings, lembretes e Telegram sem transportar secrets.
 - Trocar sessao em memoria por armazenamento apropriado antes de multiplas replicas.
@@ -28,7 +27,6 @@
 
 ## Baixa prioridade
 
-- Corrigir resposta 500 quando nenhuma familia esta selecionada (LOW da Fase 2.2).
 - Restringir tratamento amplo de `DbUpdateException` no pagamento (LOW da Fase 2.2).
 - Avaliar banco leve, como SQLite, se o JSON deixar de ser suficiente.
 - Criar painel mensal com métricas.
@@ -36,11 +34,13 @@
 
 ## Concluído
 
+- Onboarding por convite tenant-aware para Admin/Member, com expiracao, revogacao, uso unico, hash do token e lockout Identity.
+- Gate PostgreSQL 16 descartavel concluido com migration vazia, isolamento, concorrencia, rollback, constraints, 59/59 testes e cleanup sem recursos residuais.
 - Fluxo operacional multi-family local: bootstrap, UI, members, settings, Telegram abstrato e worker tenant-aware.
 - Foundation de importacao JSON idempotente, transacional e tenant-aware com dry-run.
 - Repositories tenant-aware de Conta e Pagamento implementados para o modo experimental.
 - Matriz Owner/Admin/Member aplicada com 404 cross-family e 403 por role insuficiente.
-- Testes PostgreSQL descartaveis cobrem leitura, escrita, pagamentos, parametros adulterados e troca de familia.
+- Testes PostgreSQL descartaveis cobrem leitura, escrita, pagamentos, parametros adulterados, troca de familia e onboarding por convites.
 
 - Identity, contextos de usuario/familia e selecao familiar preparados atras de feature flag local.
 - Fundacao local EF Core/PostgreSQL multi-tenant criada, sem conexao com producao.

@@ -16,6 +16,8 @@ Na branch `agent/multi-family-json-migration`, a Fase 3 adiciona servico interno
 
 Na branch `agent/multi-family-operational-flow`, a Fase 4 adiciona bootstrap administrativo Development/Testing, UI Identity com selecao familiar, members/settings, Telegram por referencia de secret e worker relacional por `FamilyId`. Admin lista members sem mutar; apenas Owner administra e o ultimo Owner e protegido. Tudo permanece atras de `MultiFamily:Enabled`; runtime JSON continua default.
 
+Na branch `agent/multi-family-invitations`, o onboarding permite ao Owner convidar Admin/Member sem receber `FamilyId` do cliente. O token e aleatorio, expira, pode ser revogado, e apenas seu hash e persistido. O aceite cria uma identidade ou valida senha/lockout existente. No PostgreSQL, o convite e relido com row lock dentro da transacao para serializar dois aceites do mesmo token; a atualizacao condicional continua como segunda defesa. O gate PostgreSQL 16 descartavel passou com 59/59 testes, incluindo concorrencia, rollback, constraints, isolamento e cleanup sem recursos residuais. Entrega automatizada e recovery continuam pendentes.
+
 O modelo de contas possui suporte inicial a pais e moeda por conta. Os paises suportados sao `UnitedKingdom`, `Portugal` e `Brazil`; as moedas suportadas sao `GBP`, `EUR` e `BRL`. O sistema nao faz conversao cambial. Totais com moedas diferentes devem ser agrupados por moeda.
 
 A interface possui resumo por pais e moeda baseado nos vencimentos do mes selecionado. Esse resumo e apenas demonstrativo/operacional: ele separa os valores por moeda e nao calcula conversao.
@@ -83,4 +85,4 @@ O horario do lembrete diario pode ser alterado pela interface. `ReminderSettings
 
 ## Onde continuar
 
-Antes de qualquer trabalho, ler `docs/checkpoints/2026-08-13-post-production-checkpoint.md`, o baseline central e `docs/json-to-postgresql-migration.md`. O proximo gate e revisar a Fase 3 e aprovar um ensaio separado; nenhum dado real deve ser usado antes disso.
+Antes de qualquer trabalho, ler `docs/checkpoints/2026-08-13-post-production-checkpoint.md`, o baseline central, `docs/json-to-postgresql-migration.md` e `docs/multi-family-invitations.md`. O gate PostgreSQL 16 da branch de convites foi concluido com os oito cenarios condicionais e cleanup zero. O proximo marco recomendado e password recovery; entrega automatizada de convites permanece separada. Nenhum dado real deve ser usado.

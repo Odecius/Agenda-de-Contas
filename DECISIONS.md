@@ -1,5 +1,13 @@
 ﻿# DECISIONS
 
+## 2026-08-29 - Onboarding usa convite vinculado server-side ao tenant
+
+**Decisao:** Somente Owner cria convites para Admin ou Member. O `FamilyId` vem do contexto autenticado, nunca do payload. O token bruto e retornado uma unica vez, persiste apenas como hash e pode ser aceito uma vez antes da expiracao ou revogacao.
+
+**Motivo:** Permitir onboarding para as familias piloto sem cadastro publico, criacao direta de membership por email ou possibilidade de escolher outro tenant no request.
+
+**Impacto:** Uma nova identidade pode definir senha no aceite; uma identidade existente precisa validar sua senha e respeita lockout. Entrega automatizada, recovery e criacao de novos Owners exigem etapas separadas.
+
 ## 2026-08-14 - Repositories resolvem o tenant server-side
 
 **Decisao:** `ContaRepository` e `PagamentoRepository` recebem apenas IDs de recursos; o `FamilyId` vem exclusivamente de `ICurrentFamilyContext`. DTOs de escrita nao possuem campos de tenant e propriedades JSON extras sao ignoradas sem se tornarem autoridade.

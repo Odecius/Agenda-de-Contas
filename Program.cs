@@ -90,7 +90,11 @@ if (multiFamilyOptions.Enabled)
         throw new InvalidOperationException("MultiFamily:ConnectionString is required when MultiFamily is enabled.");
     }
 
-    builder.Services.Configure<MultiFamilyOptions>(builder.Configuration.GetSection(MultiFamilyOptions.SectionName));
+    builder.Services
+        .AddOptions<MultiFamilyOptions>()
+        .Bind(builder.Configuration.GetSection(MultiFamilyOptions.SectionName))
+        .ValidateDataAnnotations()
+        .ValidateOnStart();
     builder.Services.AddDbContext<AgendadorDbContext>(options => options.UseNpgsql(multiFamilyOptions.ConnectionString));
     builder.Services
         .AddIdentityCore<AppUser>(options =>
@@ -130,6 +134,7 @@ if (multiFamilyOptions.Enabled)
     builder.Services.AddScoped<IFamilySelectionService, FamilySelectionService>();
     builder.Services.AddScoped<ICurrentFamilyContext, CurrentFamilyContext>();
     builder.Services.AddScoped<IFamilyAuthorizationService, FamilyAuthorizationService>();
+    builder.Services.AddScoped<IFamilyInvitationService, FamilyInvitationService>();
     builder.Services.AddScoped<IContaRepository, ContaRepository>();
     builder.Services.AddScoped<IPagamentoRepository, PagamentoRepository>();
     builder.Services.AddScoped<IJsonToPostgresqlMigrator, JsonToPostgresqlMigrator>();
@@ -197,6 +202,16 @@ builder.Services.AddRateLimiter(options =>
             {
                 PermitLimit = 5,
                 Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst
+            }));
+    options.AddPolicy("multi-family-invitation", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 10,
+                Window = TimeSpan.FromMinutes(15),
                 QueueLimit = 0,
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst
             }));
