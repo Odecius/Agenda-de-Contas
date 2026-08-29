@@ -3,6 +3,7 @@ const username = document.querySelector("#username");
 const password = document.querySelector("#password");
 const feedback = document.querySelector("#feedback");
 const submitButton = document.querySelector("#submitButton");
+const forgotPasswordLink = document.querySelector("#forgotPasswordLink");
 
 let multiFamily = false;
 let antiforgeryToken = null;
@@ -12,6 +13,8 @@ initializeLogin();
 async function initializeLogin() {
   const mode = await fetch("/api/multi-family/mode").catch(() => null);
   multiFamily = mode?.ok === true;
+  const modeDetails = multiFamily ? await mode.json() : {};
+  forgotPasswordLink.hidden = !multiFamily || modeDetails.passwordRecoveryEnabled !== true;
   if (multiFamily) {
     username.previousSibling.textContent = "Email ";
     username.type = "email";

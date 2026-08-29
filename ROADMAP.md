@@ -196,3 +196,9 @@ O plano detalhado esta em `docs/multi-family-postgresql-plan.md`. Esta fase aind
 - Login/seleção/CRUD web, members e settings tenant-aware.
 - Telegram por referencia de secret e worker relacional isolado por FamilyId.
 - Validacao com duas familias em PostgreSQL descartavel, sem cutover ou producao.
+
+### Etapa 32.6 - Password recovery
+
+- Recovery global da identidade sem tenant, membership ou role no request.
+- Token provider Identity, lifespan configuravel, SecurityStamp, antiforgery e protecao contra enumeracao e abuso.
+- UI e abstracao de entrega implementadas; provider real permanece separado.

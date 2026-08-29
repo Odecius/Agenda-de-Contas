@@ -91,6 +91,11 @@ if (multiFamilyOptions.Enabled)
     }
 
     builder.Services.Configure<MultiFamilyOptions>(builder.Configuration.GetSection(MultiFamilyOptions.SectionName));
+    builder.Services
+        .AddOptions<PasswordRecoveryOptions>()
+        .Bind(builder.Configuration.GetSection(PasswordRecoveryOptions.SectionName))
+        .ValidateDataAnnotations()
+        .ValidateOnStart();
     builder.Services.AddDbContext<AgendadorDbContext>(options => options.UseNpgsql(multiFamilyOptions.ConnectionString));
     builder.Services
         .AddIdentityCore<AppUser>(options =>
@@ -104,6 +109,9 @@ if (multiFamilyOptions.Enabled)
         .AddEntityFrameworkStores<AgendadorDbContext>()
         .AddSignInManager()
         .AddDefaultTokenProviders();
+    builder.Services.Configure<DataProtectionTokenProviderOptions>(options =>
+        options.TokenLifespan = TimeSpan.FromMinutes(
+            builder.Configuration.GetValue("PasswordRecovery:TokenLifespanMinutes", 60)));
     builder.Services
         .AddAuthentication(IdentityConstants.ApplicationScheme)
         .AddCookie(IdentityConstants.ApplicationScheme, options =>
@@ -130,6 +138,9 @@ if (multiFamilyOptions.Enabled)
     builder.Services.AddScoped<IFamilySelectionService, FamilySelectionService>();
     builder.Services.AddScoped<ICurrentFamilyContext, CurrentFamilyContext>();
     builder.Services.AddScoped<IFamilyAuthorizationService, FamilyAuthorizationService>();
+    builder.Services.AddScoped<PasswordRecoveryService>();
+    builder.Services.AddSingleton<IPasswordRecoveryDeliveryService, NoOpPasswordRecoveryDeliveryService>();
+    builder.Services.AddSingleton<PasswordRecoveryAttemptLimiter>();
     builder.Services.AddScoped<IContaRepository, ContaRepository>();
     builder.Services.AddScoped<IPagamentoRepository, PagamentoRepository>();
     builder.Services.AddScoped<IJsonToPostgresqlMigrator, JsonToPostgresqlMigrator>();
@@ -197,6 +208,26 @@ builder.Services.AddRateLimiter(options =>
             {
                 PermitLimit = 5,
                 Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst
+            }));
+    options.AddPolicy("password-recovery-request", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 10,
+                Window = TimeSpan.FromMinutes(15),
+                QueueLimit = 0,
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst
+            }));
+    options.AddPolicy("password-recovery-reset", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 15,
+                Window = TimeSpan.FromMinutes(15),
                 QueueLimit = 0,
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst
             }));

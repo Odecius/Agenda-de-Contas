@@ -2,6 +2,7 @@
 
 ## Alta prioridade
 
+- Implementar provider real para entrega de recovery sem expor tokens ou credentials.
 - Revisar e aprovar a Fase 4 antes de qualquer ensaio com copia de dados reais.
 - Implementar convite/recovery e politica segura para adicionar novos Owners antes do piloto.
 - Executar testes dedicados de navegador para a UI multi-family.
