@@ -88,7 +88,8 @@ var tests = new List<(string Name, Func<Task> Run)>
     ("Convite rejeita adulteracao expiracao revogacao e reuso", FamilyInvitationRejectsTamperingAndReuseAsync),
     ("Convites HTTP isolam familias em SQLite descartavel", FamilyInvitationHttpFlowWorksOnSqliteAsync),
     ("Worker multi-family isola familias e falhas", MultiFamilyWorkerIsolatesFamiliesAndFailuresAsync),
-    ("Worker sem contas pendentes nao envia Telegram", MultiFamilyWorkerSkipsEmptyReminderAsync)
+    ("Worker sem contas pendentes nao envia Telegram", MultiFamilyWorkerSkipsEmptyReminderAsync),
+    ("Frontend legado publica os assets principais", LegacyFrontendAssetsAreServedAsync)
 };
 
 if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("AGENDADOR_TEST_POSTGRES")))
@@ -1370,6 +1371,32 @@ static async Task LegacyRuntimeKeepsJsonAndWorkersAsync()
     AssertEqual(HttpStatusCode.OK, (await client.GetAsync("/api/contas")).StatusCode, "API JSON deve permanecer ativa no modo legado.");
     AssertEqual(HttpStatusCode.NotFound, (await client.GetAsync("/api/multi-family/mode")).StatusCode, "Modo legado nao deve anunciar multi-family.");
     AssertContains("/api/contas", await client.GetStringAsync("/app.js"), "UI legada deve continuar usando API JSON.");
+}
+
+static async Task LegacyFrontendAssetsAreServedAsync()
+{
+    await using var factory = new LegacyWebFactory();
+    using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+    {
+        BaseAddress = new Uri("https://localhost"),
+        AllowAutoRedirect = false
+    });
+
+    using var htmlResponse = await client.GetAsync("/");
+    using var cssResponse = await client.GetAsync("/styles.css?v=1.0.5");
+    using var scriptResponse = await client.GetAsync("/app.js?v=1.0.5");
+
+    AssertEqual(HttpStatusCode.OK, htmlResponse.StatusCode, "Pagina principal deve ser publicada.");
+    AssertEqual(HttpStatusCode.OK, cssResponse.StatusCode, "Stylesheet principal deve ser publicado.");
+    AssertEqual(HttpStatusCode.OK, scriptResponse.StatusCode, "JavaScript principal deve ser publicado.");
+    AssertEqual("text/css", cssResponse.Content.Headers.ContentType?.MediaType, "Stylesheet deve ter content type CSS.");
+    AssertEqual("text/javascript", scriptResponse.Content.Headers.ContentType?.MediaType, "Script deve ter content type JavaScript.");
+
+    var html = await htmlResponse.Content.ReadAsStringAsync();
+    AssertContains("/styles.css?v=1.0.5", html, "Pagina principal deve referenciar o stylesheet versionado.");
+    AssertContains("/app.js?v=1.0.5", html, "Pagina principal deve referenciar o JavaScript versionado.");
+    AssertContains(".app-header", await cssResponse.Content.ReadAsStringAsync(), "Resposta CSS nao pode ser fallback HTML.");
+    AssertContains("/api/contas", await scriptResponse.Content.ReadAsStringAsync(), "Resposta JavaScript nao pode ser fallback HTML.");
 }
 
 static async Task TenantAwareBusinessFlowWorksOnPostgresAsync()
