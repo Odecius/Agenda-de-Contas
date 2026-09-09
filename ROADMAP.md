@@ -210,3 +210,9 @@ O plano detalhado esta em `docs/multi-family-postgresql-plan.md`. A fundacao e o
 - Recovery global da identidade sem tenant, membership ou role no request.
 - Token provider Identity, lifespan configuravel, SecurityStamp, antiforgery e protecao contra enumeracao e abuso.
 - UI e abstracao de entrega implementadas; provider real permanece separado.
+
+### Etapa 32.7 - Secure delivery
+
+- Abstracao comum para convite e recovery com tipos explicitos e links de origem confiavel.
+- Adapter HTTP de email, configuracao fail-safe, timeout, retry limitado e idempotency key.
+- Envio externo permanece desabilitado ate homologacao operacional com secrets externos.

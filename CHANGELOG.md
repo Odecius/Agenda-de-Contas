@@ -3,6 +3,9 @@
 
 ## 2026-08-29
 
+- Adicionada infraestrutura comum e segura de delivery para convites e password recovery, desabilitada por default.
+- Adicionado adapter HTTP de email com HTTPS obrigatorio, timeout, retry limitado, idempotency key e logs sanitizados.
+- Chamadas externas ocorrem fora da transacao PostgreSQL; falhas de recovery preservam resposta nao enumeravel.
 - Adicionado password recovery multi-family com tokens nativos Identity, expiracao configuravel e SecurityStamp.
 - Adicionados UI, resposta nao enumeravel, antiforgery, limites por IP e hashes de email/token e entrega abstrata sem provider externo.
 - Mantidos `MultiFamily:Enabled=false` e `ContaStore + JSON` sem alteracoes.

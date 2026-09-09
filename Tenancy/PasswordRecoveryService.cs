@@ -1,5 +1,6 @@
 using AgendadorContas.Data.Entities;
 using AgendadorContas.Options;
+using AgendadorContas.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Options;
@@ -8,21 +9,6 @@ using System.Security.Cryptography;
 using System.Text;
 
 namespace AgendadorContas.Tenancy;
-
-public sealed record PasswordRecoveryMessage(string ResetUrl);
-public interface IPasswordRecoveryDeliveryService
-{
-    Task DeliverAsync(string email, PasswordRecoveryMessage message, CancellationToken cancellationToken = default);
-}
-
-public sealed class NoOpPasswordRecoveryDeliveryService(ILogger<NoOpPasswordRecoveryDeliveryService> logger) : IPasswordRecoveryDeliveryService
-{
-    public Task DeliverAsync(string email, PasswordRecoveryMessage message, CancellationToken cancellationToken = default)
-    {
-        logger.LogInformation("Password recovery delivery requested through the unconfigured provider.");
-        return Task.CompletedTask;
-    }
-}
 
 public sealed class PasswordRecoveryAttemptLimiter(TimeProvider timeProvider)
 {
@@ -46,7 +32,12 @@ public sealed class PasswordRecoveryAttemptLimiter(TimeProvider timeProvider)
     private sealed record AttemptWindow(DateTimeOffset Start, int Count);
 }
 
-public sealed class PasswordRecoveryService(UserManager<AppUser> users, IPasswordRecoveryDeliveryService delivery, IOptions<PasswordRecoveryOptions> options, PasswordRecoveryAttemptLimiter limiter)
+public sealed class PasswordRecoveryService(
+    UserManager<AppUser> users,
+    IUserNotificationDeliveryService delivery,
+    SecureActionLinkFactory links,
+    IOptions<PasswordRecoveryOptions> options,
+    PasswordRecoveryAttemptLimiter limiter)
 {
     public const string GenericResponse = "Se existir uma conta elegivel, enviaremos instrucoes para recuperacao.";
 
@@ -60,8 +51,13 @@ public sealed class PasswordRecoveryService(UserManager<AppUser> users, IPasswor
         if (user is null || !user.IsActive) return;
         var token = await users.GeneratePasswordResetTokenAsync(user);
         var encoded = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
-        var url = $"{options.Value.PublicBaseUrl.TrimEnd('/')}/reset-password.html#token={encoded}&email={Uri.EscapeDataString(user.Email!)}";
-        await delivery.DeliverAsync(user.Email!, new PasswordRecoveryMessage(url), cancellationToken);
+        var url = links.Create("reset-password.html", new Dictionary<string, string>
+        {
+            ["token"] = encoded,
+            ["email"] = user.Email!
+        });
+        _ = await delivery.DeliverAsync(new UserNotificationMessage(
+            UserNotificationKind.PasswordRecovery, user.Email!, url, Guid.NewGuid()), cancellationToken);
     }
 
     public async Task<bool> ResetAsync(string? email, string? encodedToken, string? newPassword)

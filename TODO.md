@@ -2,7 +2,8 @@
 
 ## Alta prioridade
 
-- Implementar provider real para entrega de recovery sem expor tokens ou credentials.
+- Configurar e homologar o provider externo de delivery com secrets e origem publica aprovados, sem habilita-lo por default.
+- Reavaliar outbox e rate limits distribuidos antes de multiplas replicas.
 - Definir politica segura e fluxo separado para adicionar novos Owners.
 - Executar testes dedicados de navegador para a UI multi-family.
 - Definir CLI/admin command ou procedimento offline para a futura execucao controlada.

@@ -20,6 +20,8 @@ Na branch `agent/multi-family-password-recovery`, recovery usa os token provider
 
 Na branch `agent/multi-family-invitations`, o onboarding permite ao Owner convidar Admin/Member sem receber `FamilyId` do cliente. O token e aleatorio, expira, pode ser revogado, e apenas seu hash e persistido. O aceite cria uma identidade ou valida senha/lockout existente. No PostgreSQL, o convite e relido com row lock dentro da transacao para serializar dois aceites do mesmo token; a atualizacao condicional continua como segunda defesa. O gate PostgreSQL 16 descartavel passou com 59/59 testes, incluindo concorrencia, rollback, constraints, isolamento e cleanup sem recursos residuais. Entrega automatizada e recovery continuam pendentes.
 
+Na branch `agent/secure-notification-delivery`, convites e recovery compartilham delivery tipado, desabilitado por default. Links usam `Delivery:PublicBaseUrl`; o adapter HTTP exige HTTPS e secrets externos. Delivery ocorre fora da transacao, usa timeout/retry limitado e idempotency key, sem destino ou token nos logs. A branch depende dos Draft PRs #6 e #7 e nao altera producao.
+
 O modelo de contas possui suporte inicial a pais e moeda por conta. Os paises suportados sao `UnitedKingdom`, `Portugal` e `Brazil`; as moedas suportadas sao `GBP`, `EUR` e `BRL`. O sistema nao faz conversao cambial. Totais com moedas diferentes devem ser agrupados por moeda.
 
 A interface possui resumo por pais e moeda baseado nos vencimentos do mes selecionado. Esse resumo e apenas demonstrativo/operacional: ele separa os valores por moeda e nao calcula conversao.

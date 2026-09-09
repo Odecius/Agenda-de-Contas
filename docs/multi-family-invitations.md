@@ -43,7 +43,7 @@ Mutacoes exigem antiforgery. O aceite possui rate limiting adicional e nunca ret
 
 ## Limites
 
-- entrega automatizada do link ainda nao existe;
+- entrega usa a abstracao comum e permanece externamente desabilitada ate configuracao aprovada;
 - password recovery ainda nao existe;
 - convites nao criam Owner;
 - a funcionalidade nao autoriza ativacao do modo multi-family em producao;

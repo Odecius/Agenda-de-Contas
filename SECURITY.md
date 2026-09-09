@@ -17,6 +17,7 @@
 - [x] Autorização básica aplicada pelo middleware de proteção.
 - [x] Password recovery Identity sem enumeracao, token em resposta ou dependencia de tenant.
 - [x] Convites multi-family vinculados server-side ao tenant, com hash, expiracao, revogacao e uso unico.
+- [x] Delivery externo fail-safe, HTTPS-only quando habilitado e sem secrets ou links em logs.
 - [x] Backups do arquivo JSON de dados.
 - [x] Logs sem segredos conhecidos.
 - [ ] LGPD/GDPR avaliados se dados pessoais forem cadastrados.

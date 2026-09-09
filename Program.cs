@@ -30,6 +30,7 @@ if (multiFamilyOptions.Enabled && !builder.Environment.IsDevelopment() && !build
 }
 
 builder.Logging.AddFilter("System.Net.Http.HttpClient.Telegram", LogLevel.Warning);
+builder.Logging.AddFilter("System.Net.Http.HttpClient.UserNotificationDelivery", LogLevel.Warning);
 
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
@@ -100,6 +101,12 @@ if (multiFamilyOptions.Enabled)
         .Bind(builder.Configuration.GetSection(PasswordRecoveryOptions.SectionName))
         .ValidateDataAnnotations()
         .ValidateOnStart();
+    builder.Services
+        .AddOptions<DeliveryOptions>()
+        .Bind(builder.Configuration.GetSection(DeliveryOptions.SectionName))
+        .ValidateDataAnnotations()
+        .ValidateOnStart();
+    builder.Services.AddSingleton<IValidateOptions<DeliveryOptions>, DeliveryOptionsValidator>();
     builder.Services.AddDbContext<AgendadorDbContext>(options => options.UseNpgsql(multiFamilyOptions.ConnectionString));
     builder.Services
         .AddIdentityCore<AppUser>(options =>
@@ -143,7 +150,10 @@ if (multiFamilyOptions.Enabled)
     builder.Services.AddScoped<ICurrentFamilyContext, CurrentFamilyContext>();
     builder.Services.AddScoped<IFamilyAuthorizationService, FamilyAuthorizationService>();
     builder.Services.AddScoped<PasswordRecoveryService>();
-    builder.Services.AddSingleton<IPasswordRecoveryDeliveryService, NoOpPasswordRecoveryDeliveryService>();
+    builder.Services.AddSingleton<SecureActionLinkFactory>();
+    builder.Services.AddScoped<IUserNotificationDeliveryService, UserNotificationDeliveryService>();
+    builder.Services.AddHttpClient("UserNotificationDelivery");
+    builder.Services.AddScoped<IUserNotificationProvider, HttpEmailNotificationProvider>();
     builder.Services.AddSingleton<PasswordRecoveryAttemptLimiter>();
     builder.Services.AddScoped<IFamilyInvitationService, FamilyInvitationService>();
     builder.Services.AddScoped<IContaRepository, ContaRepository>();
@@ -216,7 +226,6 @@ builder.Services.AddRateLimiter(options =>
                 QueueLimit = 0,
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst
             }));
-    options.AddPolicy("password-recovery-request", context =>
     options.AddPolicy("multi-family-invitation", context =>
         RateLimitPartition.GetFixedWindowLimiter(
             context.Connection.RemoteIpAddress?.ToString() ?? "unknown",

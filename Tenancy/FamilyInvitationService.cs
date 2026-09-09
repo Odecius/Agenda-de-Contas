@@ -1,6 +1,7 @@
 using AgendadorContas.Data;
 using AgendadorContas.Data.Entities;
 using AgendadorContas.Options;
+using AgendadorContas.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
@@ -12,7 +13,7 @@ using System.Text;
 
 namespace AgendadorContas.Tenancy;
 
-public sealed record CreatedFamilyInvitation(Guid Id, string Email, FamilyRole Role, DateTime ExpiresAtUtc, string Token)
+public sealed record CreatedFamilyInvitation(Guid Id, string Email, FamilyRole Role, DateTime ExpiresAtUtc, string Token, DeliveryStatus DeliveryStatus = DeliveryStatus.Disabled)
 {
     public override string ToString() => $"CreatedFamilyInvitation {{ Id = {Id}, Email = [REDACTED], Role = {Role}, ExpiresAtUtc = {ExpiresAtUtc:O}, Token = [REDACTED] }}";
 }
@@ -33,7 +34,9 @@ public sealed class FamilyInvitationService(
     ICurrentFamilyContext currentFamily,
     UserManager<AppUser> userManager,
     IOptions<MultiFamilyOptions> options,
-    TimeProvider timeProvider) : IFamilyInvitationService
+    TimeProvider timeProvider,
+    IUserNotificationDeliveryService? delivery = null,
+    SecureActionLinkFactory? links = null) : IFamilyInvitationService
 {
     public async Task<CreatedFamilyInvitation> CreateAsync(
         string email,
@@ -91,7 +94,14 @@ public sealed class FamilyInvitationService(
         db.FamilyInvitations.Add(invitation);
         await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        return new CreatedFamilyInvitation(invitation.Id, invitation.Email, invitation.Role, invitation.ExpiresAtUtc, token);
+        var deliveryStatus = DeliveryStatus.Disabled;
+        if (delivery is not null && links is not null)
+        {
+            var url = links.Create("invite.html", new Dictionary<string, string> { ["token"] = token });
+            deliveryStatus = (await delivery.DeliverAsync(new UserNotificationMessage(
+                UserNotificationKind.FamilyInvitation, invitation.Email, url, invitation.Id), cancellationToken)).Status;
+        }
+        return new CreatedFamilyInvitation(invitation.Id, invitation.Email, invitation.Role, invitation.ExpiresAtUtc, token, deliveryStatus);
     }
 
     public async Task<IReadOnlyList<FamilyInvitationSummary>> ListAsync(CancellationToken cancellationToken = default)
