@@ -46,7 +46,12 @@ public sealed class PasswordRecoveryAttemptLimiter(TimeProvider timeProvider)
     private sealed record AttemptWindow(DateTimeOffset Start, int Count);
 }
 
-public sealed class PasswordRecoveryService(UserManager<AppUser> users, IPasswordRecoveryDeliveryService delivery, IOptions<PasswordRecoveryOptions> options, PasswordRecoveryAttemptLimiter limiter)
+public sealed class PasswordRecoveryService(
+    UserManager<AppUser> users,
+    IPasswordRecoveryDeliveryService delivery,
+    IOptions<PasswordRecoveryOptions> options,
+    PasswordRecoveryAttemptLimiter limiter,
+    ILogger<PasswordRecoveryService> logger)
 {
     public const string GenericResponse = "Se existir uma conta elegivel, enviaremos instrucoes para recuperacao.";
 
@@ -61,7 +66,20 @@ public sealed class PasswordRecoveryService(UserManager<AppUser> users, IPasswor
         var token = await users.GeneratePasswordResetTokenAsync(user);
         var encoded = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
         var url = $"{options.Value.PublicBaseUrl.TrimEnd('/')}/reset-password.html#token={encoded}&email={Uri.EscapeDataString(user.Email!)}";
-        await delivery.DeliverAsync(user.Email!, new PasswordRecoveryMessage(url), cancellationToken);
+        try
+        {
+            await delivery.DeliverAsync(user.Email!, new PasswordRecoveryMessage(url), cancellationToken);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            logger.LogWarning("password_recovery_delivery_failed (timeout).");
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(
+                "password_recovery_delivery_failed ({ExceptionType}).",
+                exception.GetType().Name);
+        }
     }
 
     public async Task<bool> ResetAsync(string? email, string? encodedToken, string? newPassword)

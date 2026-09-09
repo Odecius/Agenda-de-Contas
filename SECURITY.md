@@ -16,6 +16,7 @@
 - [x] Autenticação opcional antes de uso em rede.
 - [x] Autorização básica aplicada pelo middleware de proteção.
 - [x] Password recovery Identity sem enumeracao, token em resposta ou dependencia de tenant.
+- [x] Falhas de delivery de recovery preservam resposta generica e a origem publica exige HTTPS.
 - [x] Backups do arquivo JSON de dados.
 - [x] Logs sem segredos conhecidos.
 - [ ] LGPD/GDPR avaliados se dados pessoais forem cadastrados.

@@ -96,6 +96,7 @@ if (multiFamilyOptions.Enabled)
         .Bind(builder.Configuration.GetSection(PasswordRecoveryOptions.SectionName))
         .ValidateDataAnnotations()
         .ValidateOnStart();
+    builder.Services.AddSingleton<IValidateOptions<PasswordRecoveryOptions>, PasswordRecoveryOptionsValidator>();
     builder.Services.AddDbContext<AgendadorDbContext>(options => options.UseNpgsql(multiFamilyOptions.ConnectionString));
     builder.Services
         .AddIdentityCore<AppUser>(options =>

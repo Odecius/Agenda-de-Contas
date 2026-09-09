@@ -3,6 +3,7 @@
 
 ## 2026-08-29
 
+- Endurecido password recovery contra enumeracao por falha de delivery e origem publica sem HTTPS.
 - Adicionado password recovery multi-family com tokens nativos Identity, expiracao configuravel e SecurityStamp.
 - Adicionados UI, resposta nao enumeravel, antiforgery, limites por IP e hashes de email/token e entrega abstrata sem provider externo.
 - Mantidos `MultiFamily:Enabled=false` e `ContaStore + JSON` sem alteracoes.
