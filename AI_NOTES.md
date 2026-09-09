@@ -16,6 +16,8 @@ Na branch `agent/multi-family-json-migration`, a Fase 3 adiciona servico interno
 
 Na branch `agent/multi-family-operational-flow`, a Fase 4 adiciona bootstrap administrativo Development/Testing, UI Identity com selecao familiar, members/settings, Telegram por referencia de secret e worker relacional por `FamilyId`. Admin lista members sem mutar; apenas Owner administra e o ultimo Owner e protegido. Tudo permanece atras de `MultiFamily:Enabled`; runtime JSON continua default.
 
+Na branch `agent/multi-family-password-recovery`, recovery usa os token providers Identity e atua sobre `AppUser`, sem receber tenant. A solicitacao nao enumera identidades; reset respeita a policy existente, atualiza SecurityStamp e usa entrega abstrata sem provider real. A base publica e configurada, tokens nao aparecem na resposta ou logs e o runtime JSON continua intacto.
+
 O modelo de contas possui suporte inicial a pais e moeda por conta. Os paises suportados sao `UnitedKingdom`, `Portugal` e `Brazil`; as moedas suportadas sao `GBP`, `EUR` e `BRL`. O sistema nao faz conversao cambial. Totais com moedas diferentes devem ser agrupados por moeda.
 
 A interface possui resumo por pais e moeda baseado nos vencimentos do mes selecionado. Esse resumo e apenas demonstrativo/operacional: ele separa os valores por moeda e nao calcula conversao.

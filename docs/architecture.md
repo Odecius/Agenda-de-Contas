@@ -41,4 +41,4 @@ O baseline pos-producao e `v1.0.4`, commit `e06d30e`.
 
 ## Evolucao planejada
 
-O proximo desenho arquitetural esta documentado em `multi-family-postgresql-plan.md`: PostgreSQL com modelo `Family/Tenant` desde o primeiro schema, autenticacao individual e isolamento server-side por `FamilyId`. Nada dessa evolucao esta implementado neste baseline.
+O desenho evolutivo esta documentado em `multi-family-postgresql-plan.md`: PostgreSQL com modelo `Family/Tenant`, autenticacao individual e isolamento server-side por `FamilyId`, sempre atras da feature flag. Password recovery atua somente sobre a identidade global, usa os token providers Identity e nao seleciona tenant; consulte `password-recovery.md`. O runtime publicado continua sendo o baseline JSON.

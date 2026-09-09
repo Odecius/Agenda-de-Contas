@@ -2,14 +2,18 @@ using AgendadorContas.Data;
 using AgendadorContas.Data.Entities;
 using AgendadorContas.Data.Repositories;
 using AgendadorContas.Models;
+using AgendadorContas.Options;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using System.Data;
 
 namespace AgendadorContas.Tenancy;
 
 public sealed record IdentityLoginRequest(string Email, string Password);
+public sealed record ForgotPasswordRequest(string Email);
+public sealed record ResetPasswordRequest(string Email, string Token, string NewPassword);
 public sealed record FamilySelectionRequest(Guid FamilyId);
 public sealed record MultiFamilyContaRequest(
     string Nome,
@@ -53,7 +57,8 @@ public static class MultiFamilyEndpointExtensions
             }
         });
 
-        group.MapGet("/mode", () => Results.Ok(new { enabled = true })).AllowAnonymous();
+        group.MapGet("/mode", (IOptions<PasswordRecoveryOptions> recovery) =>
+            Results.Ok(new { enabled = true, passwordRecoveryEnabled = recovery.Value.Enabled })).AllowAnonymous();
 
         group.MapGet("/antiforgery/token", (HttpContext context, IAntiforgery antiforgery) =>
         {
@@ -82,6 +87,18 @@ public static class MultiFamilyEndpointExtensions
             var result = await signInManager.PasswordSignInAsync(user, request.Password, false, lockoutOnFailure: true);
             return result.Succeeded ? Results.Ok(new { sucesso = true }) : Results.Unauthorized();
         }).AllowAnonymous().RequireRateLimiting("multi-family-login").RequireAntiforgeryValidation();
+
+        group.MapPost("/auth/forgot-password", async (ForgotPasswordRequest request, PasswordRecoveryService recovery, CancellationToken ct) =>
+        {
+            await recovery.RequestAsync(request.Email, ct);
+            return Results.Ok(new { mensagem = PasswordRecoveryService.GenericResponse });
+        }).AllowAnonymous().RequireRateLimiting("password-recovery-request").RequireAntiforgeryValidation();
+
+        group.MapPost("/auth/reset-password", async (ResetPasswordRequest request, PasswordRecoveryService recovery) =>
+            await recovery.ResetAsync(request.Email, request.Token, request.NewPassword)
+                ? Results.Ok(new { sucesso = true })
+                : Results.BadRequest(new { erro = "Nao foi possivel redefinir a senha." }))
+            .AllowAnonymous().RequireRateLimiting("password-recovery-reset").RequireAntiforgeryValidation();
 
         group.MapPost("/auth/logout", async (SignInManager<AppUser> signInManager, IFamilySelectionService selection) =>
         {
