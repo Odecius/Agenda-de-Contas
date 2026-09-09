@@ -11,7 +11,10 @@
 - Atualizado o provider PostgreSQL para `Npgsql.EntityFrameworkCore.PostgreSQL` 8.0.11, removendo a dependencia vulneravel Npgsql 8.0.0.
 - Atualizado o bundle SQLite apenas do harness de testes para remover a biblioteca nativa vulneravel legada.
 - Validado o fluxo em PostgreSQL 16 descartavel: migration em banco vazio, isolamento, concorrencia com um unico vencedor, rollback transacional, constraints e cleanup; 59/59 testes passaram.
-- Mantidos `MultiFamily:Enabled=false` como default e `ContaStore + JSON` como runtime legado.
+- Endurecido password recovery contra enumeracao por falha de delivery e origem publica sem HTTPS.
+- Adicionado password recovery multi-family com tokens nativos Identity, expiracao configuravel e SecurityStamp.
+- Adicionados UI, resposta nao enumeravel, antiforgery, limites por IP e hashes de email/token e entrega abstrata sem provider externo.
+- Mantidos `MultiFamily:Enabled=false` e `ContaStore + JSON` sem alteracoes.
 
 ## 2026-08-19
 

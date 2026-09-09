@@ -2,8 +2,9 @@
 
 ## Alta prioridade
 
-- Implementar password recovery e entrega automatizada dos convites antes do piloto.
-- Definir politica segura e fluxo separado para adicionar novos Owners.
+- Implementar provider real comum para entrega de recovery e convites sem expor tokens ou credentials.
+- Revisar e aprovar a Fase 4 antes de qualquer ensaio com copia de dados reais.
+- Definir politica segura e fluxo separado para adicionar novos Owners antes do piloto.
 - Executar testes dedicados de navegador para a UI multi-family.
 - Definir CLI/admin command ou procedimento offline para a futura execucao controlada.
 - Planejar separadamente settings, lembretes e Telegram sem transportar secrets.

@@ -58,6 +58,12 @@ var tests = new List<(string Name, Func<Task> Run)>
     ("Migration inicial contem schema multi-tenant", InitialMigrationContainsExpectedSchema),
     ("Identity usa hash e rejeita email duplicado", IdentityHashesPasswordsAndRequiresUniqueEmailAsync),
     ("Identity contabiliza falhas e aplica lockout", IdentityLockoutIsEnforcedAsync),
+    ("Recovery nao enumera usuario e entrega somente para elegivel", PasswordRecoveryDoesNotEnumerateAsync),
+    ("Recovery contem falha e timeout do delivery", PasswordRecoveryContainsDeliveryFailuresAsync),
+    ("Recovery exige PublicBaseUrl HTTPS segura", PasswordRecoveryRequiresSecurePublicBaseUrl),
+    ("Recovery redefine senha e invalida token", PasswordRecoveryResetsPasswordOnceAsync),
+    ("Recovery rejeita token adulterado e senha fraca", PasswordRecoveryRejectsInvalidInputsAsync),
+    ("Recovery rejeita token expirado", PasswordRecoveryRejectsExpiredTokenAsync),
     ("CurrentUserContext confia somente no principal", CurrentUserContextUsesOnlyAuthenticatedPrincipal),
     ("CurrentUserContext rejeita usuario anonimo", CurrentUserContextRejectsAnonymousUser),
     ("CurrentUserContext rejeita claim malformado", CurrentUserContextRejectsMalformedClaim),
@@ -90,6 +96,7 @@ if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("AGENDADOR_TES
     tests.Add(("Fluxo HTTP Identity e familia funciona em PostgreSQL", MultiFamilyHttpFlowWorksOnPostgresAsync));
     tests.Add(("Repositories e roles isolam familias em PostgreSQL", TenantAwareBusinessFlowWorksOnPostgresAsync));
     tests.Add(("Migracao JSON funciona em PostgreSQL", JsonMigrationWorksOnPostgresAsync));
+    tests.Add(("Password recovery funciona e preserva tenants em PostgreSQL", PasswordRecoveryWorksOnPostgresAsync));
     tests.Add(("Convites HTTP isolam familias em PostgreSQL", FamilyInvitationHttpFlowWorksOnPostgresAsync));
     tests.Add(("Aceite concorrente consome convite uma vez em PostgreSQL", FamilyInvitationConcurrencyWorksOnPostgresAsync));
     tests.Add(("Falha no aceite faz rollback completo em PostgreSQL", FamilyInvitationRollbackWorksOnPostgresAsync));
@@ -643,6 +650,119 @@ static async Task IdentityLockoutIsEnforcedAsync()
     AssertTrue(await scope.UserManager.IsLockedOutAsync(user), "Cinco falhas deveriam bloquear temporariamente o usuario.");
 }
 
+static async Task PasswordRecoveryDoesNotEnumerateAsync()
+{
+    await using var scope = await IdentityTestScope.CreateAsync();
+    var delivery = new CapturePasswordRecoveryDelivery();
+    var service = CreateRecoveryService(scope.UserManager, delivery);
+    var user = await CreateUserAsync(scope.UserManager, "Recovery.User@Example.Test", "Old-password-123!");
+
+    await service.RequestAsync("recovery.user@example.test");
+    AssertEqual(1, delivery.Messages.Count, "Email normalizado deveria localizar a identidade elegivel.");
+    await service.RequestAsync("unknown@example.test");
+    AssertEqual(1, delivery.Messages.Count, "Usuario inexistente nao deve gerar entrega.");
+    AssertEqual(PasswordRecoveryService.GenericResponse, PasswordRecoveryService.GenericResponse, "Resposta publica deve permanecer generica.");
+    AssertTrue(!delivery.Messages[0].Message.ResetUrl.Contains(user.Id.ToString(), StringComparison.OrdinalIgnoreCase), "Link nao deve expor UserId.");
+}
+
+static async Task PasswordRecoveryContainsDeliveryFailuresAsync()
+{
+    await using var scope = await IdentityTestScope.CreateAsync();
+    var user = await CreateUserAsync(scope.UserManager, "delivery-failure@example.test", "Old-password-123!");
+
+    var failureService = CreateRecoveryService(
+        scope.UserManager,
+        new ThrowingPasswordRecoveryDelivery(new HttpRequestException("synthetic provider failure")));
+    await failureService.RequestAsync(user.Email!);
+
+    var timeoutService = CreateRecoveryService(
+        scope.UserManager,
+        new ThrowingPasswordRecoveryDelivery(new TaskCanceledException("synthetic provider timeout")));
+    await timeoutService.RequestAsync(user.Email!);
+}
+
+static Task PasswordRecoveryRequiresSecurePublicBaseUrl()
+{
+    var validator = new PasswordRecoveryOptionsValidator();
+    foreach (var valid in new[] { "https://localhost", "https://example.invalid" })
+    {
+        AssertTrue(validator.Validate(null, new PasswordRecoveryOptions { Enabled = true, PublicBaseUrl = valid }).Succeeded,
+            $"URL HTTPS valida foi rejeitada: {valid}");
+    }
+
+    foreach (var invalid in new[]
+    {
+        "", "not a uri", "relative/path", "http://localhost", "http://example.invalid",
+        "ftp://example.invalid", "https://user:password@example.invalid", "https://example.invalid?value=1",
+        "https://example.invalid/#fragment"
+    })
+    {
+        AssertTrue(validator.Validate(null, new PasswordRecoveryOptions { Enabled = true, PublicBaseUrl = invalid }).Failed,
+            $"URL insegura foi aceita: {invalid}");
+    }
+
+    AssertTrue(validator.Validate(null, new PasswordRecoveryOptions { Enabled = false, PublicBaseUrl = "" }).Succeeded,
+        "Recovery desabilitado nao deve exigir URL.");
+    return Task.CompletedTask;
+}
+
+static async Task PasswordRecoveryResetsPasswordOnceAsync()
+{
+    await using var scope = await IdentityTestScope.CreateAsync();
+    var delivery = new CapturePasswordRecoveryDelivery();
+    var service = CreateRecoveryService(scope.UserManager, delivery);
+    var user = await CreateUserAsync(scope.UserManager, "reset@example.test", "Old-password-123!");
+    var oldStamp = await scope.UserManager.GetSecurityStampAsync(user);
+    await service.RequestAsync(user.Email!);
+    var (email, token) = ParseRecoveryLink(delivery.Messages.Single().Message.ResetUrl);
+
+    AssertTrue(await service.ResetAsync(email, token, "New-password-456!"), "Token valido deveria redefinir a senha.");
+    AssertTrue(!await scope.UserManager.CheckPasswordAsync(user, "Old-password-123!"), "Senha antiga deveria falhar.");
+    AssertTrue(await scope.UserManager.CheckPasswordAsync(user, "New-password-456!"), "Senha nova deveria funcionar.");
+    AssertTrue(!await service.ResetAsync(email, token, "Other-password-789!"), "Token reutilizado deveria falhar.");
+    AssertTrue(!string.Equals(oldStamp, await scope.UserManager.GetSecurityStampAsync(user), StringComparison.Ordinal), "Reset deve atualizar SecurityStamp para invalidar cookies na proxima validacao.");
+}
+
+static async Task PasswordRecoveryRejectsInvalidInputsAsync()
+{
+    await using var scope = await IdentityTestScope.CreateAsync();
+    var delivery = new CapturePasswordRecoveryDelivery();
+    var service = CreateRecoveryService(scope.UserManager, delivery);
+    var user = await CreateUserAsync(scope.UserManager, "invalid-reset@example.test", "Old-password-123!");
+    await service.RequestAsync(user.Email!);
+    var (email, token) = ParseRecoveryLink(delivery.Messages.Single().Message.ResetUrl);
+    AssertTrue(!await service.ResetAsync(email, token + "x", "New-password-456!"), "Token adulterado deveria falhar.");
+    AssertTrue(!await service.ResetAsync(email, token, "weak"), "Senha fora da policy Identity deveria falhar.");
+    AssertTrue(await service.ResetAsync(email, token, "New-password-456!"), "Falha por senha fraca nao deve consumir token valido.");
+}
+
+static async Task PasswordRecoveryRejectsExpiredTokenAsync()
+{
+    await using var scope = await IdentityTestScope.CreateAsync(TimeSpan.FromMilliseconds(1));
+    var delivery = new CapturePasswordRecoveryDelivery();
+    var service = CreateRecoveryService(scope.UserManager, delivery);
+    var user = await CreateUserAsync(scope.UserManager, "expired-reset@example.test", "Old-password-123!");
+    await service.RequestAsync(user.Email!);
+    var (email, token) = ParseRecoveryLink(delivery.Messages.Single().Message.ResetUrl);
+    await Task.Delay(25);
+    AssertTrue(!await service.ResetAsync(email, token, "New-password-456!"), "Token expirado deveria falhar.");
+}
+
+static PasswordRecoveryService CreateRecoveryService(UserManager<AppUser> users, IPasswordRecoveryDeliveryService delivery) =>
+    new(users, delivery, Options.Create(new PasswordRecoveryOptions
+    {
+        Enabled = true,
+        PublicBaseUrl = "https://localhost",
+        TokenLifespanMinutes = 60
+    }), new PasswordRecoveryAttemptLimiter(TimeProvider.System), NullLogger<PasswordRecoveryService>.Instance);
+
+static (string Email, string Token) ParseRecoveryLink(string url)
+{
+    var fragment = new Uri(url).Fragment.TrimStart('#');
+    var values = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(fragment);
+    return (values["email"].ToString(), values["token"].ToString());
+}
+
 static Task CurrentUserContextUsesOnlyAuthenticatedPrincipal()
 {
     var expectedUserId = Guid.NewGuid();
@@ -886,6 +1006,102 @@ static async Task MultiFamilyHttpFlowWorksOnPostgresAsync()
         lastStatus = (await PostWithTokenAsync(rateClient, "/api/multi-family/auth/login", new IdentityLoginRequest("missing@example.test", "wrong"), rateToken)).StatusCode;
     }
     AssertEqual(HttpStatusCode.TooManyRequests, lastStatus, "Sexta tentativa na janela deveria receber 429.");
+}
+
+static async Task PasswordRecoveryWorksOnPostgresAsync()
+{
+    var connectionString = Environment.GetEnvironmentVariable("AGENDADOR_TEST_POSTGRES")
+        ?? throw new InvalidOperationException("Connection string descartavel de teste ausente.");
+    await using var factory = new MultiFamilyWebFactory(connectionString);
+    Guid userId;
+    Guid familyId;
+    using (var scope = factory.Services.CreateScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<AgendadorDbContext>();
+        await db.Database.EnsureDeletedAsync();
+        await db.Database.MigrateAsync();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+        var user = await CreateUserAsync(users, "owner-recovery@example.test", "Old-password-123!");
+        var family = NewFamily("Recovery Family");
+        db.Add(family);
+        db.FamilyUsers.Add(new FamilyUser { FamilyId = family.Id, UserId = user.Id, Role = FamilyRole.Owner });
+        await db.SaveChangesAsync();
+        userId = user.Id;
+        familyId = family.Id;
+    }
+
+    using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri("https://localhost"), HandleCookies = true });
+    var csrf = await GetAntiforgeryTokenAsync(client);
+    using var known = await PostWithTokenAsync(client, "/api/multi-family/auth/forgot-password", new ForgotPasswordRequest("OWNER-RECOVERY@example.test"), csrf);
+    using var unknown = await PostWithTokenAsync(client, "/api/multi-family/auth/forgot-password", new ForgotPasswordRequest("unknown@example.test"), csrf);
+    AssertEqual(HttpStatusCode.OK, known.StatusCode, "Recovery conhecido deveria usar resposta generica OK.");
+    AssertEqual(await known.Content.ReadAsStringAsync(), await unknown.Content.ReadAsStringAsync(), "Resposta nao pode enumerar identidade.");
+    AssertEqual(1, factory.RecoveryDelivery.Messages.Count, "Somente identidade elegivel deve gerar entrega.");
+
+    await using (var failingFactory = new MultiFamilyWebFactory(
+        connectionString,
+        new ThrowingPasswordRecoveryDelivery(new HttpRequestException("synthetic provider failure"))))
+    {
+        using var failingClient = failingFactory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost"),
+            HandleCookies = true
+        });
+        var failingCsrf = await GetAntiforgeryTokenAsync(failingClient);
+        using var failingKnown = await PostWithTokenAsync(
+            failingClient,
+            "/api/multi-family/auth/forgot-password",
+            new ForgotPasswordRequest("owner-recovery@example.test"),
+            failingCsrf);
+        using var failingUnknown = await PostWithTokenAsync(
+            failingClient,
+            "/api/multi-family/auth/forgot-password",
+            new ForgotPasswordRequest("missing-recovery@example.test"),
+            failingCsrf);
+        AssertEqual(failingUnknown.StatusCode, failingKnown.StatusCode,
+            "Falha do provider nao pode alterar o status conforme existencia da identidade.");
+        AssertEqual(await failingUnknown.Content.ReadAsStringAsync(), await failingKnown.Content.ReadAsStringAsync(),
+            "Falha do provider nao pode alterar o contrato conforme existencia da identidade.");
+        AssertEqual(HttpStatusCode.OK, failingKnown.StatusCode,
+            "Falha do provider deve preservar resposta generica.");
+    }
+    HttpStatusCode recoveryRateStatus = 0;
+    for (var attempt = 0; attempt < 9; attempt++)
+    {
+        using var limited = await PostWithTokenAsync(client, "/api/multi-family/auth/forgot-password", new ForgotPasswordRequest($"rate-{attempt}@example.test"), csrf);
+        recoveryRateStatus = limited.StatusCode;
+    }
+    AssertEqual(HttpStatusCode.TooManyRequests, recoveryRateStatus, "Decima primeira solicitacao de recovery por IP deveria receber 429.");
+    var (email, token) = ParseRecoveryLink(factory.RecoveryDelivery.Messages.Single().Message.ResetUrl);
+
+    using var firstClient = factory.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri("https://localhost") });
+    using var secondClient = factory.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri("https://localhost") });
+    var firstCsrf = await GetAntiforgeryTokenAsync(firstClient);
+    var secondCsrf = await GetAntiforgeryTokenAsync(secondClient);
+    var start = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    async Task<HttpResponseMessage> Reset(HttpClient c, string csrfToken, string password)
+    {
+        await start.Task;
+        return await PostWithTokenAsync(c, "/api/multi-family/auth/reset-password", new ResetPasswordRequest(email, token, password), csrfToken);
+    }
+    var firstTask = Reset(firstClient, firstCsrf, "Concurrent-one-123!");
+    var secondTask = Reset(secondClient, secondCsrf, "Concurrent-two-123!");
+    start.SetResult();
+    using var first = await firstTask;
+    using var second = await secondTask;
+    AssertEqual(1, new[] { first.StatusCode, second.StatusCode }.Count(x => x == HttpStatusCode.OK), "Mesmo token concorrente deve ter no maximo um vencedor.");
+
+    using (var scope = factory.Services.CreateScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<AgendadorDbContext>();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+        var user = await users.FindByIdAsync(userId.ToString()) ?? throw new InvalidOperationException("Usuario de recovery ausente.");
+        var validPasswords = new[] { "Concurrent-one-123!", "Concurrent-two-123!" }.Count(password => users.CheckPasswordAsync(user, password).GetAwaiter().GetResult());
+        AssertEqual(1, validPasswords, "Senha final deve corresponder a um unico reset vencedor.");
+        var membership = await db.FamilyUsers.SingleAsync(x => x.UserId == userId && x.FamilyId == familyId);
+        AssertEqual(FamilyRole.Owner, membership.Role, "Recovery nao pode alterar role familiar.");
+        AssertEqual(1, await db.FamilyUsers.CountAsync(x => x.UserId == userId), "Recovery nao pode alterar memberships.");
+    }
 }
 
 static async Task MultiFamilyBootstrapIsIdempotentAsync()
@@ -2220,13 +2436,17 @@ internal sealed class IdentityTestScope : IAsyncDisposable
         Db = services.GetRequiredService<AgendadorDbContext>();
     }
 
-    public static async Task<IdentityTestScope> CreateAsync()
+    public static async Task<IdentityTestScope> CreateAsync(TimeSpan? tokenLifespan = null)
     {
         var connection = new SqliteConnection("Data Source=:memory:");
         await connection.OpenAsync();
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddDataProtection();
+        if (tokenLifespan is not null)
+        {
+            services.Configure<DataProtectionTokenProviderOptions>(options => options.TokenLifespan = tokenLifespan.Value);
+        }
         services.AddDbContext<AgendadorDbContext>(options => options.UseSqlite(connection));
         services.AddIdentityCore<AppUser>(options =>
         {
@@ -2297,6 +2517,24 @@ internal sealed class FakeFamilyTelegramSender(Guid failingFamilyId) : IFamilyTe
         if (settings.FamilyId == failingFamilyId) throw new InvalidOperationException("Synthetic family failure.");
         return Task.FromResult(true);
     }
+}
+
+internal sealed class CapturePasswordRecoveryDelivery : IPasswordRecoveryDeliveryService
+{
+    public List<(string Email, PasswordRecoveryMessage Message)> Messages { get; } = [];
+    public Task DeliverAsync(string email, PasswordRecoveryMessage message, CancellationToken cancellationToken = default)
+    {
+        Messages.Add((email, message));
+        return Task.CompletedTask;
+    }
+}
+
+internal sealed class ThrowingPasswordRecoveryDelivery(Exception exception) : IPasswordRecoveryDeliveryService
+{
+    public Task DeliverAsync(
+        string email,
+        PasswordRecoveryMessage message,
+        CancellationToken cancellationToken = default) => Task.FromException(exception);
 }
 
 internal sealed class FamilyContextTestScope : IAsyncDisposable
@@ -2505,10 +2743,15 @@ internal sealed class MultiFamilyWebFactory : WebApplicationFactory<ApplicationM
 {
     private readonly Dictionary<string, string?> _previousEnvironment = new(StringComparer.Ordinal);
     private readonly string _connectionString;
+    private readonly IPasswordRecoveryDeliveryService _recoveryDelivery;
+    public CapturePasswordRecoveryDelivery RecoveryDelivery { get; } = new();
 
-    public MultiFamilyWebFactory(string connectionString)
+    public MultiFamilyWebFactory(
+        string connectionString,
+        IPasswordRecoveryDeliveryService? recoveryDelivery = null)
     {
         _connectionString = connectionString;
+        _recoveryDelivery = recoveryDelivery ?? RecoveryDelivery;
         SetEnvironment("MultiFamily__Enabled", "true");
         SetEnvironment("MultiFamily__ConnectionString", connectionString);
         SetEnvironment("MultiFamily__SessionHours", "1");
@@ -2531,6 +2774,8 @@ internal sealed class MultiFamilyWebFactory : WebApplicationFactory<ApplicationM
                 ["Backup:AutomaticEnabled"] = "false",
                 ["AccessProtection:Enabled"] = "false"
             }));
+        builder.ConfigureServices(services =>
+            services.AddSingleton(_recoveryDelivery));
     }
 
     public override async ValueTask DisposeAsync()

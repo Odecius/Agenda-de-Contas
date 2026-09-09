@@ -203,4 +203,10 @@ O plano detalhado esta em `docs/multi-family-postgresql-plan.md`. A fundacao e o
 - Token de uso unico e alta entropia e persistido somente como hash, com expiracao e revogacao.
 - Aceite cria uma identidade ou valida senha e lockout da conta existente.
 - UI usa fragmento de URL para evitar envio do token no request inicial.
-- Entrega automatizada, recovery e novos Owners permanecem pendentes.
+- Entrega automatizada e novos Owners permanecem pendentes; recovery foi concluido na etapa seguinte.
+
+### Etapa 32.6 - Password recovery
+
+- Recovery global da identidade sem tenant, membership ou role no request.
+- Token provider Identity, lifespan configuravel, SecurityStamp, antiforgery e protecao contra enumeracao e abuso.
+- UI e abstracao de entrega implementadas; provider real permanece separado.
