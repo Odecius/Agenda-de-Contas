@@ -33,7 +33,7 @@ Ele somente funciona com a flag ativa em Development/Testing. Email, senha e nom
 | Alterar FamilySettings | sim | sim | nao |
 | Alterar TelegramSettings | sim | nao | nao |
 
-Mutacoes exigem antiforgery. `FamilyId` de query, headers ou payload nao e autoridade. O ultimo Owner ativo nao pode ser removido nem rebaixado. Nesta fase novos memberships podem ser somente Admin ou Member; nao ha convite, email ou cadastro publico.
+Mutacoes exigem antiforgery. `FamilyId` de query, headers ou payload nao e autoridade. O ultimo Owner ativo nao pode ser removido nem rebaixado. Novos memberships usam convite de uso unico e podem ser somente Admin ou Member; nao ha cadastro publico, entrega automatizada ou convite para Owner.
 
 ## Settings e Telegram
 
@@ -51,7 +51,7 @@ O frontend legado foi preservado. O novo HTML/JS usa os endpoints `/api/multi-fa
 
 - modo multi-family continua proibido fora de Development/Testing;
 - nao houve importacao real, cutover ou deploy;
-- nao ha convite, recovery UI ou criacao de usuarios alem do bootstrap administrativo;
+- convite manual existe; entrega automatizada e recovery UI permanecem pendentes;
 - sessao em memoria requer substituicao antes de multiplas replicas;
 - a UI operacional e funcional, mas ainda nao replica todos os dashboards/backup/exportacao do modo JSON;
 - antes do piloto: review dedicado, testes de navegador, restore ensaiado, secrets rotacionados e cutover separado.

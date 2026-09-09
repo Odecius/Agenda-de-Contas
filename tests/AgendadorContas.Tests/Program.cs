@@ -8,23 +8,28 @@ using AgendadorContas.Tenancy;
 using AgendadorContas;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using System.Security.Claims;
+using System.Data;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 var tests = new List<(string Name, Func<Task> Run)>
 {
@@ -48,6 +53,7 @@ var tests = new List<(string Name, Func<Task> Run)>
     ("Telegram settings duplicados por familia sao impedidos", DuplicateTelegramSettingsAreRejectedAsync),
     ("Pagamento duplicado no mesmo mes e impedido", DuplicateMonthlyPaymentIsRejectedAsync),
     ("Roles e valores invalidos sao impedidos", InvalidRelationalValuesAreRejectedAsync),
+    ("Constraints de convite impedem roles e estados invalidos", FamilyInvitationConstraintsAreEnforcedAsync),
     ("Deletes respeitam cascades e restricoes", RelationalDeleteBehaviorsAreEnforcedAsync),
     ("Migration inicial contem schema multi-tenant", InitialMigrationContainsExpectedSchema),
     ("Identity usa hash e rejeita email duplicado", IdentityHashesPasswordsAndRequiresUniqueEmailAsync),
@@ -78,6 +84,9 @@ var tests = new List<(string Name, Func<Task> Run)>
     ("Migracao invalida e falha atomica nao deixam escrita parcial", JsonMigrationValidationAndRollbackAsync),
     ("Bootstrap multi-family e idempotente", MultiFamilyBootstrapIsIdempotentAsync),
     ("Bootstrap rejeita identidades conflitantes sem alterar estado", MultiFamilyBootstrapRejectsConflictsAsync),
+    ("Convite cria membership sem confiar em tenant do cliente", FamilyInvitationCreatesMembershipSecurelyAsync),
+    ("Convite rejeita adulteracao expiracao revogacao e reuso", FamilyInvitationRejectsTamperingAndReuseAsync),
+    ("Convites HTTP isolam familias em SQLite descartavel", FamilyInvitationHttpFlowWorksOnSqliteAsync),
     ("Worker multi-family isola familias e falhas", MultiFamilyWorkerIsolatesFamiliesAndFailuresAsync),
     ("Worker sem contas pendentes nao envia Telegram", MultiFamilyWorkerSkipsEmptyReminderAsync)
 };
@@ -88,6 +97,11 @@ if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("AGENDADOR_TES
     tests.Add(("Repositories e roles isolam familias em PostgreSQL", TenantAwareBusinessFlowWorksOnPostgresAsync));
     tests.Add(("Migracao JSON funciona em PostgreSQL", JsonMigrationWorksOnPostgresAsync));
     tests.Add(("Password recovery funciona e preserva tenants em PostgreSQL", PasswordRecoveryWorksOnPostgresAsync));
+    tests.Add(("Convites HTTP isolam familias em PostgreSQL", FamilyInvitationHttpFlowWorksOnPostgresAsync));
+    tests.Add(("Aceite concorrente consome convite uma vez em PostgreSQL", FamilyInvitationConcurrencyWorksOnPostgresAsync));
+    tests.Add(("Falha no aceite faz rollback completo em PostgreSQL", FamilyInvitationRollbackWorksOnPostgresAsync));
+    tests.Add(("Constraints de convite sao impostas pelo PostgreSQL", FamilyInvitationConstraintsWorkOnPostgresAsync));
+    tests.Add(("Ciclo de vida do convite funciona em PostgreSQL", FamilyInvitationLifecycleWorksOnPostgresAsync));
 }
 
 tests.Add(("Runtime legado preserva JSON e workers", LegacyRuntimeKeepsJsonAndWorkersAsync));
@@ -595,9 +609,10 @@ static Task InitialMigrationContainsExpectedSchema()
     using var db = new AgendadorDbContext(options);
     var migrations = db.GetService<IMigrationsAssembly>().Migrations;
     AssertTrue(migrations.Keys.Any(x => x.EndsWith("_InitialMultiTenantSchema", StringComparison.Ordinal)), "Migration inicial nao foi encontrada.");
+    AssertTrue(migrations.Keys.Any(x => x.EndsWith("_AddFamilyInvitations", StringComparison.Ordinal)), "Migration de convites nao foi encontrada.");
 
     var tables = db.Model.GetEntityTypes().Select(x => x.GetTableName()).Where(x => x is not null).ToHashSet();
-    foreach (var table in new[] { "families", "family_users", "family_settings", "telegram_settings", "contas", "pagamentos", "lembretes_enviados", "app_users" })
+    foreach (var table in new[] { "families", "family_users", "family_invitations", "family_settings", "telegram_settings", "contas", "pagamentos", "lembretes_enviados", "app_users" })
     {
         AssertTrue(tables.Contains(table), $"Tabela {table} deveria existir no modelo da migration.");
     }
@@ -1151,6 +1166,146 @@ static async Task MultiFamilyBootstrapRejectsConflictsAsync()
     AssertEqual(0, await rollbackScope.Db.FamilyUsers.CountAsync(), "Rollback deixou membership parcial.");
 }
 
+static async Task FamilyInvitationConstraintsAreEnforcedAsync()
+{
+    await using var scope = await RelationalTestScope.CreateAsync();
+    var family = NewFamily("Invitation Constraints");
+    var owner = new AppUser { Id = Guid.NewGuid(), UserName = "constraint-owner", NormalizedUserName = "CONSTRAINT-OWNER" };
+    scope.Db.AddRange(family, owner);
+    await scope.Db.SaveChangesAsync();
+    var now = DateTime.UtcNow;
+
+    scope.Db.FamilyInvitations.Add(new FamilyInvitation
+    {
+        FamilyId = family.Id,
+        Email = "invalid-role@example.test",
+        NormalizedEmail = "INVALID-ROLE@EXAMPLE.TEST",
+        Role = FamilyRole.Owner,
+        TokenHash = new string('A', 64),
+        CreatedByUserId = owner.Id,
+        CreatedAtUtc = now,
+        ExpiresAtUtc = now.AddHours(1)
+    });
+    await AssertDbUpdateRejectedAsync(scope.Db, "Convite Owner deveria violar check constraint.");
+
+    scope.Db.ChangeTracker.Clear();
+    scope.Db.FamilyInvitations.Add(new FamilyInvitation
+    {
+        FamilyId = family.Id,
+        Email = "invalid-expiry@example.test",
+        NormalizedEmail = "INVALID-EXPIRY@EXAMPLE.TEST",
+        Role = FamilyRole.Member,
+        TokenHash = new string('B', 64),
+        CreatedByUserId = owner.Id,
+        CreatedAtUtc = now,
+        ExpiresAtUtc = now
+    });
+    await AssertDbUpdateRejectedAsync(scope.Db, "Expiracao deve ser posterior a criacao.");
+
+    scope.Db.ChangeTracker.Clear();
+    scope.Db.FamilyInvitations.Add(new FamilyInvitation
+    {
+        FamilyId = family.Id,
+        Email = "invalid-acceptor@example.test",
+        NormalizedEmail = "INVALID-ACCEPTOR@EXAMPLE.TEST",
+        Role = FamilyRole.Admin,
+        TokenHash = new string('C', 64),
+        CreatedByUserId = owner.Id,
+        CreatedAtUtc = now,
+        ExpiresAtUtc = now.AddHours(1),
+        AcceptedAtUtc = now
+    });
+    await AssertDbUpdateRejectedAsync(scope.Db, "Aceite sem usuario associado deveria violar check constraint.");
+}
+
+static async Task FamilyInvitationCreatesMembershipSecurelyAsync()
+{
+    await using var scope = await IdentityTestScope.CreateAsync();
+    const string ownerPassword = "Owner-invite-123!";
+    const string inviteePassword = "Invitee-test-123!";
+    var owner = await CreateUserAsync(scope.UserManager, "invite-owner@example.test", ownerPassword);
+    var family = NewFamily("Invitation Family");
+    scope.Db.Add(family);
+    scope.Db.FamilyUsers.Add(new FamilyUser { FamilyId = family.Id, UserId = owner.Id, Role = FamilyRole.Owner });
+    await scope.Db.SaveChangesAsync();
+
+    var service = new FamilyInvitationService(
+        scope.Db,
+        new StaticCurrentFamilyContext(new CurrentFamily(family.Id, owner.Id, FamilyRole.Owner)),
+        scope.UserManager,
+        Microsoft.Extensions.Options.Options.Create(new MultiFamilyOptions { InvitationHours = 48 }),
+        TimeProvider.System);
+
+    var invitation = await service.CreateAsync("new-member@example.test", FamilyRole.Member);
+    var stored = await scope.Db.FamilyInvitations.SingleAsync(x => x.Id == invitation.Id);
+    AssertEqual(family.Id, stored.FamilyId, "Convite deve receber FamilyId apenas do contexto atual.");
+    AssertEqual(64, stored.TokenHash.Length, "Hash SHA-256 do convite deveria ter 64 caracteres hexadecimais.");
+    AssertTrue(!string.Equals(stored.TokenHash, invitation.Token, StringComparison.Ordinal), "Token bruto nunca deve ser persistido.");
+    AssertTrue(!invitation.ToString().Contains(invitation.Token, StringComparison.Ordinal), "Representacao do resultado nao deve expor token.");
+    AssertTrue(!invitation.ToString().Contains(invitation.Email, StringComparison.OrdinalIgnoreCase), "Representacao do resultado nao deve expor email.");
+    AssertTrue(await service.AcceptAsync(invitation.Token, "wrong@example.test", inviteePassword) is null, "Email adulterado deveria rejeitar convite.");
+    AssertEqual(1, await scope.Db.Users.CountAsync(), "Tentativa adulterada nao deveria criar usuario.");
+
+    var accepted = await service.AcceptAsync(invitation.Token, "new-member@example.test", inviteePassword);
+    AssertTrue(accepted is { UserCreated: true }, "Convite valido deveria criar novo usuario.");
+    var membership = await scope.Db.FamilyUsers.SingleAsync(x => x.UserId == accepted!.UserId);
+    AssertEqual(family.Id, membership.FamilyId, "Membership deve permanecer na familia vinculada ao convite.");
+    AssertEqual(FamilyRole.Member, membership.Role, "Membership deveria preservar role do convite.");
+    AssertTrue(await service.AcceptAsync(invitation.Token, "new-member@example.test", inviteePassword) is null, "Convite de uso unico nao pode ser reutilizado.");
+
+    var existing = await CreateUserAsync(scope.UserManager, "existing-member@example.test", "Existing-test-123!");
+    var existingInvitation = await service.CreateAsync(existing.Email!, FamilyRole.Admin);
+    AssertTrue(await service.AcceptAsync(existingInvitation.Token, existing.Email!, "wrong-password") is null, "Conta existente exige senha correta.");
+    var existingAccepted = await service.AcceptAsync(existingInvitation.Token, existing.Email!, "Existing-test-123!");
+    AssertTrue(existingAccepted is { UserCreated: false }, "Conta existente nao deve ser duplicada.");
+    AssertEqual(FamilyRole.Admin, (await scope.Db.FamilyUsers.SingleAsync(x => x.UserId == existing.Id)).Role, "Role Admin do convite deveria ser aplicada.");
+}
+
+static async Task FamilyInvitationRejectsTamperingAndReuseAsync()
+{
+    await using var scope = await IdentityTestScope.CreateAsync();
+    var ownerA = await CreateUserAsync(scope.UserManager, "owner-a-invite@example.test", "Owner-a-test-123!");
+    var ownerB = await CreateUserAsync(scope.UserManager, "owner-b-invite@example.test", "Owner-b-test-123!");
+    var familyA = NewFamily("Invitation Family A");
+    var familyB = NewFamily("Invitation Family B");
+    scope.Db.AddRange(familyA, familyB);
+    scope.Db.FamilyUsers.AddRange(
+        new FamilyUser { FamilyId = familyA.Id, UserId = ownerA.Id, Role = FamilyRole.Owner },
+        new FamilyUser { FamilyId = familyB.Id, UserId = ownerB.Id, Role = FamilyRole.Owner });
+    await scope.Db.SaveChangesAsync();
+
+    var time = new AdjustableTimeProvider(new DateTimeOffset(2026, 8, 29, 10, 0, 0, TimeSpan.Zero));
+    var options = Microsoft.Extensions.Options.Options.Create(new MultiFamilyOptions { InvitationHours = 1 });
+    var serviceA = new FamilyInvitationService(scope.Db, new StaticCurrentFamilyContext(new CurrentFamily(familyA.Id, ownerA.Id, FamilyRole.Owner)), scope.UserManager, options, time);
+    var serviceB = new FamilyInvitationService(scope.Db, new StaticCurrentFamilyContext(new CurrentFamily(familyB.Id, ownerB.Id, FamilyRole.Owner)), scope.UserManager, options, time);
+
+    var expired = await serviceA.CreateAsync("expired@example.test", FamilyRole.Member);
+    time.Advance(TimeSpan.FromHours(2));
+    AssertTrue(await serviceA.AcceptAsync(expired.Token, expired.Email, "Expired-test-123!") is null, "Convite expirado deveria falhar fechado.");
+    AssertEqual(2, await scope.Db.Users.CountAsync(), "Convite expirado nao deveria criar usuario.");
+
+    var revoked = await serviceA.CreateAsync("revoked@example.test", FamilyRole.Admin);
+    AssertTrue(!await serviceB.RevokeAsync(revoked.Id), "Owner B nao pode descobrir nem revogar convite da familia A.");
+    AssertTrue(await serviceA.RevokeAsync(revoked.Id), "Owner A deveria revogar convite proprio.");
+    AssertTrue(await serviceA.AcceptAsync(revoked.Token, revoked.Email, "Revoked-test-123!") is null, "Convite revogado nao pode ser aceito.");
+    AssertTrue((await serviceB.ListAsync()).All(x => x.Id != revoked.Id), "Lista de B nunca deve expor convite de A.");
+
+    var memberContext = new FamilyInvitationService(scope.Db, new StaticCurrentFamilyContext(new CurrentFamily(familyA.Id, ownerA.Id, FamilyRole.Member)), scope.UserManager, options, time);
+    var unauthorized = await CaptureExceptionAsync(() => memberContext.CreateAsync("forbidden@example.test", FamilyRole.Member));
+    AssertTrue(unauthorized is UnauthorizedAccessException, "Member nao pode criar convite.");
+    var ownerRole = await CaptureExceptionAsync(() => serviceA.CreateAsync("owner@example.test", FamilyRole.Owner));
+    AssertTrue(ownerRole is ArgumentException, "Convite nunca deve criar Owner.");
+
+    var lockoutUser = await CreateUserAsync(scope.UserManager, "invite-lockout@example.test", "Lockout-test-123!");
+    var lockoutInvitation = await serviceA.CreateAsync(lockoutUser.Email!, FamilyRole.Member);
+    for (var attempt = 0; attempt < 5; attempt++)
+    {
+        AssertTrue(await serviceA.AcceptAsync(lockoutInvitation.Token, lockoutUser.Email!, "wrong-password") is null, "Senha incorreta deveria rejeitar aceite.");
+    }
+    AssertTrue(await scope.UserManager.IsLockedOutAsync(lockoutUser), "Falhas de aceite para conta existente devem aplicar lockout Identity.");
+    AssertTrue(await serviceA.AcceptAsync(lockoutInvitation.Token, lockoutUser.Email!, "Lockout-test-123!") is null, "Conta bloqueada nao pode aceitar convite mesmo com senha correta.");
+}
+
 static async Task MultiFamilyWorkerIsolatesFamiliesAndFailuresAsync()
 {
     await using var scope = await RelationalTestScope.CreateAsync();
@@ -1324,7 +1479,7 @@ static async Task TenantAwareBusinessFlowWorksOnPostgresAsync()
         var membersA = await ownerAClient.GetStringAsync("/api/multi-family/members?FamilyId=" + familyBId);
         AssertTrue(membersA.Contains(ownerAEmail) && !membersA.Contains(ownerBEmail), "Lista de members deve usar somente familia atual.");
         AssertEqual(HttpStatusCode.Conflict, (await PutWithTokenAsync(ownerAClient, $"/api/multi-family/members/{ownerAId}/role", new FamilyMemberRoleRequest(FamilyRole.Member), ownerAToken)).StatusCode, "Ultimo Owner nao pode ser rebaixado.");
-        AssertEqual(HttpStatusCode.Conflict, (await PostWithTokenAsync(ownerAClient, "/api/multi-family/members", new FamilyMemberCreateRequest(ownerAEmail, FamilyRole.Member), ownerAToken)).StatusCode, "Reativacao nao pode contornar a protecao do ultimo Owner.");
+        AssertEqual(HttpStatusCode.Conflict, (await PostWithTokenAsync(ownerAClient, "/api/multi-family/invitations", new FamilyInvitationCreateRequest(ownerAEmail, FamilyRole.Member), ownerAToken)).StatusCode, "Convite nao pode contornar membership existente do ultimo Owner.");
         AssertEqual(HttpStatusCode.NoContent, (await PutWithTokenAsync(ownerAClient, $"/api/multi-family/members/{userCId}/role", new FamilyMemberRoleRequest(FamilyRole.Admin), ownerAToken)).StatusCode, "Owner deve promover Member para Admin.");
         AssertEqual(HttpStatusCode.NoContent, (await PutWithTokenAsync(ownerAClient, $"/api/multi-family/members/{userCId}/role", new FamilyMemberRoleRequest(FamilyRole.Member), ownerAToken)).StatusCode, "Owner deve restaurar Member.");
         AssertEqual(HttpStatusCode.OK, (await PutWithTokenAsync(ownerAClient, "/api/multi-family/settings?FamilyId=" + familyBId, new FamilySettingsRequest(AccountCurrency.EUR, "Europe/London", 7, 30), ownerAToken)).StatusCode, "Owner deve alterar settings da propria familia.");
@@ -1404,6 +1559,436 @@ static async Task TenantAwareBusinessFlowWorksOnPostgresAsync()
     }
 }
 
+static async Task FamilyInvitationHttpFlowWorksOnPostgresAsync()
+{
+    var connectionString = Environment.GetEnvironmentVariable("AGENDADOR_TEST_POSTGRES")
+        ?? throw new InvalidOperationException("Connection string descartavel de teste ausente.");
+    await using var factory = new MultiFamilyWebFactory(connectionString);
+    await RunFamilyInvitationHttpFlowAsync(factory, applyMigrations: true);
+}
+
+static async Task FamilyInvitationConcurrencyWorksOnPostgresAsync()
+{
+    var connectionString = Environment.GetEnvironmentVariable("AGENDADOR_TEST_POSTGRES")
+        ?? throw new InvalidOperationException("Connection string descartavel de teste ausente.");
+    await using var factory = new MultiFamilyWebFactory(connectionString);
+    var suffix = Guid.NewGuid().ToString("N");
+    const string ownerPassword = "Concurrency-owner-123!";
+    const string inviteePassword = "Concurrency-invitee-123!";
+    var ownerEmail = $"concurrency-owner-{suffix}@example.test";
+    Guid familyId;
+
+    using (var scope = factory.Services.CreateScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<AgendadorDbContext>();
+        await db.Database.MigrateAsync();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+        var owner = await CreateUserAsync(users, ownerEmail, ownerPassword);
+        var family = NewFamily("Concurrency Invitation Family");
+        db.Add(family);
+        db.FamilyUsers.Add(new FamilyUser { FamilyId = family.Id, UserId = owner.Id, Role = FamilyRole.Owner });
+        await db.SaveChangesAsync();
+        familyId = family.Id;
+    }
+
+    var (ownerClient, ownerToken) = await CreateAuthenticatedClientAsync(factory, ownerEmail, ownerPassword);
+    using (ownerClient)
+    {
+        for (var attempt = 0; attempt < 5; attempt++)
+        {
+            var inviteeEmail = $"concurrency-{attempt}-{suffix}@example.test";
+            using var created = await PostWithTokenAsync(
+                ownerClient,
+                "/api/multi-family/invitations",
+                new FamilyInvitationCreateRequest(inviteeEmail, FamilyRole.Member),
+                ownerToken);
+            AssertEqual(HttpStatusCode.Created, created.StatusCode, "Owner deveria criar convite concorrente.");
+            using var json = JsonDocument.Parse(await created.Content.ReadAsStringAsync());
+            var invitationId = json.RootElement.GetProperty("id").GetGuid();
+            var invitationToken = json.RootElement.GetProperty("token").GetString()!;
+
+            using var clientA = factory.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri("https://localhost"), HandleCookies = true });
+            using var clientB = factory.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri("https://localhost"), HandleCookies = true });
+            var csrfA = await GetAntiforgeryTokenAsync(clientA);
+            var csrfB = await GetAntiforgeryTokenAsync(clientB);
+            var start = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            async Task<HttpResponseMessage> AcceptAsync(HttpClient client, string csrf)
+            {
+                await start.Task;
+                return await PostWithTokenAsync(
+                    client,
+                    "/api/multi-family/invitations/accept",
+                    new FamilyInvitationAcceptRequest(invitationToken, inviteeEmail, inviteePassword),
+                    csrf);
+            }
+
+            var requestA = AcceptAsync(clientA, csrfA);
+            var requestB = AcceptAsync(clientB, csrfB);
+            start.SetResult();
+            var responses = await Task.WhenAll(requestA, requestB);
+            using var responseA = responses[0];
+            using var responseB = responses[1];
+            var statusCodes = responses.Select(x => x.StatusCode).Order().ToArray();
+            AssertTrue(statusCodes.SequenceEqual(new[] { HttpStatusCode.OK, HttpStatusCode.BadRequest }.Order()), "Exatamente um aceite concorrente deveria vencer e o outro falhar de forma controlada.");
+
+            using var scope = factory.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AgendadorDbContext>();
+            var normalizedEmail = inviteeEmail.ToUpperInvariant();
+            var users = await db.Users.Where(x => x.NormalizedEmail == normalizedEmail).Select(x => x.Id).ToListAsync();
+            AssertEqual(1, users.Count, "Aceite concorrente criou identidade duplicada.");
+            AssertEqual(1, await db.FamilyUsers.CountAsync(x => x.FamilyId == familyId && x.UserId == users[0]), "Aceite concorrente deve criar uma unica membership.");
+            var invitation = await db.FamilyInvitations.SingleAsync(x => x.Id == invitationId);
+            AssertTrue(invitation.AcceptedAtUtc is not null && invitation.AcceptedByUserId == users[0], "Convite concorrente deve ser consumido exatamente uma vez.");
+            AssertTrue(!string.Equals(invitation.TokenHash, invitationToken, StringComparison.Ordinal), "Token bruto concorrente nao pode ser persistido.");
+        }
+    }
+}
+
+static async Task FamilyInvitationRollbackWorksOnPostgresAsync()
+{
+    var connectionString = Environment.GetEnvironmentVariable("AGENDADOR_TEST_POSTGRES")
+        ?? throw new InvalidOperationException("Connection string descartavel de teste ausente.");
+    var interceptor = new FailOnFamilyMembershipInterceptor();
+    await using var provider = CreatePostgresIdentityProvider(connectionString, interceptor);
+    var db = provider.GetRequiredService<AgendadorDbContext>();
+    await db.Database.MigrateAsync();
+    var users = provider.GetRequiredService<UserManager<AppUser>>();
+    var suffix = Guid.NewGuid().ToString("N");
+    var owner = await CreateUserAsync(users, $"rollback-owner-{suffix}@example.test", "Rollback-owner-123!");
+    var family = NewFamily("Invitation Rollback Family");
+    db.Add(family);
+    db.FamilyUsers.Add(new FamilyUser { FamilyId = family.Id, UserId = owner.Id, Role = FamilyRole.Owner });
+    await db.SaveChangesAsync();
+
+    var service = new FamilyInvitationService(
+        db,
+        new StaticCurrentFamilyContext(new CurrentFamily(family.Id, owner.Id, FamilyRole.Owner)),
+        users,
+        Microsoft.Extensions.Options.Options.Create(new MultiFamilyOptions { InvitationHours = 1 }),
+        TimeProvider.System);
+    var inviteeEmail = $"rollback-invitee-{suffix}@example.test";
+    var invitation = await service.CreateAsync(inviteeEmail, FamilyRole.Member);
+
+    interceptor.Enabled = true;
+    var failure = await CaptureExceptionAsync(() => service.AcceptAsync(invitation.Token, inviteeEmail, "Rollback-invitee-123!"));
+    AssertTrue(failure is SyntheticMembershipFailureException, "Falha sintetica deveria ocorrer depois do consumo e antes do commit.");
+    interceptor.Enabled = false;
+    db.ChangeTracker.Clear();
+
+    var stored = await db.FamilyInvitations.AsNoTracking().SingleAsync(x => x.Id == invitation.Id);
+    AssertTrue(stored.AcceptedAtUtc is null && stored.AcceptedByUserId is null, "Rollback deixou convite parcialmente consumido.");
+    AssertEqual(0, await db.Users.CountAsync(x => x.NormalizedEmail == inviteeEmail.ToUpperInvariant()), "Rollback deixou identidade parcial.");
+    AssertEqual(0, await db.FamilyUsers.CountAsync(x => x.FamilyId == family.Id && x.User.Email == inviteeEmail), "Rollback deixou membership parcial.");
+
+    var accepted = await service.AcceptAsync(invitation.Token, inviteeEmail, "Rollback-invitee-123!");
+    AssertTrue(accepted is { UserCreated: true }, "Convite deveria continuar utilizavel depois do rollback completo.");
+}
+
+static async Task FamilyInvitationConstraintsWorkOnPostgresAsync()
+{
+    var connectionString = Environment.GetEnvironmentVariable("AGENDADOR_TEST_POSTGRES")
+        ?? throw new InvalidOperationException("Connection string descartavel de teste ausente.");
+    await using var provider = CreatePostgresIdentityProvider(connectionString);
+    var db = provider.GetRequiredService<AgendadorDbContext>();
+    await db.Database.MigrateAsync();
+    var users = provider.GetRequiredService<UserManager<AppUser>>();
+    var suffix = Guid.NewGuid().ToString("N");
+    var owner = await CreateUserAsync(users, $"constraint-owner-{suffix}@example.test", "Constraint-owner-123!");
+    var family = NewFamily("PostgreSQL Invitation Constraints");
+    db.Add(family);
+    db.FamilyUsers.Add(new FamilyUser { FamilyId = family.Id, UserId = owner.Id, Role = FamilyRole.Owner });
+    await db.SaveChangesAsync();
+    var now = DateTime.UtcNow;
+
+    FamilyInvitation Invitation(char hashCharacter) => new()
+    {
+        FamilyId = family.Id,
+        Email = $"constraint-{hashCharacter}-{suffix}@example.test",
+        NormalizedEmail = $"CONSTRAINT-{hashCharacter}-{suffix}@EXAMPLE.TEST",
+        Role = FamilyRole.Member,
+        TokenHash = new string(hashCharacter, 64),
+        CreatedByUserId = owner.Id,
+        CreatedAtUtc = now,
+        ExpiresAtUtc = now.AddHours(1)
+    };
+
+    var invalidRole = Invitation('A');
+    invalidRole.Role = FamilyRole.Owner;
+    db.Add(invalidRole);
+    await AssertDbUpdateRejectedAsync(db, "PostgreSQL deveria rejeitar role Owner no convite.");
+    db.ChangeTracker.Clear();
+
+    var invalidExpiry = Invitation('B');
+    invalidExpiry.ExpiresAtUtc = now;
+    db.Add(invalidExpiry);
+    await AssertDbUpdateRejectedAsync(db, "PostgreSQL deveria rejeitar expiracao incoerente.");
+    db.ChangeTracker.Clear();
+
+    var invalidResolution = Invitation('C');
+    invalidResolution.AcceptedAtUtc = now;
+    invalidResolution.AcceptedByUserId = owner.Id;
+    invalidResolution.RevokedAtUtc = now;
+    db.Add(invalidResolution);
+    await AssertDbUpdateRejectedAsync(db, "PostgreSQL deveria rejeitar convite aceito e revogado.");
+    db.ChangeTracker.Clear();
+
+    var invalidAcceptor = Invitation('D');
+    invalidAcceptor.AcceptedAtUtc = now;
+    db.Add(invalidAcceptor);
+    await AssertDbUpdateRejectedAsync(db, "PostgreSQL deveria rejeitar aceite sem usuario.");
+    db.ChangeTracker.Clear();
+
+    var invalidForeignKey = Invitation('E');
+    invalidForeignKey.CreatedByUserId = Guid.NewGuid();
+    db.Add(invalidForeignKey);
+    await AssertDbUpdateRejectedAsync(db, "PostgreSQL deveria rejeitar FK de criador inexistente.");
+    db.ChangeTracker.Clear();
+
+    var firstHash = Invitation('F');
+    db.Add(firstHash);
+    await db.SaveChangesAsync();
+    db.ChangeTracker.Clear();
+    var duplicateHash = Invitation('F');
+    db.Add(duplicateHash);
+    await AssertDbUpdateRejectedAsync(db, "PostgreSQL deveria rejeitar hash de token duplicado.");
+    db.ChangeTracker.Clear();
+
+    db.FamilyUsers.Add(new FamilyUser { FamilyId = family.Id, UserId = owner.Id, Role = FamilyRole.Member });
+    await AssertDbUpdateRejectedAsync(db, "PostgreSQL deveria rejeitar membership duplicada.");
+    db.ChangeTracker.Clear();
+
+    var appliedMigrations = await db.Database.GetAppliedMigrationsAsync();
+    AssertTrue(appliedMigrations.Any(x => x.EndsWith("_InitialMultiTenantSchema", StringComparison.Ordinal)), "Migration inicial nao foi aplicada no PostgreSQL vazio.");
+    AssertTrue(appliedMigrations.Any(x => x.EndsWith("_AddFamilyInvitations", StringComparison.Ordinal)), "Migration AddFamilyInvitations nao foi aplicada no PostgreSQL.");
+    AssertEqual(4, await CountPostgresObjectsAsync(db, "SELECT COUNT(*) FROM pg_constraint WHERE conname IN ('ck_family_invitations_role','ck_family_invitations_expiry','ck_family_invitations_resolution','ck_family_invitations_acceptor')"), "Check constraints de convite ausentes no PostgreSQL.");
+    AssertEqual(2, await CountPostgresObjectsAsync(db, "SELECT COUNT(*) FROM pg_indexes WHERE indexname IN ('IX_family_invitations_TokenHash','IX_family_invitations_FamilyId_NormalizedEmail_CreatedAtUtc')"), "Indices explicitos de convite ausentes no PostgreSQL.");
+}
+
+static async Task FamilyInvitationLifecycleWorksOnPostgresAsync()
+{
+    var connectionString = Environment.GetEnvironmentVariable("AGENDADOR_TEST_POSTGRES")
+        ?? throw new InvalidOperationException("Connection string descartavel de teste ausente.");
+    await using var provider = CreatePostgresIdentityProvider(connectionString);
+    var db = provider.GetRequiredService<AgendadorDbContext>();
+    await db.Database.MigrateAsync();
+    var users = provider.GetRequiredService<UserManager<AppUser>>();
+    var suffix = Guid.NewGuid().ToString("N");
+    var ownerA = await CreateUserAsync(users, $"lifecycle-owner-a-{suffix}@example.test", "Lifecycle-owner-a-123!");
+    var ownerB = await CreateUserAsync(users, $"lifecycle-owner-b-{suffix}@example.test", "Lifecycle-owner-b-123!");
+    var existing = await CreateUserAsync(users, $"lifecycle-existing-{suffix}@example.test", "Lifecycle-existing-123!");
+    var lockout = await CreateUserAsync(users, $"lifecycle-lockout-{suffix}@example.test", "Lifecycle-lockout-123!");
+    var familyA = NewFamily("Lifecycle Family A");
+    var familyB = NewFamily("Lifecycle Family B");
+    db.AddRange(familyA, familyB);
+    db.FamilyUsers.AddRange(
+        new FamilyUser { FamilyId = familyA.Id, UserId = ownerA.Id, Role = FamilyRole.Owner },
+        new FamilyUser { FamilyId = familyB.Id, UserId = ownerB.Id, Role = FamilyRole.Owner });
+    await db.SaveChangesAsync();
+
+    var time = new AdjustableTimeProvider(new DateTimeOffset(2026, 8, 29, 10, 0, 0, TimeSpan.Zero));
+    var invitationOptions = Microsoft.Extensions.Options.Options.Create(new MultiFamilyOptions { InvitationHours = 1 });
+    var serviceA = new FamilyInvitationService(db, new StaticCurrentFamilyContext(new CurrentFamily(familyA.Id, ownerA.Id, FamilyRole.Owner)), users, invitationOptions, time);
+    var serviceB = new FamilyInvitationService(db, new StaticCurrentFamilyContext(new CurrentFamily(familyB.Id, ownerB.Id, FamilyRole.Owner)), users, invitationOptions, time);
+
+    var first = await serviceA.CreateAsync($"lifecycle-first-{suffix}@example.test", FamilyRole.Member);
+    var second = await serviceA.CreateAsync($"lifecycle-second-{suffix}@example.test", FamilyRole.Admin);
+    var hashes = await db.FamilyInvitations.Where(x => x.Id == first.Id || x.Id == second.Id).Select(x => x.TokenHash).ToListAsync();
+    AssertEqual(2, hashes.Distinct(StringComparer.Ordinal).Count(), "Tokens diferentes devem produzir hashes diferentes no PostgreSQL.");
+    AssertTrue(hashes.All(x => x.Length == 64 && x != first.Token && x != second.Token), "PostgreSQL deve persistir somente SHA-256 dos tokens.");
+    AssertTrue(await serviceA.AcceptAsync(first.Token + "tampered", first.Email, "Lifecycle-first-123!") is null, "Token adulterado deveria falhar no PostgreSQL.");
+
+    var expired = await serviceA.CreateAsync($"lifecycle-expired-{suffix}@example.test", FamilyRole.Member);
+    time.Advance(TimeSpan.FromHours(2));
+    AssertTrue(await serviceA.AcceptAsync(expired.Token, expired.Email, "Lifecycle-expired-123!") is null, "Convite expirado deveria falhar no PostgreSQL.");
+
+    var revoked = await serviceA.CreateAsync($"lifecycle-revoked-{suffix}@example.test", FamilyRole.Member);
+    AssertTrue(!await serviceB.RevokeAsync(revoked.Id), "Owner B nao pode revogar convite A no PostgreSQL.");
+    AssertTrue(await serviceA.RevokeAsync(revoked.Id), "Owner A deveria revogar convite A no PostgreSQL.");
+    AssertTrue(await serviceA.AcceptAsync(revoked.Token, revoked.Email, "Lifecycle-revoked-123!") is null, "Convite revogado deveria falhar no PostgreSQL.");
+    AssertTrue((await serviceB.ListAsync()).All(x => x.Id != revoked.Id), "Owner B nao pode listar convite A no PostgreSQL.");
+
+    var existingInvitation = await serviceA.CreateAsync(existing.Email!, FamilyRole.Admin);
+    AssertTrue(await serviceA.AcceptAsync(existingInvitation.Token, existing.Email!, "wrong-password") is null, "Senha errada deveria falhar no PostgreSQL.");
+    AssertTrue(await serviceA.AcceptAsync(existingInvitation.Token, existing.Email!, "Lifecycle-existing-123!") is { UserCreated: false }, "Usuario existente deveria aceitar com a senha correta no PostgreSQL.");
+    AssertTrue(await serviceA.AcceptAsync(existingInvitation.Token, existing.Email!, "Lifecycle-existing-123!") is null, "Convite consumido deveria falhar no PostgreSQL.");
+    var membership = await db.FamilyUsers.SingleAsync(x => x.FamilyId == familyA.Id && x.UserId == existing.Id);
+    AssertEqual(FamilyRole.Admin, membership.Role, "Role do convite existente nao foi preservada no PostgreSQL.");
+
+    var duplicateMembership = await CaptureExceptionAsync(() => serviceA.CreateAsync(existing.Email!, FamilyRole.Member));
+    AssertTrue(duplicateMembership is FamilyInvitationConflictException, "Usuario ja pertencente deveria ser rejeitado no PostgreSQL.");
+
+    var lockoutInvitation = await serviceA.CreateAsync(lockout.Email!, FamilyRole.Member);
+    for (var attempt = 0; attempt < 5; attempt++)
+    {
+        AssertTrue(await serviceA.AcceptAsync(lockoutInvitation.Token, lockout.Email!, "wrong-password") is null, "Senha errada deveria contabilizar lockout no PostgreSQL.");
+    }
+    AssertTrue(await users.IsLockedOutAsync(lockout), "Lockout Identity deveria ser persistido no PostgreSQL.");
+    AssertTrue(await serviceA.AcceptAsync(lockoutInvitation.Token, lockout.Email!, "Lifecycle-lockout-123!") is null, "Usuario em lockout nao pode aceitar convite no PostgreSQL.");
+}
+
+static ServiceProvider CreatePostgresIdentityProvider(
+    string connectionString,
+    SaveChangesInterceptor? interceptor = null)
+{
+    var services = new ServiceCollection();
+    services.AddLogging();
+    services.AddDataProtection().UseEphemeralDataProtectionProvider();
+    services.AddDbContext<AgendadorDbContext>(options =>
+    {
+        options.UseNpgsql(connectionString);
+        if (interceptor is not null) options.AddInterceptors(interceptor);
+    });
+    services.AddIdentityCore<AppUser>(options =>
+    {
+        options.User.RequireUniqueEmail = true;
+        options.Lockout.AllowedForNewUsers = true;
+        options.Lockout.MaxFailedAccessAttempts = 5;
+    }).AddRoles<IdentityRole<Guid>>().AddEntityFrameworkStores<AgendadorDbContext>().AddDefaultTokenProviders();
+    return services.BuildServiceProvider();
+}
+
+static async Task<int> CountPostgresObjectsAsync(AgendadorDbContext db, string commandText)
+{
+    var connection = db.Database.GetDbConnection();
+    if (connection.State != ConnectionState.Open) await connection.OpenAsync();
+    await using var command = connection.CreateCommand();
+    command.CommandText = commandText;
+    return Convert.ToInt32(await command.ExecuteScalarAsync());
+}
+
+static async Task FamilyInvitationHttpFlowWorksOnSqliteAsync()
+{
+    await using var factory = new MultiFamilySqliteWebFactory();
+    await RunFamilyInvitationHttpFlowAsync(factory, applyMigrations: false);
+}
+
+static async Task RunFamilyInvitationHttpFlowAsync(
+    WebApplicationFactory<ApplicationMarker> factory,
+    bool applyMigrations)
+{
+    var suffix = Guid.NewGuid().ToString("N");
+    const string password = "Invitation-http-123!";
+    var ownerAEmail = $"invite-owner-a-{suffix}@example.test";
+    var ownerBEmail = $"invite-owner-b-{suffix}@example.test";
+    var adminAEmail = $"invite-admin-a-{suffix}@example.test";
+    var memberAEmail = $"invite-member-a-{suffix}@example.test";
+    var orphanEmail = $"invite-orphan-{suffix}@example.test";
+    var invitedEmail = $"invited-{suffix}@example.test";
+    Guid familyAId;
+    Guid familyBId;
+
+    using (var scope = factory.Services.CreateScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<AgendadorDbContext>();
+        if (applyMigrations) await db.Database.MigrateAsync();
+        else await db.Database.EnsureCreatedAsync();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+        var ownerA = await CreateUserAsync(users, ownerAEmail, password);
+        var ownerB = await CreateUserAsync(users, ownerBEmail, password);
+        var adminA = await CreateUserAsync(users, adminAEmail, password);
+        var memberA = await CreateUserAsync(users, memberAEmail, password);
+        _ = await CreateUserAsync(users, orphanEmail, password);
+        var familyA = NewFamily("HTTP Invitation Family A");
+        var familyB = NewFamily("HTTP Invitation Family B");
+        db.AddRange(familyA, familyB);
+        db.FamilyUsers.AddRange(
+            new FamilyUser { FamilyId = familyA.Id, UserId = ownerA.Id, Role = FamilyRole.Owner },
+            new FamilyUser { FamilyId = familyA.Id, UserId = adminA.Id, Role = FamilyRole.Admin },
+            new FamilyUser { FamilyId = familyA.Id, UserId = memberA.Id, Role = FamilyRole.Member },
+            new FamilyUser { FamilyId = familyB.Id, UserId = ownerB.Id, Role = FamilyRole.Owner });
+        await db.SaveChangesAsync();
+        familyAId = familyA.Id;
+        familyBId = familyB.Id;
+    }
+
+    using var anonymous = factory.CreateClient(new WebApplicationFactoryClientOptions
+    {
+        BaseAddress = new Uri("https://localhost"),
+        AllowAutoRedirect = false,
+        HandleCookies = true
+    });
+    AssertEqual(HttpStatusCode.Unauthorized, (await anonymous.GetAsync("/api/multi-family/invitations")).StatusCode, "Anonimo nao pode listar convites.");
+
+    var (ownerAClient, ownerAToken) = await CreateAuthenticatedClientAsync(factory, ownerAEmail, password);
+    Guid invitationId;
+    string invitationToken;
+    using (ownerAClient)
+    {
+        using var created = await PostWithTokenAsync(ownerAClient, "/api/multi-family/invitations", new
+        {
+            Email = invitedEmail,
+            Role = FamilyRole.Member,
+            FamilyId = familyBId,
+            TenantId = familyBId,
+            CreatedByUserId = Guid.NewGuid()
+        }, ownerAToken);
+        AssertEqual(HttpStatusCode.Created, created.StatusCode, "Owner A deveria criar convite.");
+        using var createdJson = JsonDocument.Parse(await created.Content.ReadAsStringAsync());
+        invitationId = createdJson.RootElement.GetProperty("id").GetGuid();
+        invitationToken = createdJson.RootElement.GetProperty("token").GetString()!;
+        AssertTrue(invitationToken.Length >= 40, "Token de convite deveria ter entropia suficiente.");
+
+        var list = await ownerAClient.GetStringAsync("/api/multi-family/invitations?FamilyId=" + familyBId);
+        AssertTrue(list.Contains(invitedEmail, StringComparison.OrdinalIgnoreCase), "Owner A deveria listar convite A.");
+        AssertTrue(!list.Contains(invitationToken, StringComparison.Ordinal), "Listagem nunca deve devolver token bruto.");
+        AssertEqual(HttpStatusCode.NotFound, (await DeleteWithTokenAsync(ownerAClient, $"/api/multi-family/invitations/{Guid.NewGuid()}", ownerAToken)).StatusCode, "Convite inexistente deveria retornar 404.");
+        AssertEqual(HttpStatusCode.BadRequest, (await PostWithTokenAsync(ownerAClient, "/api/multi-family/invitations", new FamilyInvitationCreateRequest("invalid-role@example.test", FamilyRole.Owner), ownerAToken)).StatusCode, "Owner nao pode convidar outro Owner.");
+    }
+
+    var (ownerBClient, ownerBToken) = await CreateAuthenticatedClientAsync(factory, ownerBEmail, password);
+    using (ownerBClient)
+    {
+        AssertEqual(HttpStatusCode.NotFound, (await DeleteWithTokenAsync(ownerBClient, $"/api/multi-family/invitations/{invitationId}", ownerBToken)).StatusCode, "Owner B nao pode revogar convite A.");
+        AssertTrue(!(await ownerBClient.GetStringAsync("/api/multi-family/invitations")).Contains(invitedEmail, StringComparison.OrdinalIgnoreCase), "Owner B nao pode listar convite A.");
+    }
+
+    var (memberAClient, memberAToken) = await CreateAuthenticatedClientAsync(factory, memberAEmail, password);
+    using (memberAClient)
+    {
+        AssertEqual(HttpStatusCode.Forbidden, (await PostWithTokenAsync(memberAClient, "/api/multi-family/invitations", new FamilyInvitationCreateRequest("forbidden@example.test", FamilyRole.Member), memberAToken)).StatusCode, "Member nao pode criar convite.");
+    }
+
+    var (adminAClient, adminAToken) = await CreateAuthenticatedClientAsync(factory, adminAEmail, password);
+    using (adminAClient)
+    {
+        AssertEqual(HttpStatusCode.Forbidden, (await PostWithTokenAsync(adminAClient, "/api/multi-family/invitations", new FamilyInvitationCreateRequest("admin-forbidden@example.test", FamilyRole.Member), adminAToken)).StatusCode, "Admin nao pode criar convite.");
+    }
+
+    var (orphanClient, _) = await CreateAuthenticatedClientAsync(factory, orphanEmail, password);
+    using (orphanClient)
+    {
+        AssertEqual(HttpStatusCode.Conflict, (await orphanClient.GetAsync("/api/multi-family/contas")).StatusCode, "Usuario sem tenant deveria receber 409 controlado.");
+        var orphanToken = await GetAntiforgeryTokenAsync(orphanClient);
+        AssertEqual(HttpStatusCode.Conflict, (await PostWithTokenAsync(orphanClient, "/api/multi-family/invitations", new FamilyInvitationCreateRequest("orphan-forbidden@example.test", FamilyRole.Member), orphanToken)).StatusCode, "Usuario sem familia nao pode criar convite.");
+    }
+
+    var acceptanceToken = await GetAntiforgeryTokenAsync(anonymous);
+    var acceptance = new FamilyInvitationAcceptRequest(invitationToken, invitedEmail, "Invited-http-123!");
+    AssertEqual(HttpStatusCode.BadRequest, (await anonymous.PostAsJsonAsync("/api/multi-family/invitations/accept", acceptance)).StatusCode, "Aceite sem antiforgery deveria falhar.");
+    AssertEqual(HttpStatusCode.BadRequest, (await PostWithTokenAsync(anonymous, "/api/multi-family/invitations/accept", acceptance with { Email = "tampered@example.test" }, acceptanceToken)).StatusCode, "Email adulterado deveria falhar.");
+    AssertEqual(HttpStatusCode.OK, (await PostWithTokenAsync(anonymous, "/api/multi-family/invitations/accept", acceptance, acceptanceToken)).StatusCode, "Convite valido deveria ser aceito.");
+    var families = await anonymous.GetStringAsync("/api/multi-family/families");
+    AssertTrue(families.Contains(familyAId.ToString(), StringComparison.OrdinalIgnoreCase), "Convidado deve entrar somente na familia A.");
+    AssertTrue(!families.Contains(familyBId.ToString(), StringComparison.OrdinalIgnoreCase), "FamilyId adulterado nunca deve associar convidado a B.");
+
+    using var replay = factory.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri("https://localhost"), HandleCookies = true });
+    var replayToken = await GetAntiforgeryTokenAsync(replay);
+    AssertEqual(HttpStatusCode.BadRequest, (await PostWithTokenAsync(replay, "/api/multi-family/invitations/accept", acceptance, replayToken)).StatusCode, "Token aceito nao pode ser reutilizado.");
+
+    using (var scope = factory.Services.CreateScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<AgendadorDbContext>();
+        var invitation = await db.FamilyInvitations.SingleAsync(x => x.Id == invitationId);
+        var invitedUser = await db.Users.SingleAsync(x => x.NormalizedEmail == invitedEmail.ToUpperInvariant());
+        AssertEqual(familyAId, invitation.FamilyId, "Tenant adulterado nunca deve alterar familia do convite.");
+        AssertTrue(!string.Equals(invitation.TokenHash, invitationToken, StringComparison.Ordinal), "Banco nunca deve armazenar token bruto.");
+        AssertTrue(invitation.AcceptedAtUtc is not null && invitation.AcceptedByUserId == invitedUser.Id, "Aceite deve ser auditavel sem guardar o segredo.");
+        AssertEqual(1, await db.FamilyUsers.CountAsync(x => x.UserId == invitedUser.Id && x.FamilyId == familyAId), "Convidado deve ter uma membership em A.");
+        AssertEqual(0, await db.FamilyUsers.CountAsync(x => x.UserId == invitedUser.Id && x.FamilyId == familyBId), "Convidado nunca deve receber membership em B.");
+    }
+}
+
 static async Task<AppUser> CreateUserAsync(UserManager<AppUser> userManager, string email, string password)
 {
     var user = new AppUser { Id = Guid.NewGuid(), UserName = email, Email = email };
@@ -1423,7 +2008,7 @@ static MultiFamilyContaRequest NewContaRequest(string nome) => new(
     "Dado ficticio");
 
 static async Task<(HttpClient Client, string Token)> CreateAuthenticatedClientAsync(
-    MultiFamilyWebFactory factory,
+    WebApplicationFactory<ApplicationMarker> factory,
     string email,
     string password)
 {
@@ -1881,6 +2466,47 @@ internal sealed class IdentityTestScope : IAsyncDisposable
     }
 }
 
+internal sealed class StaticCurrentFamilyContext(CurrentFamily currentFamily) : ICurrentFamilyContext
+{
+    public Task<CurrentFamily> RequireAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult(currentFamily);
+}
+
+internal sealed class AdjustableTimeProvider(DateTimeOffset utcNow) : TimeProvider
+{
+    private DateTimeOffset _utcNow = utcNow;
+
+    public override DateTimeOffset GetUtcNow() => _utcNow;
+
+    public void Advance(TimeSpan duration) => _utcNow = _utcNow.Add(duration);
+}
+
+internal sealed class SyntheticMembershipFailureException : InvalidOperationException
+{
+    public SyntheticMembershipFailureException() : base("Synthetic membership persistence failure.")
+    {
+    }
+}
+
+internal sealed class FailOnFamilyMembershipInterceptor : SaveChangesInterceptor
+{
+    public bool Enabled { get; set; }
+
+    public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+        DbContextEventData eventData,
+        InterceptionResult<int> result,
+        CancellationToken cancellationToken = default)
+    {
+        if (Enabled && eventData.Context?.ChangeTracker.Entries<FamilyUser>()
+                .Any(entry => entry.State == EntityState.Added) == true)
+        {
+            throw new SyntheticMembershipFailureException();
+        }
+
+        return base.SavingChangesAsync(eventData, result, cancellationToken);
+    }
+}
+
 internal sealed class FakeFamilyTelegramSender(Guid failingFamilyId) : IFamilyTelegramSender
 {
     public List<(Guid FamilyId, string Message)> Attempts { get; } = [];
@@ -2047,6 +2673,72 @@ internal static class TestFixtures
     }
 }
 
+internal sealed class MultiFamilySqliteWebFactory : WebApplicationFactory<ApplicationMarker>
+{
+    private readonly Dictionary<string, string?> _previousEnvironment = new(StringComparer.Ordinal);
+    private readonly SqliteConnection _connection = new("Data Source=:memory:");
+
+    public MultiFamilySqliteWebFactory()
+    {
+        _connection.Open();
+        SetEnvironment("MultiFamily__Enabled", "true");
+        SetEnvironment("MultiFamily__ConnectionString", "Host=localhost;Database=unused");
+        SetEnvironment("MultiFamily__SessionHours", "1");
+        SetEnvironment("Telegram__Enabled", "false");
+        SetEnvironment("Backup__AutomaticEnabled", "false");
+        SetEnvironment("AccessProtection__Enabled", "false");
+    }
+
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        builder.UseContentRoot(Directory.GetCurrentDirectory());
+        builder.UseEnvironment("Testing");
+        builder.ConfigureLogging(logging => logging.ClearProviders());
+        builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(
+            new Dictionary<string, string?>
+            {
+                ["MultiFamily:Enabled"] = "true",
+                ["MultiFamily:ConnectionString"] = "Host=localhost;Database=unused",
+                ["MultiFamily:SessionHours"] = "1",
+                ["Telegram:Enabled"] = "false",
+                ["Backup:AutomaticEnabled"] = "false",
+                ["AccessProtection:Enabled"] = "false"
+            }));
+        builder.ConfigureServices(services =>
+        {
+            var reminderWorker = services.SingleOrDefault(descriptor =>
+                descriptor.ServiceType == typeof(IHostedService)
+                && descriptor.ImplementationType == typeof(MultiFamilyReminderWorker));
+            if (reminderWorker is not null)
+            {
+                services.Remove(reminderWorker);
+            }
+
+            services.RemoveAll<IDataProtectionProvider>();
+            services.AddSingleton<IDataProtectionProvider>(new EphemeralDataProtectionProvider());
+            services.RemoveAll<DbContextOptions<AgendadorDbContext>>();
+            services.RemoveAll<AgendadorDbContext>();
+            services.AddDbContext<AgendadorDbContext>(options => options.UseSqlite(_connection));
+        });
+    }
+
+    public override async ValueTask DisposeAsync()
+    {
+        await base.DisposeAsync();
+        await _connection.DisposeAsync();
+        foreach (var entry in _previousEnvironment)
+        {
+            Environment.SetEnvironmentVariable(entry.Key, entry.Value);
+        }
+    }
+
+    private void SetEnvironment(string name, string value)
+    {
+        _previousEnvironment[name] = Environment.GetEnvironmentVariable(name);
+        Environment.SetEnvironmentVariable(name, value);
+    }
+}
+
 internal sealed class MultiFamilyWebFactory : WebApplicationFactory<ApplicationMarker>
 {
     private readonly Dictionary<string, string?> _previousEnvironment = new(StringComparer.Ordinal);
@@ -2111,6 +2803,7 @@ internal sealed class LegacyWebFactory : WebApplicationFactory<ApplicationMarker
         Directory.CreateDirectory(_rootPath);
         builder.UseContentRoot(Directory.GetCurrentDirectory());
         builder.UseEnvironment("Testing");
+        builder.ConfigureLogging(logging => logging.ClearProviders());
         builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(
             new Dictionary<string, string?>
             {
@@ -2122,6 +2815,11 @@ internal sealed class LegacyWebFactory : WebApplicationFactory<ApplicationMarker
                 ["Telegram:Enabled"] = "false",
                 ["AccessProtection:Enabled"] = "false"
             }));
+        builder.ConfigureServices(services =>
+        {
+            services.RemoveAll<IDataProtectionProvider>();
+            services.AddSingleton<IDataProtectionProvider>(new EphemeralDataProtectionProvider());
+        });
     }
 
     public override async ValueTask DisposeAsync()

@@ -48,6 +48,7 @@ The repository also contains a controlled relational foundation for:
 - Explicit `FamilyId` isolation
 - Family-specific settings and Telegram configuration
 - An idempotent administrative bootstrap
+- Secure, expiring invitations for Admin and Member onboarding
 - A controlled, transactional JSON-to-PostgreSQL migrator
 
 The multi-family mode is limited to development and testing. It does not run automatically, does not execute migrations at startup and has not replaced the JSON production runtime.
@@ -87,7 +88,7 @@ Development secrets should be supplied with .NET User Secrets or environment var
 
 - **Production:** stable single-family runtime using `ContaStore + JSON`.
 - **Implemented behind a controlled flag:** PostgreSQL schema, Identity, tenant isolation, multi-family APIs, operational UI, reminder processing and migration tooling.
-- **Not completed:** production cutover, real JSON import, production activation of PostgreSQL/multi-family, invitation flow and distributed session/worker coordination.
+- **Not completed:** production cutover, real JSON import, production activation of PostgreSQL/multi-family, password recovery, automated invitation delivery and distributed session/worker coordination.
 
 ## Key Lessons Learned
 
@@ -100,7 +101,7 @@ Development secrets should be supplied with .NET User Secrets or environment var
 ## Roadmap
 
 - Review and plan the production cutover separately.
-- Add invitation and password-recovery workflows.
+- Add password recovery and automated invitation delivery.
 - Replace in-memory session coordination before multiple replicas.
 - Add distributed coordination for background reminders.
 - Expand browser-level testing and reporting.

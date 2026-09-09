@@ -12,6 +12,20 @@ dotnet build
 dotnet run --project tests\AgendadorContas.Tests\AgendadorContas.Tests.csproj
 ```
 
+## Gate PostgreSQL 16 descartável
+
+Com Docker Desktop saudável, executar:
+
+```powershell
+.\tests\run-postgresql16-gate.ps1
+```
+
+O script cria um container `postgres:16-alpine` com nome, porta e senha temporários, usa `tmpfs` em vez de volume persistente, define `AGENDADOR_TEST_POSTGRES` somente durante a execução e remove o container em `finally`. Os oito testes condicionais PostgreSQL não são adicionados ao runner quando essa variável está ausente e nunca devem ser contados como aprovados nessa situação.
+
+O gate cobre migrations em banco vazio, Identity/runtime HTTP, isolamento A/B, importação JSON sintética, lifecycle de convites, concorrência real do mesmo token, rollback forçado e constraints PostgreSQL. Nenhum dado ou credential real deve ser usado.
+
+Em 2026-08-29, o gate foi executado em PostgreSQL 16 real descartável e concluiu com 59/59 testes. Concorrência, rollback, constraints, isolamento e cleanup passaram; nenhum recurso Docker residual permaneceu e nenhum ambiente ou dado de produção foi acessado.
+
 ## Teste manual
 
 - Criar conta com duração definida.

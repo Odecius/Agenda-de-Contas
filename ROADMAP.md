@@ -167,7 +167,7 @@
 - Migrar configuracoes, Telegram e workers para escopo familiar.
 - Liberar duas familias piloto somente apos testes e rollback comprovados.
 
-O plano detalhado esta em `docs/multi-family-postgresql-plan.md`. Esta fase ainda nao esta implementada.
+O plano detalhado esta em `docs/multi-family-postgresql-plan.md`. A fundacao e o fluxo local estao implementados atras da feature flag; cutover, producao e operacao distribuida permanecem pendentes.
 
 ### Etapa 32.1 - Fundacao local concluida
 
@@ -196,6 +196,14 @@ O plano detalhado esta em `docs/multi-family-postgresql-plan.md`. Esta fase aind
 - Login/seleção/CRUD web, members e settings tenant-aware.
 - Telegram por referencia de secret e worker relacional isolado por FamilyId.
 - Validacao com duas familias em PostgreSQL descartavel, sem cutover ou producao.
+
+### Etapa 32.5 - Onboarding por convite
+
+- Owner cria convites somente para Admin ou Member no tenant atual.
+- Token de uso unico e alta entropia e persistido somente como hash, com expiracao e revogacao.
+- Aceite cria uma identidade ou valida senha e lockout da conta existente.
+- UI usa fragmento de URL para evitar envio do token no request inicial.
+- Entrega automatizada e novos Owners permanecem pendentes; recovery foi concluido na etapa seguinte.
 
 ### Etapa 32.6 - Password recovery
 
