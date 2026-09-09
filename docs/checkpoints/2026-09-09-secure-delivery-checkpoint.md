@@ -39,3 +39,27 @@ Final validation:
 ## Next milestone
 
 Review the stacked delivery Draft PR after PRs #6 and #7, without deployment or production activation.
+
+## PR integration review
+
+The combined state of Draft PRs #6, #7 and #8 was reviewed and validated. PRs #6 and #7 are functionally independent, but both edit shared composition and documentation files. PR #6 alone owns the invitation schema migration. PR #8 contains the exact password-recovery commit, an equivalent conflict-resolved invitation commit and the secure-delivery commit.
+
+Recommended integration order:
+
+1. merge PR #7 after its independent review;
+2. synchronize PR #6 with the resulting `master`, resolve only the known shared-file overlaps and rerun its gates;
+3. merge PR #6;
+4. synchronize PR #8 with the resulting `master`, retaining only the effective delivery changes, rerun the combined gates and then review it for merge.
+
+This order follows the existing ancestry of PR #8 and avoids rewriting published history. No branch requires a speculative conflict-resolution commit before `master` changes.
+
+Combined validation on the PR #8 branch:
+
+- local test suite: 57/57 passed;
+- PostgreSQL 16 disposable gate: 66/66 passed;
+- build: 0 errors and 0 warnings;
+- format, diff check and migration drift: passed;
+- vulnerable-package and sanitized secret scans: clean;
+- residual disposable containers, volumes and networks: zero.
+
+All three PRs remain open and in Draft state. No merge, deployment, production access, real migration or real-data operation was performed.
