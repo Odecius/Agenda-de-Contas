@@ -37,7 +37,8 @@ public sealed class PasswordRecoveryService(
     IUserNotificationDeliveryService delivery,
     SecureActionLinkFactory links,
     IOptions<PasswordRecoveryOptions> options,
-    PasswordRecoveryAttemptLimiter limiter)
+    PasswordRecoveryAttemptLimiter limiter,
+    ILogger<PasswordRecoveryService> logger)
 {
     public const string GenericResponse = "Se existir uma conta elegivel, enviaremos instrucoes para recuperacao.";
 
@@ -56,8 +57,21 @@ public sealed class PasswordRecoveryService(
             ["token"] = encoded,
             ["email"] = user.Email!
         });
-        _ = await delivery.DeliverAsync(new UserNotificationMessage(
-            UserNotificationKind.PasswordRecovery, user.Email!, url, Guid.NewGuid()), cancellationToken);
+        try
+        {
+            _ = await delivery.DeliverAsync(new UserNotificationMessage(
+                UserNotificationKind.PasswordRecovery, user.Email!, url, Guid.NewGuid()), cancellationToken);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            logger.LogWarning("password_recovery_delivery_failed (timeout).");
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(
+                "password_recovery_delivery_failed ({ExceptionType}).",
+                exception.GetType().Name);
+        }
     }
 
     public async Task<bool> ResetAsync(string? email, string? encodedToken, string? newPassword)

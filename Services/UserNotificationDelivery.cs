@@ -52,7 +52,7 @@ public sealed class UserNotificationDeliveryService(
             catch (Exception exception)
             {
                 logger.LogWarning("User notification provider failed. Kind={Kind}; CorrelationId={CorrelationId}; ExceptionType={ExceptionType}", message.Kind, message.CorrelationId, exception.GetType().Name);
-                status = DeliveryStatus.TemporaryFailure;
+                status = DeliveryStatus.PermanentFailure;
             }
 
             if (status != DeliveryStatus.TemporaryFailure || attempt > options.Value.MaxRetries)

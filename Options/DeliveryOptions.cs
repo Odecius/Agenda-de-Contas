@@ -28,12 +28,29 @@ public sealed class DeliveryOptionsValidator : IValidateOptions<DeliveryOptions>
         if (!options.Enabled) return ValidateOptionsResult.Success;
         if (!string.Equals(options.Provider, "HttpEmail", StringComparison.Ordinal))
             return ValidateOptionsResult.Fail("Delivery provider is unsupported.");
-        if (!Uri.TryCreate(options.PublicBaseUrl, UriKind.Absolute, out var publicBase) || publicBase.Scheme != Uri.UriSchemeHttps)
-            return ValidateOptionsResult.Fail("Delivery public base URL must use HTTPS.");
-        if (!Uri.TryCreate(options.Http.Endpoint, UriKind.Absolute, out var endpoint) || endpoint.Scheme != Uri.UriSchemeHttps)
-            return ValidateOptionsResult.Fail("Delivery HTTP endpoint must use HTTPS.");
+        if (!IsSafeHttpsOrigin(options.PublicBaseUrl))
+            return ValidateOptionsResult.Fail("Delivery public base URL must be an absolute HTTPS URL without credentials, query, or fragment.");
+        if (!IsSafeHttpsEndpoint(options.Http.Endpoint))
+            return ValidateOptionsResult.Fail("Delivery HTTP endpoint must be an absolute HTTPS URL without credentials or fragment.");
         if (string.IsNullOrWhiteSpace(options.Http.ApiKey) || string.IsNullOrWhiteSpace(options.Http.FromAddress))
             return ValidateOptionsResult.Fail("Delivery HTTP credentials and sender must be supplied externally when enabled.");
         return ValidateOptionsResult.Success;
     }
+
+    private static bool IsSafeHttpsOrigin(string value) =>
+        Uri.TryCreate(value, UriKind.Absolute, out var uri)
+        && string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
+        && !string.IsNullOrWhiteSpace(uri.Host)
+        && Uri.CheckHostName(uri.Host) != UriHostNameType.Unknown
+        && string.IsNullOrEmpty(uri.UserInfo)
+        && string.IsNullOrEmpty(uri.Query)
+        && string.IsNullOrEmpty(uri.Fragment);
+
+    private static bool IsSafeHttpsEndpoint(string value) =>
+        Uri.TryCreate(value, UriKind.Absolute, out var uri)
+        && string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
+        && !string.IsNullOrWhiteSpace(uri.Host)
+        && Uri.CheckHostName(uri.Host) != UriHostNameType.Unknown
+        && string.IsNullOrEmpty(uri.UserInfo)
+        && string.IsNullOrEmpty(uri.Fragment);
 }

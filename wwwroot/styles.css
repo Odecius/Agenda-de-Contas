@@ -656,6 +656,7 @@ th {
 
   .app-header {
     align-items: flex-start;
+    flex-direction: column;
     min-height: auto;
     padding: 22px 16px;
   }

@@ -6,6 +6,8 @@
 
 The `HttpEmailNotificationProvider` is a provider adapter for a transactional email HTTP gateway. It sends a template key and action URL over HTTPS, uses an externally supplied API key and sets a stable idempotency key. No external account or credential is configured in the repository.
 
+The domain is not coupled to that adapter or to a vendor. Future Email, WhatsApp, Telegram and SMS adapters can implement the provider boundary without receiving family rules. Only HTTP email is implemented in this milestone; the other channels are architectural extension points, not available features.
+
 ## Safe configuration
 
 External delivery is disabled by default. When disabled, startup requires no credential and providers are never called. Enabling `HttpEmail` requires an HTTPS public base URL, HTTPS provider endpoint, sender and API key supplied through secret-aware configuration. Invalid enabled configuration fails startup validation.

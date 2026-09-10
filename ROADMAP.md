@@ -203,7 +203,7 @@ O plano detalhado esta em `docs/multi-family-postgresql-plan.md`. A fundacao e o
 - Token de uso unico e alta entropia e persistido somente como hash, com expiracao e revogacao.
 - Aceite cria uma identidade ou valida senha e lockout da conta existente.
 - UI usa fragmento de URL para evitar envio do token no request inicial.
-- Entrega automatizada, recovery e novos Owners permanecem pendentes.
+- Entrega automatizada e novos Owners permanecem pendentes; recovery foi concluido na etapa seguinte.
 
 ### Etapa 32.6 - Password recovery
 
@@ -215,4 +215,5 @@ O plano detalhado esta em `docs/multi-family-postgresql-plan.md`. A fundacao e o
 
 - Abstracao comum para convite e recovery com tipos explicitos e links de origem confiavel.
 - Adapter HTTP de email, configuracao fail-safe, timeout, retry limitado e idempotency key.
+- Arquitetura preparada para adapters futuros de Email, WhatsApp, Telegram e SMS, sem implementa-los nesta etapa.
 - Envio externo permanece desabilitado ate homologacao operacional com secrets externos.

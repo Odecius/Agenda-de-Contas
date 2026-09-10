@@ -1,12 +1,12 @@
 ﻿# DECISIONS
 
-## 2026-09-09 - Delivery comum fora da transacao e sem outbox inicial
+## 2026-09-10 - Delivery comum fora da transacao e sem outbox inicial
 
-**Decisao:** Convites e recovery usam `IUserNotificationDeliveryService`, links originados de configuracao confiavel e provider externo desabilitado por default. Convites sao persistidos antes da entrega; recovery nunca muda sua resposta por resultado do provider.
+**Decisao:** Convites e recovery usam `IUserNotificationDeliveryService`, mensagens tipadas, links originados de configuracao confiavel e provider externo desabilitado por default. Convites sao persistidos antes da entrega; recovery nunca muda sua resposta por resultado do provider.
 
-**Motivo:** Nao manter transacao PostgreSQL durante rede externa, evitar account enumeration e permitir provider real sem acoplar regras de negocio.
+**Motivo:** Nao manter transacao PostgreSQL durante rede externa, evitar account enumeration e permitir adapters de Email, WhatsApp, Telegram e SMS sem acoplar regras de negocio ou fornecedor ao dominio.
 
-**Impacto:** Retry e timeout sao limitados e a idempotency key reduz duplicidade. Sem outbox, crash entre commit e envio exige compartilhamento manual; outbox sera reavaliado antes de multiplas replicas ou garantias produtivas.
+**Impacto:** O adapter implementado e somente HTTP email. Retry e timeout sao limitados e a idempotency key reduz duplicidade sem garanti-la. Sem outbox, crash entre commit e envio exige recuperacao manual; outbox sera obrigatorio antes de multiplas replicas ou garantias fortes de entrega.
 
 ## 2026-08-29 - Onboarding usa convite vinculado server-side ao tenant
 

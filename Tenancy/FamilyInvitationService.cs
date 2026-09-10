@@ -101,6 +101,7 @@ public sealed class FamilyInvitationService(
             deliveryStatus = (await delivery.DeliverAsync(new UserNotificationMessage(
                 UserNotificationKind.FamilyInvitation, invitation.Email, url, invitation.Id), cancellationToken)).Status;
         }
+
         return new CreatedFamilyInvitation(invitation.Id, invitation.Email, invitation.Role, invitation.ExpiresAtUtc, token, deliveryStatus);
     }
 

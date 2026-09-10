@@ -15,9 +15,10 @@
 - [x] CSP estrita sem `unsafe-inline`.
 - [x] Autenticação opcional antes de uso em rede.
 - [x] Autorização básica aplicada pelo middleware de proteção.
-- [x] Password recovery Identity sem enumeracao, token em resposta ou dependencia de tenant.
 - [x] Convites multi-family vinculados server-side ao tenant, com hash, expiracao, revogacao e uso unico.
-- [x] Delivery externo fail-safe, HTTPS-only quando habilitado e sem secrets ou links em logs.
+- [x] Password recovery Identity sem enumeracao, token em resposta ou dependencia de tenant.
+- [x] Falhas de delivery de recovery preservam resposta generica e a origem publica exige HTTPS.
+- [x] Delivery externo e fail-safe, HTTPS-only quando habilitado e nao registra destino, URL, token ou credential.
 - [x] Backups do arquivo JSON de dados.
 - [x] Logs sem segredos conhecidos.
 - [ ] LGPD/GDPR avaliados se dados pessoais forem cadastrados.
@@ -50,6 +51,6 @@ A CSP atual nao permite `unsafe-inline`. A tela principal e a tela de login carr
 
 `notas.txt`/`NOTAS.txt` deve permanecer ignorado pelo Git. Se algum token/chat id ja tiver sido versionado no passado, a correção recomendada é revogar o token, gerar outro no BotFather e limpar o histórico Git antes de compartilhar o repositório.
 
-Tokens de recovery sao credenciais temporarias. Somente a abstracao de entrega os recebe; a URL usa origem publica configurada e o provider default nao registra ou entrega o valor. Consulte `docs/password-recovery.md`.
+Links de convite sao credenciais temporarias. O token fica no fragmento da URL no navegador, e removido do endereco assim que a pagina carrega e nunca deve aparecer em logs. O Owner deve compartilhar o link por canal seguro. Entrega automatizada de convites ainda nao foi implementada.
 
-Links de convite sao credenciais temporarias. O token fica no fragmento da URL no navegador, e removido do endereco assim que a pagina carrega e nunca deve aparecer em logs. O Owner deve compartilhar o link por canal seguro. Entrega por email e politica de recovery ainda nao foram implementadas.
+Tokens de recovery sao credenciais temporarias. Somente a abstracao de entrega os recebe; a URL usa origem publica configurada e o provider default nao registra ou entrega o valor. Consulte `docs/password-recovery.md`.

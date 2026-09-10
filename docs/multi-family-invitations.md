@@ -44,7 +44,7 @@ Mutacoes exigem antiforgery. O aceite possui rate limiting adicional e nunca ret
 ## Limites
 
 - entrega usa a abstracao comum e permanece externamente desabilitada ate configuracao aprovada;
-- password recovery ainda nao existe;
+- password recovery esta integrado e usa a mesma abstracao tipada de delivery;
 - convites nao criam Owner;
 - a funcionalidade nao autoriza ativacao do modo multi-family em producao;
 - a migration foi gerada, revisada e validada em PostgreSQL 16 descartavel, mas nao deve ser aplicada fora de ambiente descartavel sem um gate de cutover separado.
