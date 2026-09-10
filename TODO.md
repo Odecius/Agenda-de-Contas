@@ -2,7 +2,8 @@
 
 ## Alta prioridade
 
-- Implementar provider real comum para entrega de recovery e convites sem expor tokens ou credentials.
+- Configurar e homologar o provider externo de delivery com secrets e origem publica aprovados, sem habilita-lo por default.
+- Reavaliar outbox e rate limits distribuidos antes de multiplas replicas.
 - Revisar e aprovar a Fase 4 antes de qualquer ensaio com copia de dados reais.
 - Definir politica segura e fluxo separado para adicionar novos Owners antes do piloto.
 - Executar testes dedicados de navegador para a UI multi-family.

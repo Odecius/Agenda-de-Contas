@@ -3,6 +3,9 @@
 
 ## 2026-08-29
 
+- Adicionada infraestrutura comum e segura de delivery para convites e password recovery, desabilitada por default.
+- Adicionado adapter HTTP de email com HTTPS obrigatorio, timeout, retry limitado, idempotency key e logs sanitizados.
+- Chamadas externas ocorrem fora da transacao PostgreSQL; falhas de recovery preservam resposta nao enumeravel.
 - Adicionado onboarding multi-family por convite de uso unico para Admin e Member.
 - Tokens de convite agora possuem alta entropia, expiracao configuravel e persistencia somente por hash.
 - Aceite cria uma identidade nova ou valida a senha e o lockout Identity de uma conta existente.

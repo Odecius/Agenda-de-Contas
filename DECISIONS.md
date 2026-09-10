@@ -1,5 +1,13 @@
 ﻿# DECISIONS
 
+## 2026-09-10 - Delivery comum fora da transacao e sem outbox inicial
+
+**Decisao:** Convites e recovery usam `IUserNotificationDeliveryService`, mensagens tipadas, links originados de configuracao confiavel e provider externo desabilitado por default. Convites sao persistidos antes da entrega; recovery nunca muda sua resposta por resultado do provider.
+
+**Motivo:** Nao manter transacao PostgreSQL durante rede externa, evitar account enumeration e permitir adapters de Email, WhatsApp, Telegram e SMS sem acoplar regras de negocio ou fornecedor ao dominio.
+
+**Impacto:** O adapter implementado e somente HTTP email. Retry e timeout sao limitados e a idempotency key reduz duplicidade sem garanti-la. Sem outbox, crash entre commit e envio exige recuperacao manual; outbox sera obrigatorio antes de multiplas replicas ou garantias fortes de entrega.
+
 ## 2026-08-29 - Onboarding usa convite vinculado server-side ao tenant
 
 **Decisao:** Somente Owner cria convites para Admin ou Member. O `FamilyId` vem do contexto autenticado, nunca do payload. O token bruto e retornado uma unica vez, persiste apenas como hash e pode ser aceito uma vez antes da expiracao ou revogacao.

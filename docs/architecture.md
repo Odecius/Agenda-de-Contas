@@ -46,3 +46,5 @@ O desenho relacional esta documentado em `multi-family-postgresql-plan.md` e imp
 Convites pertencem obrigatoriamente a uma familia e ao Owner criador. Apenas o hash do token e persistido; aceite e revogacao usam filtros tenant-aware e constraints relacionais. Consulte `multi-family-invitations.md`.
 
 Password recovery atua somente sobre a identidade global, usa os token providers Identity e nao seleciona tenant; consulte `password-recovery.md`.
+
+Convites e password recovery usam `IUserNotificationDeliveryService` com tipos explicitos. O adapter atual e HTTP email, desabilitado por default, HTTPS-only e configurado externamente. O dominio nao conhece fornecedores; adapters futuros de Email, WhatsApp, Telegram e SMS podem implementar o mesmo limite sem receber regras de familia. Chamadas externas ocorrem depois do commit e nao mantem transacao PostgreSQL aberta. Consulte `secure-delivery.md`.

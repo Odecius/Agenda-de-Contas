@@ -64,6 +64,9 @@ var tests = new List<(string Name, Func<Task> Run)>
     ("Recovery redefine senha e invalida token", PasswordRecoveryResetsPasswordOnceAsync),
     ("Recovery rejeita token adulterado e senha fraca", PasswordRecoveryRejectsInvalidInputsAsync),
     ("Recovery rejeita token expirado", PasswordRecoveryRejectsExpiredTokenAsync),
+    ("Delivery usa default seguro e valida configuracao", DeliveryDefaultsAreSafe),
+    ("Delivery aplica retry limitado apenas a falha transitoria", DeliveryRetriesAreBoundedAsync),
+    ("Provider HTTP classifica respostas e usa idempotencia", HttpDeliveryProviderUsesIdempotencyAsync),
     ("CurrentUserContext confia somente no principal", CurrentUserContextUsesOnlyAuthenticatedPrincipal),
     ("CurrentUserContext rejeita usuario anonimo", CurrentUserContextRejectsAnonymousUser),
     ("CurrentUserContext rejeita claim malformado", CurrentUserContextRejectsMalformedClaim),
@@ -663,7 +666,7 @@ static async Task PasswordRecoveryDoesNotEnumerateAsync()
     await service.RequestAsync("unknown@example.test");
     AssertEqual(1, delivery.Messages.Count, "Usuario inexistente nao deve gerar entrega.");
     AssertEqual(PasswordRecoveryService.GenericResponse, PasswordRecoveryService.GenericResponse, "Resposta publica deve permanecer generica.");
-    AssertTrue(!delivery.Messages[0].Message.ResetUrl.Contains(user.Id.ToString(), StringComparison.OrdinalIgnoreCase), "Link nao deve expor UserId.");
+    AssertTrue(!delivery.Messages[0].ActionUrl.Contains(user.Id.ToString(), StringComparison.OrdinalIgnoreCase), "Link nao deve expor UserId.");
 }
 
 static async Task PasswordRecoveryContainsDeliveryFailuresAsync()
@@ -684,10 +687,10 @@ static async Task PasswordRecoveryContainsDeliveryFailuresAsync()
 
 static Task PasswordRecoveryRequiresSecurePublicBaseUrl()
 {
-    var validator = new PasswordRecoveryOptionsValidator();
+    var validator = new DeliveryOptionsValidator();
     foreach (var valid in new[] { "https://localhost", "https://example.invalid" })
     {
-        AssertTrue(validator.Validate(null, new PasswordRecoveryOptions { Enabled = true, PublicBaseUrl = valid }).Succeeded,
+        AssertTrue(validator.Validate(null, EnabledDelivery(publicBaseUrl: valid)).Succeeded,
             $"URL HTTPS valida foi rejeitada: {valid}");
     }
 
@@ -698,12 +701,12 @@ static Task PasswordRecoveryRequiresSecurePublicBaseUrl()
         "https://example.invalid/#fragment"
     })
     {
-        AssertTrue(validator.Validate(null, new PasswordRecoveryOptions { Enabled = true, PublicBaseUrl = invalid }).Failed,
+        AssertTrue(validator.Validate(null, EnabledDelivery(publicBaseUrl: invalid)).Failed,
             $"URL insegura foi aceita: {invalid}");
     }
 
-    AssertTrue(validator.Validate(null, new PasswordRecoveryOptions { Enabled = false, PublicBaseUrl = "" }).Succeeded,
-        "Recovery desabilitado nao deve exigir URL.");
+    AssertTrue(validator.Validate(null, new DeliveryOptions { Enabled = false, PublicBaseUrl = "" }).Succeeded,
+        "Delivery desabilitado nao deve exigir URL.");
     return Task.CompletedTask;
 }
 
@@ -715,7 +718,7 @@ static async Task PasswordRecoveryResetsPasswordOnceAsync()
     var user = await CreateUserAsync(scope.UserManager, "reset@example.test", "Old-password-123!");
     var oldStamp = await scope.UserManager.GetSecurityStampAsync(user);
     await service.RequestAsync(user.Email!);
-    var (email, token) = ParseRecoveryLink(delivery.Messages.Single().Message.ResetUrl);
+    var (email, token) = ParseRecoveryLink(delivery.Messages.Single().ActionUrl);
 
     AssertTrue(await service.ResetAsync(email, token, "New-password-456!"), "Token valido deveria redefinir a senha.");
     AssertTrue(!await scope.UserManager.CheckPasswordAsync(user, "Old-password-123!"), "Senha antiga deveria falhar.");
@@ -731,7 +734,7 @@ static async Task PasswordRecoveryRejectsInvalidInputsAsync()
     var service = CreateRecoveryService(scope.UserManager, delivery);
     var user = await CreateUserAsync(scope.UserManager, "invalid-reset@example.test", "Old-password-123!");
     await service.RequestAsync(user.Email!);
-    var (email, token) = ParseRecoveryLink(delivery.Messages.Single().Message.ResetUrl);
+    var (email, token) = ParseRecoveryLink(delivery.Messages.Single().ActionUrl);
     AssertTrue(!await service.ResetAsync(email, token + "x", "New-password-456!"), "Token adulterado deveria falhar.");
     AssertTrue(!await service.ResetAsync(email, token, "weak"), "Senha fora da policy Identity deveria falhar.");
     AssertTrue(await service.ResetAsync(email, token, "New-password-456!"), "Falha por senha fraca nao deve consumir token valido.");
@@ -744,18 +747,107 @@ static async Task PasswordRecoveryRejectsExpiredTokenAsync()
     var service = CreateRecoveryService(scope.UserManager, delivery);
     var user = await CreateUserAsync(scope.UserManager, "expired-reset@example.test", "Old-password-123!");
     await service.RequestAsync(user.Email!);
-    var (email, token) = ParseRecoveryLink(delivery.Messages.Single().Message.ResetUrl);
+    var (email, token) = ParseRecoveryLink(delivery.Messages.Single().ActionUrl);
     await Task.Delay(25);
     AssertTrue(!await service.ResetAsync(email, token, "New-password-456!"), "Token expirado deveria falhar.");
 }
 
-static PasswordRecoveryService CreateRecoveryService(UserManager<AppUser> users, IPasswordRecoveryDeliveryService delivery) =>
-    new(users, delivery, Options.Create(new PasswordRecoveryOptions
+static Task DeliveryDefaultsAreSafe()
+{
+    var validator = new DeliveryOptionsValidator();
+    AssertTrue(validator.Validate(null, new DeliveryOptions()).Succeeded, "Delivery desabilitado nao deve exigir credential.");
+    AssertTrue(validator.Validate(null, EnabledDelivery(publicBaseUrl: "http://localhost")).Failed, "PublicBaseUrl habilitada deve usar HTTPS.");
+    AssertTrue(validator.Validate(null, EnabledDelivery(endpoint: "http://provider.example.test/send")).Failed, "Endpoint habilitado deve usar HTTPS.");
+    AssertTrue(validator.Validate(null, EnabledDelivery(provider: "Unknown")).Failed, "Provider desconhecido deve falhar fechado.");
+    return Task.CompletedTask;
+}
+
+static DeliveryOptions EnabledDelivery(
+    string publicBaseUrl = "https://localhost",
+    string endpoint = "https://provider.example.test/send",
+    string provider = "HttpEmail") => new()
+{
+    Enabled = true,
+    Provider = provider,
+    PublicBaseUrl = publicBaseUrl,
+    Http = new HttpDeliveryOptions
     {
-        Enabled = true,
-        PublicBaseUrl = "https://localhost",
-        TokenLifespanMinutes = 60
-    }), new PasswordRecoveryAttemptLimiter(TimeProvider.System), NullLogger<PasswordRecoveryService>.Instance);
+        Endpoint = endpoint,
+        ApiKey = "synthetic-test-key",
+        FromAddress = "sender@example.test"
+    }
+};
+
+static async Task DeliveryRetriesAreBoundedAsync()
+{
+    var options = Options.Create(EnabledDelivery());
+    var transient = new SequencedNotificationProvider(DeliveryStatus.TemporaryFailure, DeliveryStatus.TemporaryFailure, DeliveryStatus.Sent);
+    var logger = new RecordingLogger<UserNotificationDeliveryService>();
+    var service = new UserNotificationDeliveryService(options, transient, logger);
+    var message = new UserNotificationMessage(UserNotificationKind.PasswordRecovery, "destination@example.test", "https://localhost/reset#token=synthetic", Guid.NewGuid());
+    var result = await service.DeliverAsync(message);
+    AssertEqual(DeliveryStatus.Sent, result.Status, "Falha transitoria deveria permitir sucesso posterior.");
+    AssertEqual(3, result.Attempts, "Retry deve respeitar limite configurado.");
+    AssertEqual(1, transient.CorrelationIds.Distinct().Count(), "Retries devem preservar a mesma chave logica de idempotencia.");
+    AssertTrue(logger.Messages.All(entry => !entry.Contains(message.Destination, StringComparison.Ordinal)
+        && !entry.Contains(message.ActionUrl, StringComparison.Ordinal)), "Logs nao podem conter destino ou action URL.");
+
+    var permanent = new SequencedNotificationProvider(DeliveryStatus.PermanentFailure, DeliveryStatus.Sent);
+    var permanentResult = await new UserNotificationDeliveryService(options, permanent, NullLogger<UserNotificationDeliveryService>.Instance).DeliverAsync(message);
+    AssertEqual(1, permanentResult.Attempts, "Rejeicao permanente nao deve ser repetida.");
+
+    var disabledProvider = new SequencedNotificationProvider(DeliveryStatus.Sent);
+    var disabled = new UserNotificationDeliveryService(Options.Create(new DeliveryOptions()), disabledProvider, NullLogger<UserNotificationDeliveryService>.Instance);
+    AssertEqual(DeliveryStatus.Disabled, (await disabled.DeliverAsync(message)).Status, "Default deve impedir envio externo.");
+    AssertEqual(0, disabledProvider.Calls, "Provider nao deve ser chamado quando delivery esta desabilitado.");
+
+    var throwing = new ThrowingNotificationProvider();
+    var failed = await new UserNotificationDeliveryService(options, throwing, NullLogger<UserNotificationDeliveryService>.Instance).DeliverAsync(message);
+    AssertEqual(DeliveryStatus.PermanentFailure, failed.Status, "Exception desconhecida do provider deve falhar de forma controlada.");
+    AssertEqual(1, throwing.Calls, "Exception desconhecida nao deve ser repetida como se fosse transitoria.");
+
+    var timeoutConfiguration = EnabledDelivery();
+    timeoutConfiguration.TimeoutSeconds = 1;
+    timeoutConfiguration.MaxRetries = 0;
+    var timeoutOptions = Options.Create(timeoutConfiguration);
+    var timeout = await new UserNotificationDeliveryService(timeoutOptions, new BlockingNotificationProvider(), NullLogger<UserNotificationDeliveryService>.Instance)
+        .DeliverAsync(message);
+    AssertEqual(DeliveryStatus.TemporaryFailure, timeout.Status, "Timeout deve ser classificado como falha transitoria.");
+    AssertEqual(1, timeout.Attempts, "Timeout sem retries deve fazer uma unica tentativa.");
+}
+
+static async Task HttpDeliveryProviderUsesIdempotencyAsync()
+{
+    var correlationId = Guid.NewGuid();
+    var message = new UserNotificationMessage(
+        UserNotificationKind.FamilyInvitation,
+        "destination@example.test",
+        "https://localhost/invite#token=synthetic",
+        correlationId);
+    var options = Options.Create(EnabledDelivery());
+    var successHandler = new RecordingHttpMessageHandler(HttpStatusCode.Accepted);
+    var provider = new HttpEmailNotificationProvider(new StaticHttpClientFactory(successHandler), options);
+
+    AssertEqual(DeliveryStatus.Sent, await provider.SendAsync(message, CancellationToken.None), "Resposta 2xx deve ser sucesso.");
+    AssertEqual("https", successHandler.RequestUri?.Scheme, "Provider deve receber apenas endpoint HTTPS validado.");
+    AssertEqual(correlationId.ToString("N"), successHandler.IdempotencyKey, "Header de idempotencia deve usar correlation ID estavel.");
+    AssertEqual("Bearer", successHandler.AuthorizationScheme, "Credential deve ser enviada somente no header de autorizacao.");
+
+    var transient = new HttpEmailNotificationProvider(
+        new StaticHttpClientFactory(new RecordingHttpMessageHandler(HttpStatusCode.TooManyRequests)), options);
+    AssertEqual(DeliveryStatus.TemporaryFailure, await transient.SendAsync(message, CancellationToken.None), "429 deve ser transitorio.");
+
+    var permanent = new HttpEmailNotificationProvider(
+        new StaticHttpClientFactory(new RecordingHttpMessageHandler(HttpStatusCode.BadRequest)), options);
+    AssertEqual(DeliveryStatus.PermanentFailure, await permanent.SendAsync(message, CancellationToken.None), "400 deve ser permanente.");
+}
+
+static PasswordRecoveryService CreateRecoveryService(UserManager<AppUser> users, IUserNotificationDeliveryService delivery) =>
+    new(users, delivery,
+        new SecureActionLinkFactory(Options.Create(new DeliveryOptions { PublicBaseUrl = "https://localhost" })),
+        Options.Create(new PasswordRecoveryOptions { Enabled = true, TokenLifespanMinutes = 60 }),
+        new PasswordRecoveryAttemptLimiter(TimeProvider.System),
+        NullLogger<PasswordRecoveryService>.Instance);
 
 static (string Email, string Token) ParseRecoveryLink(string url)
 {
@@ -1073,7 +1165,7 @@ static async Task PasswordRecoveryWorksOnPostgresAsync()
         recoveryRateStatus = limited.StatusCode;
     }
     AssertEqual(HttpStatusCode.TooManyRequests, recoveryRateStatus, "Decima primeira solicitacao de recovery por IP deveria receber 429.");
-    var (email, token) = ParseRecoveryLink(factory.RecoveryDelivery.Messages.Single().Message.ResetUrl);
+    var (email, token) = ParseRecoveryLink(factory.RecoveryDelivery.Messages.Single().ActionUrl);
 
     using var firstClient = factory.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri("https://localhost") });
     using var secondClient = factory.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri("https://localhost") });
@@ -1230,12 +1322,15 @@ static async Task FamilyInvitationCreatesMembershipSecurelyAsync()
     scope.Db.FamilyUsers.Add(new FamilyUser { FamilyId = family.Id, UserId = owner.Id, Role = FamilyRole.Owner });
     await scope.Db.SaveChangesAsync();
 
+    var invitationDelivery = new CapturePasswordRecoveryDelivery();
     var service = new FamilyInvitationService(
         scope.Db,
         new StaticCurrentFamilyContext(new CurrentFamily(family.Id, owner.Id, FamilyRole.Owner)),
         scope.UserManager,
         Microsoft.Extensions.Options.Options.Create(new MultiFamilyOptions { InvitationHours = 48 }),
-        TimeProvider.System);
+        TimeProvider.System,
+        invitationDelivery,
+        new SecureActionLinkFactory(Options.Create(new DeliveryOptions { PublicBaseUrl = "https://trusted.example.test" })));
 
     var invitation = await service.CreateAsync("new-member@example.test", FamilyRole.Member);
     var stored = await scope.Db.FamilyInvitations.SingleAsync(x => x.Id == invitation.Id);
@@ -1244,6 +1339,11 @@ static async Task FamilyInvitationCreatesMembershipSecurelyAsync()
     AssertTrue(!string.Equals(stored.TokenHash, invitation.Token, StringComparison.Ordinal), "Token bruto nunca deve ser persistido.");
     AssertTrue(!invitation.ToString().Contains(invitation.Token, StringComparison.Ordinal), "Representacao do resultado nao deve expor token.");
     AssertTrue(!invitation.ToString().Contains(invitation.Email, StringComparison.OrdinalIgnoreCase), "Representacao do resultado nao deve expor email.");
+    AssertEqual(DeliveryStatus.Sent, invitation.DeliveryStatus, "Convite deveria solicitar delivery uma vez depois do commit.");
+    AssertEqual(1, invitationDelivery.Messages.Count, "Convite deve gerar exatamente uma tentativa de delivery.");
+    AssertEqual(UserNotificationKind.FamilyInvitation, invitationDelivery.Messages[0].Kind, "Tipo de mensagem deve ser explicito.");
+    AssertEqual(invitation.Email, invitationDelivery.Messages[0].Destination, "Destino deve ser o email convidado.");
+    AssertTrue(invitationDelivery.Messages[0].ActionUrl.StartsWith("https://trusted.example.test/invite.html#", StringComparison.Ordinal), "Link deve usar a base confiavel.");
     AssertTrue(await service.AcceptAsync(invitation.Token, "wrong@example.test", inviteePassword) is null, "Email adulterado deveria rejeitar convite.");
     AssertEqual(1, await scope.Db.Users.CountAsync(), "Tentativa adulterada nao deveria criar usuario.");
 
@@ -2546,22 +2646,92 @@ internal sealed class FakeFamilyTelegramSender(Guid failingFamilyId) : IFamilyTe
     }
 }
 
-internal sealed class CapturePasswordRecoveryDelivery : IPasswordRecoveryDeliveryService
+internal sealed class CapturePasswordRecoveryDelivery : IUserNotificationDeliveryService
 {
-    public List<(string Email, PasswordRecoveryMessage Message)> Messages { get; } = [];
-    public Task DeliverAsync(string email, PasswordRecoveryMessage message, CancellationToken cancellationToken = default)
+    public List<UserNotificationMessage> Messages { get; } = [];
+    public DeliveryStatus Status { get; set; } = DeliveryStatus.Sent;
+
+    public Task<DeliveryResult> DeliverAsync(UserNotificationMessage message, CancellationToken cancellationToken = default)
     {
-        Messages.Add((email, message));
-        return Task.CompletedTask;
+        Messages.Add(message);
+        return Task.FromResult(new DeliveryResult(Status, 1));
     }
 }
 
-internal sealed class ThrowingPasswordRecoveryDelivery(Exception exception) : IPasswordRecoveryDeliveryService
+internal sealed class ThrowingPasswordRecoveryDelivery(Exception exception) : IUserNotificationDeliveryService
 {
-    public Task DeliverAsync(
-        string email,
-        PasswordRecoveryMessage message,
-        CancellationToken cancellationToken = default) => Task.FromException(exception);
+    public Task<DeliveryResult> DeliverAsync(
+        UserNotificationMessage message,
+        CancellationToken cancellationToken = default) => Task.FromException<DeliveryResult>(exception);
+}
+
+internal sealed class SequencedNotificationProvider(params DeliveryStatus[] statuses) : IUserNotificationProvider
+{
+    private readonly Queue<DeliveryStatus> _statuses = new(statuses);
+    public int Calls { get; private set; }
+    public List<Guid> CorrelationIds { get; } = [];
+
+    public Task<DeliveryStatus> SendAsync(UserNotificationMessage message, CancellationToken cancellationToken)
+    {
+        Calls++;
+        CorrelationIds.Add(message.CorrelationId);
+        return Task.FromResult(_statuses.Count > 0 ? _statuses.Dequeue() : DeliveryStatus.TemporaryFailure);
+    }
+}
+
+internal sealed class BlockingNotificationProvider : IUserNotificationProvider
+{
+    public async Task<DeliveryStatus> SendAsync(UserNotificationMessage message, CancellationToken cancellationToken)
+    {
+        await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+        return DeliveryStatus.Sent;
+    }
+}
+
+internal sealed class StaticHttpClientFactory(HttpMessageHandler handler) : IHttpClientFactory
+{
+    public HttpClient CreateClient(string name) => new(handler, disposeHandler: false);
+}
+
+internal sealed class RecordingHttpMessageHandler(HttpStatusCode statusCode) : HttpMessageHandler
+{
+    public Uri? RequestUri { get; private set; }
+    public string? IdempotencyKey { get; private set; }
+    public string? AuthorizationScheme { get; private set; }
+
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        RequestUri = request.RequestUri;
+        IdempotencyKey = request.Headers.GetValues("Idempotency-Key").Single();
+        AuthorizationScheme = request.Headers.Authorization?.Scheme;
+        return Task.FromResult(new HttpResponseMessage(statusCode));
+    }
+}
+
+internal sealed class RecordingLogger<T> : ILogger<T>
+{
+    public List<string> Messages { get; } = [];
+
+    public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+    public bool IsEnabled(LogLevel logLevel) => true;
+
+    public void Log<TState>(
+        LogLevel logLevel,
+        EventId eventId,
+        TState state,
+        Exception? exception,
+        Func<TState, Exception?, string> formatter) => Messages.Add(formatter(state, exception));
+}
+
+internal sealed class ThrowingNotificationProvider : IUserNotificationProvider
+{
+    public int Calls { get; private set; }
+
+    public Task<DeliveryStatus> SendAsync(UserNotificationMessage message, CancellationToken cancellationToken)
+    {
+        Calls++;
+        throw new InvalidOperationException("Synthetic provider failure without sensitive content.");
+    }
 }
 
 internal sealed class FamilyContextTestScope : IAsyncDisposable
@@ -2770,12 +2940,12 @@ internal sealed class MultiFamilyWebFactory : WebApplicationFactory<ApplicationM
 {
     private readonly Dictionary<string, string?> _previousEnvironment = new(StringComparer.Ordinal);
     private readonly string _connectionString;
-    private readonly IPasswordRecoveryDeliveryService _recoveryDelivery;
+    private readonly IUserNotificationDeliveryService _recoveryDelivery;
     public CapturePasswordRecoveryDelivery RecoveryDelivery { get; } = new();
 
     public MultiFamilyWebFactory(
         string connectionString,
-        IPasswordRecoveryDeliveryService? recoveryDelivery = null)
+        IUserNotificationDeliveryService? recoveryDelivery = null)
     {
         _connectionString = connectionString;
         _recoveryDelivery = recoveryDelivery ?? RecoveryDelivery;
