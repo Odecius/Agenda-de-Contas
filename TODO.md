@@ -2,20 +2,17 @@
 
 ## Alta prioridade
 
-- Preparar ambiente isolado de piloto e ensaiar backup/restore, importacao JSON e rollback antes de qualquer cutover.
+- Provisionar o ambiente isolado de piloto e a rotina diaria/off-host conforme `docs/pilot-runbook.md`.
 - Configurar e homologar o provider externo de delivery com secrets e origem publica aprovados, sem habilita-lo por default.
 - Reavaliar outbox e rate limits distribuidos antes de multiplas replicas.
 - Revisar e aprovar a Fase 4 antes de qualquer ensaio com copia de dados reais.
-- Definir politica segura e fluxo separado para adicionar novos Owners antes do piloto.
-- Executar testes dedicados de navegador para a UI multi-family.
 - Definir CLI/admin command ou procedimento offline para a futura execucao controlada.
-- Planejar separadamente settings, lembretes e Telegram sem transportar secrets.
 - Trocar sessao em memoria por armazenamento apropriado antes de multiplas replicas.
 - Revisar a migration `InitialMultiTenantSchema` antes de preparar qualquer ambiente PostgreSQL.
 - Remover token/chat id de `notas.txt` e limpar histórico Git se o segredo já tiver sido versionado.
 - Confirmar e registrar a rotação de qualquer token Telegram historicamente exposto.
 - Planejar PostgreSQL, autenticação individual e `Family/Tenant` conforme `docs/multi-family-postgresql-plan.md`.
-- Definir RPO/RTO e ensaiar restore antes de qualquer migração dos dados reais.
+- Repetir o rehearsal no ambiente isolado futuro e comprovar operacionalmente RPO `<= 24h` e RTO `<= 30 min`.
 - Registrar correspondência verificável entre futura imagem de produção e commit/tag de origem.
 - Validar deploy real em Raspberry Pi quando o hardware estiver disponivel.
 
@@ -37,6 +34,11 @@
 
 ## Concluído
 
+- Politica de multiplos Owners, handover, ultimo Owner e concorrencia validada.
+- UI multi-family validada em navegador com fluxos desktop/mobile.
+- Settings, lembretes e Telegram tenant-aware mantem secrets fora do banco.
+- Rehearsal descartavel de migracao, reconciliacao, backup, destruicao da origem, restore e validacao da aplicacao.
+- Runbook sanitizado de piloto, rollback/cutover, observabilidade, incidentes e roteiro de testers.
 - Cadastro controlado, Family propria, primeiro Owner, administracao de roles/members e troca multi-Family preparados para piloto privado.
 - Onboarding por convite tenant-aware para Admin/Member, com expiracao, revogacao, uso unico, hash do token e lockout Identity.
 - Gate PostgreSQL 16 descartavel concluido com migration vazia, isolamento, concorrencia, rollback, constraints, 59/59 testes e cleanup sem recursos residuais.

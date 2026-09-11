@@ -1,5 +1,13 @@
 ﻿# DECISIONS
 
+## 2026-09-11 - Pilot e um ambiente explicito, isolado e fail-safe
+
+**Decisao:** Permitir `MultiFamily` no ambiente nomeado `Pilot`, mantendo o default global desligado e um perfil sem connection string, registration, delivery, Telegram ou backup legado ativos. Readiness consulta somente conectividade e migrations e retorna estado generico. O rehearsal usa recursos gerados e descartaveis.
+
+**Motivo:** Development/Testing nao representam uma operacao de alpha, mas producao ainda nao deve ser alterada. O perfil explicito evita improviso e continua falhando fechado sem configuracao externa.
+
+**Impacto:** RPO `<= 24h` e RTO `<= 30 min` sao alvos do piloto; provisioning, secrets e agendamentos permanecem externos. O go-live real continua bloqueado ate o status Telegram ser resolvido e backup/off-host ser provisionado.
+
 ## 2026-09-10 - Cadastro cria uma Family nova e o dominio suporta multiplos Owners
 
 **Decisao:** O cadastro publico e uma capacidade independente, desabilitada por default. Quando autorizado, cria identidade, Family, settings e primeiro Owner em uma transacao. O modelo continua permitindo multiplos Owners; promover um membro ativo da mesma Family e o mecanismo de handover.
