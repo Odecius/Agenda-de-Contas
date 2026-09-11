@@ -102,6 +102,11 @@ if (multiFamilyOptions.Enabled)
         .ValidateDataAnnotations()
         .ValidateOnStart();
     builder.Services
+        .AddOptions<RegistrationOptions>()
+        .Bind(builder.Configuration.GetSection(RegistrationOptions.SectionName))
+        .ValidateDataAnnotations()
+        .ValidateOnStart();
+    builder.Services
         .AddOptions<DeliveryOptions>()
         .Bind(builder.Configuration.GetSection(DeliveryOptions.SectionName))
         .ValidateDataAnnotations()
@@ -129,7 +134,9 @@ if (multiFamilyOptions.Enabled)
         {
             options.Cookie.Name = "AgendadorContas.MultiFamily.Auth";
             options.Cookie.HttpOnly = true;
-            options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+            options.Cookie.SecurePolicy = builder.Environment.IsDevelopment() || builder.Environment.IsEnvironment("Testing")
+                ? CookieSecurePolicy.SameAsRequest
+                : CookieSecurePolicy.Always;
             options.Cookie.SameSite = SameSiteMode.Strict;
             options.ExpireTimeSpan = TimeSpan.FromHours(multiFamilyOptions.SessionHours);
             options.SlidingExpiration = true;
@@ -156,6 +163,8 @@ if (multiFamilyOptions.Enabled)
     builder.Services.AddScoped<IUserNotificationProvider, HttpEmailNotificationProvider>();
     builder.Services.AddSingleton<PasswordRecoveryAttemptLimiter>();
     builder.Services.AddScoped<IFamilyInvitationService, FamilyInvitationService>();
+    builder.Services.AddScoped<FamilyRegistrationService>();
+    builder.Services.AddScoped<FamilyMembershipService>();
     builder.Services.AddScoped<IContaRepository, ContaRepository>();
     builder.Services.AddScoped<IPagamentoRepository, PagamentoRepository>();
     builder.Services.AddScoped<IJsonToPostgresqlMigrator, JsonToPostgresqlMigrator>();
@@ -167,14 +176,16 @@ if (multiFamilyOptions.Enabled)
         builder.Services.AddSingleton(TimeProvider.System);
         builder.Services.AddHostedService<MultiFamilyReminderWorker>();
     }
-    builder.Services.AddSingleton<LoginTimingProtector>();
+    builder.Services.AddScoped<LoginTimingProtector>();
     builder.Services.AddDistributedMemoryCache();
     builder.Services.AddSession(options =>
     {
         options.Cookie.Name = "AgendadorContas.MultiFamily.Session";
         options.Cookie.HttpOnly = true;
         options.Cookie.IsEssential = true;
-        options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+        options.Cookie.SecurePolicy = builder.Environment.IsDevelopment() || builder.Environment.IsEnvironment("Testing")
+            ? CookieSecurePolicy.SameAsRequest
+            : CookieSecurePolicy.Always;
         options.Cookie.SameSite = SameSiteMode.Strict;
         options.IdleTimeout = TimeSpan.FromHours(multiFamilyOptions.SessionHours);
     });
@@ -233,6 +244,16 @@ builder.Services.AddRateLimiter(options =>
             {
                 PermitLimit = 10,
                 Window = TimeSpan.FromMinutes(15),
+                QueueLimit = 0,
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst
+            }));
+    options.AddPolicy("multi-family-registration", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = builder.Configuration.GetValue("Registration:AttemptsPerHour", 5),
+                Window = TimeSpan.FromHours(1),
                 QueueLimit = 0,
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst
             }));

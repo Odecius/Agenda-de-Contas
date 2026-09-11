@@ -22,6 +22,8 @@ Na branch `agent/multi-family-invitations`, o onboarding permite ao Owner convid
 
 Na branch `agent/secure-notification-delivery`, convites e recovery compartilham delivery tipado, desabilitado por default. Links usam `Delivery:PublicBaseUrl`; o adapter HTTP exige HTTPS e secrets externos. Delivery ocorre fora da transacao, usa timeout/retry limitado e idempotency key, sem destino ou token nos logs. A abstracao permite adapters futuros de Email, WhatsApp, Telegram e SMS sem levar regras de familia ao provider; somente o adapter HTTP de email existe nesta etapa.
 
+Na branch `agent/pilot-ready-family-management`, cadastro publico permanece desligado por default. Quando autorizado em Development/Testing, cria Identity, Family, settings e primeiro Owner atomicamente. O cliente nao escolhe tenant. O modelo usa multiplos Owners e protege o ultimo Owner em alteracoes transacionais. A UI integra cadastro, convite, recovery, administracao familiar e selecao revalidada de multiplas Families.
+
 O modelo de contas possui suporte inicial a pais e moeda por conta. Os paises suportados sao `UnitedKingdom`, `Portugal` e `Brazil`; as moedas suportadas sao `GBP`, `EUR` e `BRL`. O sistema nao faz conversao cambial. Totais com moedas diferentes devem ser agrupados por moeda.
 
 A interface possui resumo por pais e moeda baseado nos vencimentos do mes selecionado. Esse resumo e apenas demonstrativo/operacional: ele separa os valores por moeda e nao calcula conversao.

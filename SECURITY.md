@@ -18,6 +18,8 @@
 - [x] Convites multi-family vinculados server-side ao tenant, com hash, expiracao, revogacao e uso unico.
 - [x] Password recovery Identity sem enumeracao, token em resposta ou dependencia de tenant.
 - [x] Falhas de delivery de recovery preservam resposta generica e a origem publica exige HTTPS.
+- [x] Cadastro publico possui switch separado desabilitado por default e nao aceita identificadores de tenant/Owner.
+- [x] Criacao de identidade, Family e primeiro Owner e atomica; operacoes concorrentes preservam ao menos um Owner.
 - [x] Delivery externo e fail-safe, HTTPS-only quando habilitado e nao registra destino, URL, token ou credential.
 - [x] Backups do arquivo JSON de dados.
 - [x] Logs sem segredos conhecidos.

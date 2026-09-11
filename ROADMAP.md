@@ -217,3 +217,11 @@ O plano detalhado esta em `docs/multi-family-postgresql-plan.md`. A fundacao e o
 - Adapter HTTP de email, configuracao fail-safe, timeout, retry limitado e idempotency key.
 - Arquitetura preparada para adapters futuros de Email, WhatsApp, Telegram e SMS, sem implementa-los nesta etapa.
 - Envio externo permanece desabilitado ate homologacao operacional com secrets externos.
+
+### Etapa 32.8 - Pilot-ready onboarding e administracao familiar
+
+- Cadastro publico controlado e desabilitado por default.
+- Criacao atomica de identidade, Family, settings e primeiro Owner.
+- Administracao de membros e Owners com protecao concorrente do ultimo Owner.
+- Seletor multi-Family integrado e revalidado server-side.
+- Proxima etapa: preparar ambiente isolado, ensaio de importacao e runbook de cutover/rollback.

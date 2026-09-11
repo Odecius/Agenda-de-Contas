@@ -27,6 +27,7 @@ async function loadCurrentFamily() {
   state.current = await response.json();
   $("familySelect").value = state.current.familyId;
   $("familyStatus").textContent = `${state.families.find(x => x.familyId === state.current.familyId)?.name || "Família"} · ${state.current.role}`;
+  $("familyName").textContent = state.families.find(x => x.familyId === state.current.familyId)?.name || "Família";
   $("roleStatus").textContent = `Role: ${state.current.role}`;
   await loadTenantData();
 }
@@ -51,7 +52,7 @@ async function selectFamily(familyId) {
   $("invitationLink").value = ""; $("invitationResult").hidden = true;
 }
 
-$("familySelect").addEventListener("change", async event => { await selectFamily(event.target.value); await loadCurrentFamily(); });
+$("familySelect").addEventListener("change", async event => { try { await selectFamily(event.target.value); await loadCurrentFamily(); } catch (error) { await refreshFamilies(); showError(error.message); } });
 $("logoutButton").addEventListener("click", async () => { await request("/auth/logout", { method: "POST" }); redirectLogin(); });
 $("cancelEdit").addEventListener("click", () => $("accountForm").reset());
 
@@ -77,12 +78,12 @@ $("accountsTable").addEventListener("click", async event => {
 
 $("settingsForm").addEventListener("submit", async event => { event.preventDefault(); const [hour, minute] = $("reminderTime").value.split(":").map(Number); await request("/settings", { method: "PUT", body: { defaultCurrency: $("defaultCurrency").value, timeZoneId: $("timeZoneId").value, reminderHour: hour, reminderMinute: minute } }); await loadTenantData(); });
 $("memberForm").addEventListener("submit", async event => { event.preventDefault(); const invitation = await request("/invitations", { method: "POST", body: { email: $("memberEmail").value, role: $("memberRole").value } }); const link = `${window.location.origin}/invite.html#token=${encodeURIComponent(invitation.token)}`; $("invitationLink").value = link; $("invitationResult").hidden = false; event.target.reset(); await loadTenantData(); });
-$("membersList").addEventListener("click", async event => { const b = event.target.closest("button[data-user]"); if (!b) return; if (b.dataset.action === "remove") await request(`/members/${b.dataset.user}`, { method: "DELETE" }); else await request(`/members/${b.dataset.user}/role`, { method: "PUT", body: { role: b.dataset.action } }); await loadTenantData(); });
+$("membersList").addEventListener("click", async event => { const b = event.target.closest("button[data-user]"); if (!b) return; if (b.dataset.action === "remove" && !confirm("Remover este membro da família?")) return; if (b.dataset.action === "Owner" && !confirm("Conceder a função Owner a este membro?")) return; await request(`/members/${b.dataset.user}${b.dataset.action === "remove" ? "" : "/role"}`, { method: b.dataset.action === "remove" ? "DELETE" : "PUT", ...(b.dataset.action === "remove" ? {} : { body: { role: b.dataset.action } }) }); await refreshFamilies(); await loadCurrentFamily(); });
 $("invitationsList").addEventListener("click", async event => { const b = event.target.closest("button[data-invitation]"); if (!b) return; await request(`/invitations/${b.dataset.invitation}`, { method: "DELETE" }); $("invitationLink").value = ""; $("invitationResult").hidden = true; await loadTenantData(); });
 
 function renderAccounts() { const now = new Date(); $("accountsTable").innerHTML = state.accounts.map(x => { const payment = state.payments.find(p => p.contaId === x.id && p.ano === now.getFullYear() && p.mes === now.getMonth() + 1); return `<tr><td>${escapeHtml(x.nome)}</td><td>${x.currency} ${Number(x.valor).toFixed(2)}</td><td>${x.diaVencimento}</td><td>${x.ativa ? "Ativa" : "Pausada"}</td><td>${payment ? `<span>Pago</span> <button class="owner-only" data-action="unpay" data-id="${x.id}" data-payment="${payment.id}">Desmarcar</button>` : `<button data-action="pay" data-id="${x.id}">Pagar</button>`} <button class="manage-account" data-action="edit" data-id="${x.id}">Editar</button> <button class="manage-account" data-action="toggle" data-id="${x.id}">${x.ativa ? "Pausar" : "Ativar"}</button> <button class="owner-only" data-action="delete" data-id="${x.id}">Excluir</button></td></tr>`; }).join(""); }
 function renderSettings() { $("defaultCurrency").value = state.settings.defaultCurrency; $("timeZoneId").value = state.settings.timeZoneId; $("reminderTime").value = `${String(state.settings.reminderHour).padStart(2,"0")}:${String(state.settings.reminderMinute).padStart(2,"0")}`; }
-function renderMembers() { $("membersPanel").hidden = state.current.role === "Member"; $("memberForm").hidden = state.current.role !== "Owner"; $("membersList").innerHTML = state.members.map(x => `<p>${escapeHtml(x.email)} · ${x.role} · ${x.isActive ? "ativo" : "inativo"}${state.current.role === "Owner" ? ` <button data-user="${x.userId}" data-action="Admin">Admin</button> <button data-user="${x.userId}" data-action="Member">Member</button> <button data-user="${x.userId}" data-action="remove">Desativar</button>` : ""}</p>`).join(""); }
+function renderMembers() { $("membersPanel").hidden = state.current.role === "Member"; $("memberForm").hidden = state.current.role !== "Owner"; $("membersList").innerHTML = state.members.map(x => `<p>${escapeHtml(x.email)} · ${x.role} · ${x.isActive ? "ativo" : "inativo"}${state.current.role === "Owner" ? ` <button data-user="${x.userId}" data-action="Owner">Owner</button> <button data-user="${x.userId}" data-action="Admin">Admin</button> <button data-user="${x.userId}" data-action="Member">Member</button> <button data-user="${x.userId}" data-action="remove">Remover</button>` : ""}</p>`).join(""); }
 function renderInvitations() { $("invitationsList").innerHTML = state.invitations.map(x => { const pending = !x.acceptedAtUtc && !x.revokedAtUtc && new Date(x.expiresAtUtc) > new Date(); return `<p>${escapeHtml(x.email)} · ${x.role} · ${pending ? "pendente" : x.acceptedAtUtc ? "aceito" : "encerrado"}${pending ? ` <button data-invitation="${x.id}">Revogar</button>` : ""}</p>`; }).join(""); }
 function applyRole() { const member = state.current.role === "Member"; document.querySelectorAll(".manage-account").forEach(x => x.hidden = member); document.querySelectorAll(".owner-only").forEach(x => x.hidden = state.current.role !== "Owner"); $("accountForm").hidden = member; $("settingsForm").querySelector("button").hidden = member; }
 
@@ -90,4 +91,5 @@ async function request(path, options = {}) { const init = { method: options.meth
 async function apiError(response) { const body = await response.json().catch(() => ({})); const error = new Error(body.erro || (response.status === 403 ? "Ação não autorizada." : "Erro ao processar solicitação.")); error.status = response.status; return error; }
 function redirectLogin() { window.location.replace("/login.html"); }
 function showError(message) { $("feedback").textContent = message; $("feedback").hidden = false; }
+async function refreshFamilies() { state.families = await request("/families"); renderFamilySelector(); }
 function escapeHtml(value) { const node = document.createElement("span"); node.textContent = value ?? ""; return node.innerHTML; }

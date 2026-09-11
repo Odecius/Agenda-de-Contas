@@ -87,6 +87,8 @@ var tests = new List<(string Name, Func<Task> Run)>
     ("Migracao invalida e falha atomica nao deixam escrita parcial", JsonMigrationValidationAndRollbackAsync),
     ("Bootstrap multi-family e idempotente", MultiFamilyBootstrapIsIdempotentAsync),
     ("Bootstrap rejeita identidades conflitantes sem alterar estado", MultiFamilyBootstrapRejectsConflictsAsync),
+    ("Cadastro publico e fail-safe e cria familia com Owner atomicamente", FamilyRegistrationFlowWorksOnSqliteAsync),
+    ("Cadastro faz rollback de usuario quando criacao familiar falha", FamilyRegistrationRollsBackAsync),
     ("Convite cria membership sem confiar em tenant do cliente", FamilyInvitationCreatesMembershipSecurelyAsync),
     ("Convite rejeita adulteracao expiracao revogacao e reuso", FamilyInvitationRejectsTamperingAndReuseAsync),
     ("Convites HTTP isolam familias em SQLite descartavel", FamilyInvitationHttpFlowWorksOnSqliteAsync),
@@ -106,6 +108,7 @@ if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("AGENDADOR_TES
     tests.Add(("Falha no aceite faz rollback completo em PostgreSQL", FamilyInvitationRollbackWorksOnPostgresAsync));
     tests.Add(("Constraints de convite sao impostas pelo PostgreSQL", FamilyInvitationConstraintsWorkOnPostgresAsync));
     tests.Add(("Ciclo de vida do convite funciona em PostgreSQL", FamilyInvitationLifecycleWorksOnPostgresAsync));
+    tests.Add(("Cadastro e administracao familiar funcionam em PostgreSQL", PilotRegistrationAndFamilyAdministrationWorkOnPostgresAsync));
 }
 
 tests.Add(("Runtime legado preserva JSON e workers", LegacyRuntimeKeepsJsonAndWorkersAsync));
@@ -1010,6 +1013,103 @@ static async Task FamilySessionDoesNotCrossUsersAsync()
     AssertEqual(familyB.Id, (await scope.CurrentFamily.RequireAsync()).FamilyId, "Nova resolucao pode selecionar somente a familia autorizada do User B.");
 }
 
+static async Task PilotRegistrationAndFamilyAdministrationWorkOnPostgresAsync()
+{
+    var connectionString = Environment.GetEnvironmentVariable("AGENDADOR_TEST_POSTGRES")
+        ?? throw new InvalidOperationException("Connection string descartavel de teste ausente.");
+    await using var factory = new MultiFamilyWebFactory(connectionString, registrationEnabled: true);
+    using (var scope = factory.Services.CreateScope())
+        await scope.ServiceProvider.GetRequiredService<AgendadorDbContext>().Database.MigrateAsync();
+
+    var suffix = Guid.NewGuid().ToString("N");
+    var ownerEmail = $"pilot-owner-{suffix}@example.test";
+    var secondOwnerEmail = $"pilot-second-owner-{suffix}@example.test";
+    var thirdOwnerEmail = $"pilot-third-owner-{suffix}@example.test";
+    using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri("https://localhost"), HandleCookies = true });
+    var csrf = await GetAntiforgeryTokenAsync(client);
+    using var registered = await PostWithTokenAsync(client, "/api/multi-family/auth/register",
+        new FamilyRegistrationRequest(ownerEmail, "Pilot-registration-123!", "Pilot Family"), csrf);
+    AssertEqual(HttpStatusCode.Created, registered.StatusCode, "Cadastro PostgreSQL deveria criar Family e Owner.");
+
+    Guid firstOwnerId;
+    Guid secondOwnerId;
+    Guid familyId;
+    using (var scope = factory.Services.CreateScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<AgendadorDbContext>();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+        var firstOwner = await users.FindByEmailAsync(ownerEmail) ?? throw new InvalidOperationException("Owner cadastrado ausente.");
+        var secondOwner = await CreateUserAsync(users, secondOwnerEmail, "Pilot-registration-123!");
+        familyId = await db.FamilyUsers.Where(x => x.UserId == firstOwner.Id).Select(x => x.FamilyId).SingleAsync();
+        db.FamilyUsers.Add(new FamilyUser { FamilyId = familyId, UserId = secondOwner.Id, Role = FamilyRole.Member });
+        await db.SaveChangesAsync();
+        firstOwnerId = firstOwner.Id;
+        secondOwnerId = secondOwner.Id;
+    }
+
+    csrf = await GetAntiforgeryTokenAsync(client);
+    AssertEqual(HttpStatusCode.NoContent, (await PutWithTokenAsync(client, $"/api/multi-family/members/{secondOwnerId}/role", new FamilyMemberRoleRequest(FamilyRole.Owner), csrf)).StatusCode, "Owner deveria promover membro elegivel da mesma Family.");
+    AssertEqual(HttpStatusCode.NoContent, (await PutWithTokenAsync(client, $"/api/multi-family/members/{firstOwnerId}/role", new FamilyMemberRoleRequest(FamilyRole.Admin), csrf)).StatusCode, "Com outro Owner, Owner original pode ser rebaixado.");
+
+    using (var scope = factory.Services.CreateScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<AgendadorDbContext>();
+        AssertEqual(1, await db.FamilyUsers.CountAsync(x => x.FamilyId == familyId && x.IsActive && x.Role == FamilyRole.Owner), "Family deve conservar pelo menos um Owner.");
+        AssertEqual(1, await db.Families.CountAsync(x => x.Id == familyId), "Cadastro nao deve duplicar Family.");
+    }
+
+    Guid thirdOwnerId;
+    using (var scope = factory.Services.CreateScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<AgendadorDbContext>();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+        var thirdOwner = await CreateUserAsync(users, thirdOwnerEmail, "Pilot-registration-123!");
+        thirdOwnerId = thirdOwner.Id;
+        db.FamilyUsers.Add(new FamilyUser { FamilyId = familyId, UserId = thirdOwnerId, Role = FamilyRole.Owner });
+        await db.SaveChangesAsync();
+    }
+
+    var (secondOwnerClient, secondOwnerToken) = await CreateAuthenticatedClientAsync(factory, secondOwnerEmail, "Pilot-registration-123!");
+    var (thirdOwnerClient, thirdOwnerToken) = await CreateAuthenticatedClientAsync(factory, thirdOwnerEmail, "Pilot-registration-123!");
+    using (secondOwnerClient)
+    using (thirdOwnerClient)
+    {
+        var demotions = await Task.WhenAll(
+            PutWithTokenAsync(secondOwnerClient, $"/api/multi-family/members/{thirdOwnerId}/role", new FamilyMemberRoleRequest(FamilyRole.Member), secondOwnerToken),
+            PutWithTokenAsync(thirdOwnerClient, $"/api/multi-family/members/{secondOwnerId}/role", new FamilyMemberRoleRequest(FamilyRole.Member), thirdOwnerToken));
+        using (demotions[0])
+        using (demotions[1])
+        {
+            AssertEqual(1, demotions.Count(x => x.StatusCode == HttpStatusCode.NoContent), "Apenas uma demotion concorrente deve vencer.");
+        }
+    }
+    using (var scope = factory.Services.CreateScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<AgendadorDbContext>();
+        AssertEqual(1, await db.FamilyUsers.CountAsync(x => x.FamilyId == familyId && x.IsActive && x.Role == FamilyRole.Owner), "Demotions concorrentes nao podem deixar Family sem Owner.");
+    }
+
+    var concurrentEmail = $"pilot-concurrent-{suffix}@example.test";
+    using var signupA = factory.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri("https://localhost"), HandleCookies = true });
+    using var signupB = factory.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri("https://localhost"), HandleCookies = true });
+    var signupTokenA = await GetAntiforgeryTokenAsync(signupA);
+    var signupTokenB = await GetAntiforgeryTokenAsync(signupB);
+    var concurrentResults = await Task.WhenAll(
+        PostWithTokenAsync(signupA, "/api/multi-family/auth/register", new FamilyRegistrationRequest(concurrentEmail, "Pilot-concurrent-123!", "Concurrent A"), signupTokenA),
+        PostWithTokenAsync(signupB, "/api/multi-family/auth/register", new FamilyRegistrationRequest(concurrentEmail, "Pilot-concurrent-123!", "Concurrent B"), signupTokenB));
+    using (concurrentResults[0])
+    using (concurrentResults[1])
+    {
+        AssertEqual(1, concurrentResults.Count(x => x.StatusCode == HttpStatusCode.Created), "Dois cadastros concorrentes do mesmo email devem ter um unico vencedor.");
+    }
+    using (var scope = factory.Services.CreateScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<AgendadorDbContext>();
+        AssertEqual(1, await db.Users.CountAsync(x => x.NormalizedEmail == concurrentEmail.ToUpperInvariant()), "Concorrencia duplicou identidade.");
+        AssertEqual(1, await db.FamilyUsers.CountAsync(x => x.User.NormalizedEmail == concurrentEmail.ToUpperInvariant()), "Concorrencia duplicou membership.");
+    }
+}
+
 static async Task MultiFamilyHttpFlowWorksOnPostgresAsync()
 {
     var connectionString = Environment.GetEnvironmentVariable("AGENDADOR_TEST_POSTGRES")
@@ -1257,6 +1357,61 @@ static async Task MultiFamilyBootstrapRejectsConflictsAsync()
     AssertEqual(0, await rollbackScope.Db.Users.CountAsync(), "Rollback deixou usuario parcial.");
     AssertEqual(0, await rollbackScope.Db.Families.CountAsync(), "Rollback deixou familia parcial.");
     AssertEqual(0, await rollbackScope.Db.FamilyUsers.CountAsync(), "Rollback deixou membership parcial.");
+}
+
+static async Task FamilyRegistrationFlowWorksOnSqliteAsync()
+{
+    await using var disabledFactory = new MultiFamilySqliteWebFactory(registrationEnabled: false);
+    using (var scope = disabledFactory.Services.CreateScope())
+        await scope.ServiceProvider.GetRequiredService<AgendadorDbContext>().Database.EnsureCreatedAsync();
+    using var disabledClient = disabledFactory.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri("https://localhost") });
+    var disabledToken = await GetAntiforgeryTokenAsync(disabledClient);
+    AssertEqual(HttpStatusCode.NotFound, (await PostWithTokenAsync(disabledClient, "/api/multi-family/auth/register", new FamilyRegistrationRequest("new@example.test", "Registration-test-123!", "New Family"), disabledToken)).StatusCode, "Cadastro deve ficar fechado por default/configuracao.");
+
+    await using var factory = new MultiFamilySqliteWebFactory(registrationEnabled: true);
+    using (var scope = factory.Services.CreateScope())
+        await scope.ServiceProvider.GetRequiredService<AgendadorDbContext>().Database.EnsureCreatedAsync();
+    using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri("https://localhost"), HandleCookies = true });
+    var token = await GetAntiforgeryTokenAsync(client);
+    var request = new FamilyRegistrationRequest("new-owner@example.test", "Registration-test-123!", "Family Alpha");
+    AssertEqual(HttpStatusCode.Created, (await PostWithTokenAsync(client, "/api/multi-family/auth/register", new
+    {
+        request.Email,
+        request.Password,
+        request.FamilyName,
+        FamilyId = Guid.NewGuid(),
+        TenantId = Guid.NewGuid(),
+        OwnerId = Guid.NewGuid()
+    }, token)).StatusCode, "Cadastro valido deveria criar identidade e familia sem confiar em IDs do cliente.");
+    AssertEqual(HttpStatusCode.OK, (await client.GetAsync("/api/multi-family/family/current")).StatusCode, "Novo Owner deveria entrar com familia selecionada.");
+
+    using (var scope = factory.Services.CreateScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<AgendadorDbContext>();
+        var membership = await db.FamilyUsers.Include(x => x.User).Include(x => x.Family).SingleAsync();
+        AssertEqual(FamilyRole.Owner, membership.Role, "Primeira membership deve ser Owner.");
+        AssertEqual("Family Alpha", membership.Family.Name, "Family criada com nome incorreto.");
+        AssertEqual(1, await db.FamilySettings.CountAsync(x => x.FamilyId == membership.FamilyId), "Family nova deve possuir settings.");
+    }
+
+    using var duplicateClient = factory.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri("https://localhost") });
+    var duplicateToken = await GetAntiforgeryTokenAsync(duplicateClient);
+    using var duplicate = await PostWithTokenAsync(duplicateClient, "/api/multi-family/auth/register", request, duplicateToken);
+    AssertEqual(HttpStatusCode.BadRequest, duplicate.StatusCode, "Email existente deve falhar sem criar estado parcial.");
+    AssertTrue(!(await duplicate.Content.ReadAsStringAsync()).Contains("exist", StringComparison.OrdinalIgnoreCase), "Cadastro nao deve enumerar email existente.");
+}
+
+static async Task FamilyRegistrationRollsBackAsync()
+{
+    await using var scope = await IdentityTestScope.CreateAsync();
+    var service = new FamilyRegistrationService(scope.Db, scope.UserManager, NullLogger<FamilyRegistrationService>.Instance)
+    {
+        BeforeFamilyPersistence = _ => throw new InvalidOperationException("Synthetic persistence failure.")
+    };
+    await CaptureExceptionAsync(() => service.RegisterAsync("rollback-registration@example.test", "Registration-test-123!", "Rollback Family"));
+    AssertEqual(0, await scope.Db.Users.CountAsync(), "Rollback deixou usuario parcial.");
+    AssertEqual(0, await scope.Db.Families.CountAsync(), "Rollback deixou familia parcial.");
+    AssertEqual(0, await scope.Db.FamilyUsers.CountAsync(), "Rollback deixou membership parcial.");
 }
 
 static async Task FamilyInvitationConstraintsAreEnforcedAsync()
@@ -2874,9 +3029,11 @@ internal sealed class MultiFamilySqliteWebFactory : WebApplicationFactory<Applic
 {
     private readonly Dictionary<string, string?> _previousEnvironment = new(StringComparer.Ordinal);
     private readonly SqliteConnection _connection = new("Data Source=:memory:");
+    private readonly bool _registrationEnabled;
 
-    public MultiFamilySqliteWebFactory()
+    public MultiFamilySqliteWebFactory(bool registrationEnabled = false)
     {
+        _registrationEnabled = registrationEnabled;
         _connection.Open();
         SetEnvironment("MultiFamily__Enabled", "true");
         SetEnvironment("MultiFamily__ConnectionString", "Host=localhost;Database=unused");
@@ -2884,6 +3041,7 @@ internal sealed class MultiFamilySqliteWebFactory : WebApplicationFactory<Applic
         SetEnvironment("Telegram__Enabled", "false");
         SetEnvironment("Backup__AutomaticEnabled", "false");
         SetEnvironment("AccessProtection__Enabled", "false");
+        SetEnvironment("Registration__Enabled", registrationEnabled.ToString());
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -2900,6 +3058,7 @@ internal sealed class MultiFamilySqliteWebFactory : WebApplicationFactory<Applic
                 ["Telegram:Enabled"] = "false",
                 ["Backup:AutomaticEnabled"] = "false",
                 ["AccessProtection:Enabled"] = "false"
+                ,["Registration:Enabled"] = _registrationEnabled.ToString()
             }));
         builder.ConfigureServices(services =>
         {
@@ -2941,20 +3100,24 @@ internal sealed class MultiFamilyWebFactory : WebApplicationFactory<ApplicationM
     private readonly Dictionary<string, string?> _previousEnvironment = new(StringComparer.Ordinal);
     private readonly string _connectionString;
     private readonly IUserNotificationDeliveryService _recoveryDelivery;
+    private readonly bool _registrationEnabled;
     public CapturePasswordRecoveryDelivery RecoveryDelivery { get; } = new();
 
     public MultiFamilyWebFactory(
         string connectionString,
-        IUserNotificationDeliveryService? recoveryDelivery = null)
+        IUserNotificationDeliveryService? recoveryDelivery = null,
+        bool registrationEnabled = false)
     {
         _connectionString = connectionString;
         _recoveryDelivery = recoveryDelivery ?? RecoveryDelivery;
+        _registrationEnabled = registrationEnabled;
         SetEnvironment("MultiFamily__Enabled", "true");
         SetEnvironment("MultiFamily__ConnectionString", connectionString);
         SetEnvironment("MultiFamily__SessionHours", "1");
         SetEnvironment("Telegram__Enabled", "false");
         SetEnvironment("Backup__AutomaticEnabled", "false");
         SetEnvironment("AccessProtection__Enabled", "false");
+        SetEnvironment("Registration__Enabled", registrationEnabled.ToString());
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -2970,6 +3133,7 @@ internal sealed class MultiFamilyWebFactory : WebApplicationFactory<ApplicationM
                 ["Telegram:Enabled"] = "false",
                 ["Backup:AutomaticEnabled"] = "false",
                 ["AccessProtection:Enabled"] = "false"
+                ,["Registration:Enabled"] = _registrationEnabled.ToString()
             }));
         builder.ConfigureServices(services =>
             services.AddSingleton(_recoveryDelivery));

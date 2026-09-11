@@ -7,11 +7,13 @@ using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Npgsql;
 using System.Data;
 
 namespace AgendadorContas.Tenancy;
 
 public sealed record IdentityLoginRequest(string Email, string Password);
+public sealed record FamilyRegistrationRequest(string Email, string Password, string FamilyName);
 public sealed record ForgotPasswordRequest(string Email);
 public sealed record ResetPasswordRequest(string Email, string Token, string NewPassword);
 public sealed record FamilySelectionRequest(Guid FamilyId);
@@ -58,8 +60,13 @@ public static class MultiFamilyEndpointExtensions
             }
         });
 
-        group.MapGet("/mode", (IOptions<PasswordRecoveryOptions> recovery) =>
-            Results.Ok(new { enabled = true, passwordRecoveryEnabled = recovery.Value.Enabled })).AllowAnonymous();
+        group.MapGet("/mode", (IOptions<PasswordRecoveryOptions> recovery, IOptions<RegistrationOptions> registration) =>
+            Results.Ok(new
+            {
+                enabled = true,
+                passwordRecoveryEnabled = recovery.Value.Enabled,
+                registrationEnabled = registration.Value.Enabled
+            })).AllowAnonymous();
 
         group.MapGet("/antiforgery/token", (HttpContext context, IAntiforgery antiforgery) =>
         {
@@ -88,6 +95,40 @@ public static class MultiFamilyEndpointExtensions
             var result = await signInManager.PasswordSignInAsync(user, request.Password, false, lockoutOnFailure: true);
             return result.Succeeded ? Results.Ok(new { sucesso = true }) : Results.Unauthorized();
         }).AllowAnonymous().RequireRateLimiting("multi-family-login").RequireAntiforgeryValidation();
+
+        group.MapPost("/auth/register", async (
+            FamilyRegistrationRequest request,
+            IOptions<RegistrationOptions> options,
+            FamilyRegistrationService registration,
+            LoginTimingProtector timingProtector,
+            UserManager<AppUser> users,
+            SignInManager<AppUser> signInManager,
+            IFamilySelectionService selection,
+            CancellationToken ct) =>
+        {
+            if (!options.Value.Enabled) return Results.NotFound();
+
+            try
+            {
+                var result = await registration.RegisterAsync(request.Email, request.Password, request.FamilyName, ct);
+                if (!result.Succeeded || result.UserId is null || result.FamilyId is null)
+                {
+                    timingProtector.Verify(request.Password);
+                    return Results.BadRequest(new { erro = "Nao foi possivel concluir o cadastro." });
+                }
+
+                var user = await users.FindByIdAsync(result.UserId.Value.ToString());
+                if (user is null) return Results.BadRequest(new { erro = "Nao foi possivel concluir o cadastro." });
+                selection.Clear();
+                await signInManager.SignInAsync(user, isPersistent: false);
+                await selection.SelectAsync(result.FamilyId.Value, ct);
+                return Results.Created("/api/multi-family/me", new { sucesso = true });
+            }
+            catch (Exception exception) when (exception is DbUpdateException or InvalidOperationException)
+            {
+                return Results.BadRequest(new { erro = "Nao foi possivel concluir o cadastro." });
+            }
+        }).AllowAnonymous().RequireRateLimiting("multi-family-registration").RequireAntiforgeryValidation();
 
         group.MapPost("/auth/forgot-password", async (ForgotPasswordRequest request, PasswordRecoveryService recovery, CancellationToken ct) =>
         {
@@ -161,37 +202,49 @@ public static class MultiFamilyEndpointExtensions
             return Results.Ok(members);
         }).RequireAuthorization();
 
-        group.MapPut("/members/{userId:guid}/role", async (Guid userId, FamilyMemberRoleRequest request, ICurrentFamilyContext current, AgendadorDbContext db, CancellationToken ct) =>
+        group.MapPut("/members/{userId:guid}/role", async (Guid userId, FamilyMemberRoleRequest request, FamilyMembershipService memberships, CancellationToken ct) =>
         {
-            var tenant = await current.RequireAsync(ct);
-            if (tenant.Role != FamilyRole.Owner) return Results.Forbid();
-            if (request.Role is not (FamilyRole.Admin or FamilyRole.Member)) return Results.BadRequest(new { erro = "Role permitida: Admin ou Member." });
-            await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
-            var membership = await db.FamilyUsers.SingleOrDefaultAsync(x => x.FamilyId == tenant.FamilyId && x.UserId == userId, ct);
-            if (membership is null) return Results.NotFound();
-            if (membership.Role == FamilyRole.Owner && await db.FamilyUsers.CountAsync(x => x.FamilyId == tenant.FamilyId && x.IsActive && x.Role == FamilyRole.Owner, ct) <= 1)
-                return Results.Conflict(new { erro = "A familia deve manter pelo menos um Owner ativo." });
-            membership.Role = request.Role;
-            membership.IsActive = true;
-            await db.SaveChangesAsync(ct);
-            await transaction.CommitAsync(ct);
-            return Results.NoContent();
+            try
+            {
+                var result = await memberships.ChangeRoleAsync(userId, request.Role, ct);
+                return MembershipResult(result);
+            }
+            catch (Exception exception) when (IsPostgresConcurrencyConflict(exception))
+            {
+                return Results.Conflict(new { erro = "A membership mudou durante a operacao. Atualize e tente novamente." });
+            }
         }).RequireAuthorization().RequireAntiforgeryValidation();
 
-        group.MapDelete("/members/{userId:guid}", async (Guid userId, ICurrentFamilyContext current, AgendadorDbContext db, CancellationToken ct) =>
+        group.MapDelete("/members/{userId:guid}", async (Guid userId, FamilyMembershipService memberships, CancellationToken ct) =>
         {
-            var tenant = await current.RequireAsync(ct);
-            if (tenant.Role != FamilyRole.Owner) return Results.Forbid();
-            await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
-            var membership = await db.FamilyUsers.SingleOrDefaultAsync(x => x.FamilyId == tenant.FamilyId && x.UserId == userId, ct);
-            if (membership is null) return Results.NotFound();
-            if (membership.Role == FamilyRole.Owner && await db.FamilyUsers.CountAsync(x => x.FamilyId == tenant.FamilyId && x.IsActive && x.Role == FamilyRole.Owner, ct) <= 1)
-                return Results.Conflict(new { erro = "A familia deve manter pelo menos um Owner ativo." });
-            membership.IsActive = false;
-            await db.SaveChangesAsync(ct);
-            await transaction.CommitAsync(ct);
-            return Results.NoContent();
+            try
+            {
+                var result = await memberships.RemoveAsync(userId, ct);
+                return MembershipResult(result);
+            }
+            catch (Exception exception) when (IsPostgresConcurrencyConflict(exception))
+            {
+                return Results.Conflict(new { erro = "A membership mudou durante a operacao. Atualize e tente novamente." });
+            }
         }).RequireAuthorization().RequireAntiforgeryValidation();
+    }
+
+    private static IResult MembershipResult(MembershipChangeResult result) => result switch
+    {
+        MembershipChangeResult.Success => Results.NoContent(),
+        MembershipChangeResult.NotFound => Results.NotFound(),
+        MembershipChangeResult.Forbidden => Results.Forbid(),
+        MembershipChangeResult.LastOwner => Results.Conflict(new { erro = "A familia deve manter pelo menos um Owner ativo." }),
+        _ => Results.BadRequest()
+    };
+
+    private static bool IsPostgresConcurrencyConflict(Exception exception)
+    {
+        for (var current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is PostgresException postgres && postgres.SqlState is "40001" or "40P01") return true;
+        }
+        return false;
     }
 
     private static void MapInvitationEndpoints(RouteGroupBuilder group)
