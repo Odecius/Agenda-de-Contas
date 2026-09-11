@@ -225,3 +225,12 @@ O plano detalhado esta em `docs/multi-family-postgresql-plan.md`. A fundacao e o
 - Administracao de membros e Owners com protecao concorrente do ultimo Owner.
 - Seletor multi-Family integrado e revalidado server-side.
 - Proxima etapa: preparar ambiente isolado, ensaio de importacao e runbook de cutover/rollback.
+
+### Etapa 32.9 - Pilot environment readiness
+
+- Perfil `Pilot` fail-safe e readiness sanitizada do PostgreSQL.
+- Rehearsal descartavel de JSON sintetico, reconciliacao, idempotencia e falha atomica.
+- Backup `pg_dump`, destruicao da origem, restore em banco novo e smoke tests da aplicacao.
+- RPO `<= 24h` e RTO `<= 30 min` propostos, condicionados ao ambiente isolado futuro.
+- Runbook, alertas, incident response, stop conditions e roteiro de testers preparados.
+- Estado: `NO-GO` para usuarios reais ate resolver o status do segredo Telegram historico e provisionar backups/off-host no ambiente piloto.

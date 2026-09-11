@@ -68,6 +68,8 @@ The multi-family mode is limited to development and testing. It does not run aut
 
 See [SECURITY.md](SECURITY.md), [the multi-family operational documentation](docs/multi-family-operational-flow.md) and [Family administration](docs/family-administration.md).
 
+The isolated pilot architecture, backup/restore rehearsal, recovery objectives and incident gates are documented in [the pilot runbook](docs/pilot-runbook.md). This does not authorize a production cutover.
+
 ## Testing
 
 The test harness covers the JSON domain, backup/restore behavior, Identity, tenant selection, role authorization, cross-family isolation, PostgreSQL constraints, the migration workflow and multi-family reminders. PostgreSQL-specific scenarios run against a disposable PostgreSQL 16 instance.
@@ -91,7 +93,7 @@ Development secrets should be supplied with .NET User Secrets or environment var
 
 - **Production:** stable single-family runtime using `ContaStore + JSON`.
 - **Implemented behind a controlled flag:** PostgreSQL schema, Identity, tenant isolation, multi-family APIs, operational UI, reminder processing and migration tooling.
-- **Not completed:** production cutover, real JSON import, production activation of PostgreSQL/multi-family, external delivery provider homologation and distributed session/worker coordination.
+- **Not completed:** isolated pilot provisioning, production cutover, real JSON import, production activation of PostgreSQL/multi-family, external delivery provider homologation and distributed session/worker coordination.
 
 ## Key Lessons Learned
 

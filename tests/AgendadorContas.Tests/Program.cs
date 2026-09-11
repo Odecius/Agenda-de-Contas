@@ -31,6 +31,24 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
+var pilotRehearsalMode = Environment.GetEnvironmentVariable("AGENDADOR_PILOT_REHEARSAL_MODE");
+if (pilotRehearsalMode is not null)
+{
+    if (pilotRehearsalMode.Equals("seed", StringComparison.OrdinalIgnoreCase))
+    {
+        await SeedPilotRehearsalAsync();
+        return 0;
+    }
+
+    if (pilotRehearsalMode.Equals("validate-restored", StringComparison.OrdinalIgnoreCase))
+    {
+        await ValidateRestoredPilotAsync();
+        return 0;
+    }
+
+    throw new InvalidOperationException("Unknown disposable pilot rehearsal mode.");
+}
+
 var tests = new List<(string Name, Func<Task> Run)>
 {
     ("Conta criada usa pais e moeda padrao", AccountDefaultsAreAppliedAsync),
@@ -2535,6 +2553,125 @@ static async Task JsonMigrationWorksOnPostgresAsync()
     }
 }
 
+static async Task SeedPilotRehearsalAsync()
+{
+    var connectionString = Environment.GetEnvironmentVariable("AGENDADOR_TEST_POSTGRES")
+        ?? throw new InvalidOperationException("Disposable PostgreSQL connection is required.");
+    const string password = "Synthetic-pilot-123!";
+    await using var factory = new MultiFamilyWebFactory(connectionString, registrationEnabled: true);
+
+    Guid alphaFamilyId;
+    Guid betaFamilyId;
+    Guid alphaOwnerId;
+    using (var scope = factory.Services.CreateScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<AgendadorDbContext>();
+        await db.Database.MigrateAsync();
+        var registration = scope.ServiceProvider.GetRequiredService<FamilyRegistrationService>();
+        var alpha = await registration.RegisterAsync("alpha.owner@example.test", password, "Family Alpha");
+        var beta = await registration.RegisterAsync("beta.owner@example.test", password, "Family Beta");
+        AssertTrue(alpha.Succeeded && beta.Succeeded, "Synthetic pilot families could not be created.");
+        alphaFamilyId = alpha.FamilyId!.Value;
+        betaFamilyId = beta.FamilyId!.Value;
+        alphaOwnerId = alpha.UserId!.Value;
+    }
+
+    MigrationReport dryRun;
+    MigrationReport imported;
+    MigrationReport repeated;
+    MigrationReport rejected;
+    using (var scope = factory.Services.CreateScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<AgendadorDbContext>();
+        using var source = MigrationJsonFile.Valid();
+        var migrator = NewMigrator(db);
+        dryRun = await migrator.ImportAsync(source.Path, alphaFamilyId, new MigrationOptions(DryRun: true));
+        AssertTrue(dryRun.Success && !dryRun.DatabaseModified, "Dry-run modified the database.");
+        imported = await migrator.ImportAsync(source.Path, alphaFamilyId, new MigrationOptions());
+        repeated = await migrator.ImportAsync(source.Path, alphaFamilyId, new MigrationOptions());
+        using var invalid = MigrationJsonFile.Invalid();
+        rejected = await migrator.ImportAsync(invalid.Path, alphaFamilyId, new MigrationOptions());
+        AssertTrue(imported.Success && imported.ContasInserted == 2 && imported.PagamentosInserted == 2, "Synthetic import did not reconcile.");
+        AssertTrue(repeated.Success && repeated.ContasInserted == 0 && repeated.PagamentosInserted == 0, "Repeated import was not idempotent.");
+        AssertTrue(!rejected.Success && !rejected.DatabaseModified, "Invalid import was not rejected atomically.");
+        db.FamilyUsers.Add(new FamilyUser { FamilyId = betaFamilyId, UserId = alphaOwnerId, Role = FamilyRole.Member });
+        await db.SaveChangesAsync();
+        AssertEqual(2, await db.Contas.CountAsync(x => x.FamilyId == alphaFamilyId), "Imported account count differs from source.");
+        AssertEqual(2, await db.Pagamentos.CountAsync(x => x.FamilyId == alphaFamilyId), "Imported payment count differs from reconciled source.");
+        AssertEqual(75.50m, await db.Contas.Where(x => x.FamilyId == alphaFamilyId).SumAsync(x => x.Valor), "Imported monetary total differs from source.");
+    }
+
+    Console.WriteLine("REHEARSAL_SEED=PASS");
+    Console.WriteLine($"SOURCE_ACCOUNTS={dryRun.TotalContasRead}");
+    Console.WriteLine($"SOURCE_PAYMENTS={dryRun.TotalPagamentosRead}");
+    Console.WriteLine($"IMPORTED_ACCOUNTS={imported.ContasInserted}");
+    Console.WriteLine($"IMPORTED_PAYMENTS={imported.PagamentosInserted}");
+    Console.WriteLine($"DUPLICATE_PAYMENTS={imported.DuplicatePayments}");
+    Console.WriteLine($"SKIPPED_PAYMENTS={imported.PagamentosSkipped}");
+    Console.WriteLine($"REJECTED_RECORDS={rejected.ContasInvalid + rejected.PagamentosInvalid}");
+    Console.WriteLine("MONETARY_RECONCILIATION_GBP_EUR=PASS");
+    Console.WriteLine("IDEMPOTENCY=PASS");
+    Console.WriteLine("FAILURE_ROLLBACK=PASS");
+}
+
+static async Task ValidateRestoredPilotAsync()
+{
+    var connectionString = Environment.GetEnvironmentVariable("AGENDADOR_TEST_POSTGRES")
+        ?? throw new InvalidOperationException("Disposable restored PostgreSQL connection is required.");
+    const string password = "Synthetic-pilot-123!";
+    await using var factory = new MultiFamilyWebFactory(connectionString, registrationEnabled: false, environmentName: "Pilot");
+
+    Guid alphaFamilyId;
+    Guid betaFamilyId;
+    using (var scope = factory.Services.CreateScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<AgendadorDbContext>();
+        AssertEqual(2, await db.Families.CountAsync(), "Restored families are incomplete.");
+        AssertEqual(3, await db.FamilyUsers.CountAsync(), "Restored memberships are incomplete.");
+        AssertEqual(2, await db.FamilySettings.CountAsync(), "Restored settings are incomplete.");
+        AssertEqual(2, await db.Contas.CountAsync(), "Restored accounts are incomplete.");
+        AssertEqual(2, await db.Pagamentos.CountAsync(), "Restored payments are incomplete.");
+        alphaFamilyId = await db.Families.Where(x => x.Name == "Family Alpha").Select(x => x.Id).SingleAsync();
+        betaFamilyId = await db.Families.Where(x => x.Name == "Family Beta").Select(x => x.Id).SingleAsync();
+    }
+
+    var (client, token) = await CreateAuthenticatedClientAsync(factory, "alpha.owner@example.test", password);
+    using (client)
+    {
+        using var readiness = await client.GetAsync("/health/ready");
+        AssertEqual(HttpStatusCode.OK, readiness.StatusCode, "Restored database readiness failed.");
+        using var selectAlpha = await PostWithTokenAsync(client, "/api/multi-family/family/select", new FamilySelectionRequest(alphaFamilyId), token);
+        AssertEqual(HttpStatusCode.NoContent, selectAlpha.StatusCode, "Restored Family Alpha could not be selected.");
+        using var alphaAccounts = await client.GetAsync("/api/multi-family/contas");
+        AssertEqual(HttpStatusCode.OK, alphaAccounts.StatusCode, "Restored accounts endpoint failed.");
+        var alphaJson = JsonDocument.Parse(await alphaAccounts.Content.ReadAsStringAsync());
+        AssertEqual(2, alphaJson.RootElement.GetArrayLength(), "Restored account list differs from backup.");
+
+        token = await GetAntiforgeryTokenAsync(client);
+        using var created = await PostWithTokenAsync(client, "/api/multi-family/contas", NewContaRequest("Restore smoke account"), token);
+        AssertEqual(HttpStatusCode.Created, created.StatusCode, "Account creation failed after restore.");
+        using var invitation = await PostWithTokenAsync(client, "/api/multi-family/invitations", new FamilyInvitationCreateRequest("restore.invitee@example.test", FamilyRole.Member), token);
+        AssertEqual(HttpStatusCode.Created, invitation.StatusCode, "Invitation creation failed after restore.");
+        using var recovery = await PostWithTokenAsync(client, "/api/multi-family/auth/forgot-password", new ForgotPasswordRequest("alpha.owner@example.test"), token);
+        AssertEqual(HttpStatusCode.OK, recovery.StatusCode, "Recovery request failed after restore.");
+
+        using var selectBeta = await PostWithTokenAsync(client, "/api/multi-family/family/select", new FamilySelectionRequest(betaFamilyId), token);
+        AssertEqual(HttpStatusCode.NoContent, selectBeta.StatusCode, "Restored Family Beta could not be selected.");
+        using var betaAccounts = await client.GetAsync("/api/multi-family/contas");
+        var betaJson = JsonDocument.Parse(await betaAccounts.Content.ReadAsStringAsync());
+        AssertEqual(0, betaJson.RootElement.GetArrayLength(), "Tenant data leaked after restored Family switch.");
+    }
+
+    Console.WriteLine("RESTORE_APPLICATION_VALIDATION=PASS");
+    Console.WriteLine("RESTORE_READINESS=PASS");
+    Console.WriteLine("RESTORE_LOGIN=PASS");
+    Console.WriteLine("RESTORE_FAMILIES=PASS");
+    Console.WriteLine("RESTORE_ACCOUNTS=PASS");
+    Console.WriteLine("RESTORE_INVITATIONS=PASS");
+    Console.WriteLine("RESTORE_RECOVERY=PASS");
+    Console.WriteLine("RESTORE_FAMILY_SWITCH=PASS");
+}
+
 static JsonToPostgresqlMigrator NewMigrator(AgendadorDbContext db) =>
     new(db, NullLogger<JsonToPostgresqlMigrator>.Instance);
 
@@ -3101,16 +3238,19 @@ internal sealed class MultiFamilyWebFactory : WebApplicationFactory<ApplicationM
     private readonly string _connectionString;
     private readonly IUserNotificationDeliveryService _recoveryDelivery;
     private readonly bool _registrationEnabled;
+    private readonly string _environmentName;
     public CapturePasswordRecoveryDelivery RecoveryDelivery { get; } = new();
 
     public MultiFamilyWebFactory(
         string connectionString,
         IUserNotificationDeliveryService? recoveryDelivery = null,
-        bool registrationEnabled = false)
+        bool registrationEnabled = false,
+        string environmentName = "Testing")
     {
         _connectionString = connectionString;
         _recoveryDelivery = recoveryDelivery ?? RecoveryDelivery;
         _registrationEnabled = registrationEnabled;
+        _environmentName = environmentName;
         SetEnvironment("MultiFamily__Enabled", "true");
         SetEnvironment("MultiFamily__ConnectionString", connectionString);
         SetEnvironment("MultiFamily__SessionHours", "1");
@@ -3123,7 +3263,11 @@ internal sealed class MultiFamilyWebFactory : WebApplicationFactory<ApplicationM
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseContentRoot(Directory.GetCurrentDirectory());
-        builder.UseEnvironment("Testing");
+        builder.UseEnvironment(_environmentName);
+        if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("AGENDADOR_PILOT_REHEARSAL_MODE")))
+        {
+            builder.ConfigureLogging(logging => logging.ClearProviders());
+        }
         builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(
             new Dictionary<string, string?>
             {

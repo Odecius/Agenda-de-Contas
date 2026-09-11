@@ -9,7 +9,7 @@
 - [x] `.env`, `data/` e notas locais fora do Git.
 - [ ] Token/chat id removidos de `notas.txt` e do histórico se já foram versionados.
 - [x] Validação de entrada em rotas de criação/edição.
-- [ ] Proteção contra SQL Injection não aplicável enquanto não houver SQL.
+- [x] Acesso relacional usa EF parametrizado; SQL explicito possui parametros interpolados pelo provider.
 - [x] Rate limiting no endpoint de login.
 - [x] Cabeçalhos HTTP básicos de segurança aplicados pela aplicação.
 - [x] CSP estrita sem `unsafe-inline`.
@@ -20,6 +20,9 @@
 - [x] Falhas de delivery de recovery preservam resposta generica e a origem publica exige HTTPS.
 - [x] Cadastro publico possui switch separado desabilitado por default e nao aceita identificadores de tenant/Owner.
 - [x] Criacao de identidade, Family e primeiro Owner e atomica; operacoes concorrentes preservam ao menos um Owner.
+- [x] Perfil Pilot falha fechado sem connection string e mantem registration/delivery desabilitados.
+- [x] Readiness nao revela connection string, hostname, versao ou topologia.
+- [x] Rehearsal de backup/restore usa somente credenciais e dados sinteticos descartaveis.
 - [x] Delivery externo e fail-safe, HTTPS-only quando habilitado e nao registra destino, URL, token ou credential.
 - [x] Backups do arquivo JSON de dados.
 - [x] Logs sem segredos conhecidos.
@@ -27,7 +30,7 @@
 
 ## Saúde operacional
 
-O endpoint `/health` retorna apenas status operacional minimo. Ele nao deve incluir caminhos locais, tokens, chat id, usuario, senha, ambiente, horario ou dados de contas.
+O endpoint `/health` retorna apenas liveness. Em MultiFamily, `/health/ready` confirma conectividade e migrations sem incluir caminhos locais, hostnames, versoes, tokens, chat id, usuario, senha, ambiente, horario ou dados de contas.
 
 No deploy Docker, a porta interna da aplicacao nao deve ser publicada diretamente no host.
 O reverse proxy deve acessar o servico por uma rede Docker externa, e a exposicao
@@ -53,6 +56,6 @@ A CSP atual nao permite `unsafe-inline`. A tela principal e a tela de login carr
 
 `notas.txt`/`NOTAS.txt` deve permanecer ignorado pelo Git. Se algum token/chat id ja tiver sido versionado no passado, a correção recomendada é revogar o token, gerar outro no BotFather e limpar o histórico Git antes de compartilhar o repositório.
 
-Links de convite sao credenciais temporarias. O token fica no fragmento da URL no navegador, e removido do endereco assim que a pagina carrega e nunca deve aparecer em logs. O Owner deve compartilhar o link por canal seguro. Entrega automatizada de convites ainda nao foi implementada.
+Links de convite sao credenciais temporarias. O token fica no fragmento da URL no navegador, e removido do endereco assim que a pagina carrega e nunca deve aparecer em logs. O Owner deve compartilhar o link por canal seguro. A abstracao de delivery existe, mas o provider externo permanece desabilitado ate homologacao separada.
 
 Tokens de recovery sao credenciais temporarias. Somente a abstracao de entrega os recebe; a URL usa origem publica configurada e o provider default nao registra ou entrega o valor. Consulte `docs/password-recovery.md`.

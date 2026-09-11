@@ -26,6 +26,14 @@ O gate cobre migrations em banco vazio, Identity/runtime HTTP, isolamento A/B, i
 
 O milestone de pilot readiness inclui ainda um fluxo de navegador em ambiente local descartavel: cadastro, login/logout, recovery, aceite de convite, administracao e troca entre duas Families. Os assertions de seguranca e isolamento permanecem na suite HTTP/PostgreSQL; o navegador valida a integracao e acessibilidade basica sem snapshots de pixels.
 
+O rehearsal operacional completo e executado somente com confirmacao explicita:
+
+```powershell
+.\tests\run-pilot-environment-rehearsal.ps1 -ConfirmDisposable
+```
+
+Ele importa JSON sintetico, reconcilia contagens/totais, repete a importacao, testa falha, cria e valida backup, destroi o banco fonte, restaura em PostgreSQL 16 novo e executa smoke tests da aplicacao. Todos os recursos usam label exclusiva, tmpfs e cleanup em `finally`.
+
 Em 2026-08-29, o gate foi executado em PostgreSQL 16 real descartável e concluiu com 59/59 testes. Concorrência, rollback, constraints, isolamento e cleanup passaram; nenhum recurso Docker residual permaneceu e nenhum ambiente ou dado de produção foi acessado.
 
 ## Teste manual
