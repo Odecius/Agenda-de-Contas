@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="pt">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Criar conta - Agendador de Contas</title>
+  <link rel="stylesheet" href="/login.css?v=1.0.6">
+</head>
+<body>
+  <main>
+    <h1>Criar conta</h1>
+    <p>Crie o seu acesso e uma nova família. Se alguém já o convidou, use o convite recebido.</p>
+    <form id="registrationForm">
+      <label>Email<input id="email" type="email" autocomplete="email" maxlength="256" required autofocus></label>
+      <label>Senha<input id="password" type="password" autocomplete="new-password" maxlength="200" required></label>
+      <label>Confirmar senha<input id="confirmPassword" type="password" autocomplete="new-password" maxlength="200" required></label>
+      <label>Nome da família<input id="familyName" maxlength="120" minlength="2" required></label>
+      <button id="submitButton" type="submit">Criar minha família</button>
+      <div id="feedback" class="feedback" role="alert" hidden></div>
+    </form>
+    <nav class="auth-links" aria-label="Opções de acesso"><a href="/login.html">Entrar</a><a href="/invite.html">Tenho um convite</a></nav>
+  </main>
+  <script src="/register.js?v=1.0.6"></script>
+</body>
+</html>

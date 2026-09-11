@@ -51,7 +51,7 @@ The repository also contains a controlled relational foundation for:
 - Secure, expiring invitations for Admin and Member onboarding
 - A controlled, transactional JSON-to-PostgreSQL migrator
 
-The multi-family mode is limited to development and testing. It does not run automatically, does not execute migrations at startup and has not replaced the JSON production runtime.
+The multi-family mode is limited to development and testing. It does not run automatically, does not execute migrations at startup and has not replaced the JSON production runtime. Controlled self-registration also has an independent `Registration:Enabled=false` default.
 
 ## Security
 
@@ -59,11 +59,14 @@ The multi-family mode is limited to development and testing. It does not run aut
 - Cross-family reads and writes are covered by integration tests.
 - Mutations use antiforgery protection.
 - Identity includes password hashing, lockout and rate limiting.
+- Pilot onboarding can atomically create an identity, a new Family and its first Owner when registration is explicitly enabled.
+- Owners can administer roles and memberships while the server preserves at least one active Owner.
+- Users with multiple memberships switch Family through a server-validated session selection.
 - The last active Owner cannot be silently removed or downgraded.
 - Telegram tokens and production credentials stay outside source control.
 - The migration workflow supports validation, dry-run, idempotency and transactional rollback.
 
-See [SECURITY.md](SECURITY.md) and [the multi-family operational documentation](docs/multi-family-operational-flow.md).
+See [SECURITY.md](SECURITY.md), [the multi-family operational documentation](docs/multi-family-operational-flow.md) and [Family administration](docs/family-administration.md).
 
 ## Testing
 
@@ -88,7 +91,7 @@ Development secrets should be supplied with .NET User Secrets or environment var
 
 - **Production:** stable single-family runtime using `ContaStore + JSON`.
 - **Implemented behind a controlled flag:** PostgreSQL schema, Identity, tenant isolation, multi-family APIs, operational UI, reminder processing and migration tooling.
-- **Not completed:** production cutover, real JSON import, production activation of PostgreSQL/multi-family, password recovery, automated invitation delivery and distributed session/worker coordination.
+- **Not completed:** production cutover, real JSON import, production activation of PostgreSQL/multi-family, external delivery provider homologation and distributed session/worker coordination.
 
 ## Key Lessons Learned
 
@@ -101,7 +104,7 @@ Development secrets should be supplied with .NET User Secrets or environment var
 ## Roadmap
 
 - Review and plan the production cutover separately.
-- Add password recovery and automated invitation delivery.
+- Prepare an isolated pilot environment and rehearse import, backup/restore and rollback.
 - Replace in-memory session coordination before multiple replicas.
 - Add distributed coordination for background reminders.
 - Expand browser-level testing and reporting.

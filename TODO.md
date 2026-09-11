@@ -2,6 +2,7 @@
 
 ## Alta prioridade
 
+- Preparar ambiente isolado de piloto e ensaiar backup/restore, importacao JSON e rollback antes de qualquer cutover.
 - Configurar e homologar o provider externo de delivery com secrets e origem publica aprovados, sem habilita-lo por default.
 - Reavaliar outbox e rate limits distribuidos antes de multiplas replicas.
 - Revisar e aprovar a Fase 4 antes de qualquer ensaio com copia de dados reais.
@@ -36,6 +37,7 @@
 
 ## Concluído
 
+- Cadastro controlado, Family propria, primeiro Owner, administracao de roles/members e troca multi-Family preparados para piloto privado.
 - Onboarding por convite tenant-aware para Admin/Member, com expiracao, revogacao, uso unico, hash do token e lockout Identity.
 - Gate PostgreSQL 16 descartavel concluido com migration vazia, isolamento, concorrencia, rollback, constraints, 59/59 testes e cleanup sem recursos residuais.
 - Fluxo operacional multi-family local: bootstrap, UI, members, settings, Telegram abstrato e worker tenant-aware.

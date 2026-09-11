@@ -1,6 +1,14 @@
 ﻿# CHANGELOG
 
 
+## 2026-09-10 - Pilot-ready onboarding and Family administration
+
+- Added fail-safe public registration with `Registration:Enabled=false` by default.
+- Added atomic identity, Family, settings and initial Owner creation without client-controlled tenant identifiers.
+- Added transactional Owner promotion/demotion/removal with last-Owner protection.
+- Integrated registration, invitations, recovery and multi-Family selection in the existing responsive UI.
+- Preserved `MultiFamily:Enabled=false`, external delivery disabled and the legacy JSON runtime.
+
 ## 2026-08-29
 
 - Adicionada infraestrutura comum e segura de delivery para convites e password recovery, desabilitada por default.

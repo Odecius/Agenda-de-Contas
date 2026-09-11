@@ -1,5 +1,13 @@
 ﻿# DECISIONS
 
+## 2026-09-10 - Cadastro cria uma Family nova e o dominio suporta multiplos Owners
+
+**Decisao:** O cadastro publico e uma capacidade independente, desabilitada por default. Quando autorizado, cria identidade, Family, settings e primeiro Owner em uma transacao. O modelo continua permitindo multiplos Owners; promover um membro ativo da mesma Family e o mecanismo de handover.
+
+**Motivo:** Nenhum visitante deve escolher tenant existente, e a Family nunca pode ficar sem Owner. Reusar memberships e a selecao familiar existentes reduz superficie de ataque e evita um segundo modelo de ownership.
+
+**Impacto:** Convite permanece o unico ingresso em Family existente. Operacoes de Owner bloqueiam os Owners ativos, revalidam o ator e impedem remocao/demotion do ultimo Owner. Nao foi necessaria migration.
+
 ## 2026-09-10 - Delivery comum fora da transacao e sem outbox inicial
 
 **Decisao:** Convites e recovery usam `IUserNotificationDeliveryService`, mensagens tipadas, links originados de configuracao confiavel e provider externo desabilitado por default. Convites sao persistidos antes da entrega; recovery nunca muda sua resposta por resultado do provider.
