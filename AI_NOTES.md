@@ -24,6 +24,8 @@ Na branch `agent/secure-notification-delivery`, convites e recovery compartilham
 
 Na branch `agent/pilot-ready-family-management`, cadastro publico permanece desligado por default. Quando autorizado em Development/Testing, cria Identity, Family, settings e primeiro Owner atomicamente. O cliente nao escolhe tenant. O modelo usa multiplos Owners e protege o ultimo Owner em alteracoes transacionais. A UI integra cadastro, convite, recovery, administracao familiar e selecao revalidada de multiplas Families.
 
+Na branch `agent/pilot-environment-readiness`, o ambiente `Pilot` passa a ser explicitamente permitido, mas falha fechado sem connection string externa e mantem registration/delivery desligados. O rehearsal usa dois PostgreSQL 16 descartaveis para provar importacao sintetica, reconciliacao, backup, destruicao, restore e smoke tests. O runbook define RPO/RTO, rollback, observabilidade e incidentes; usuarios reais continuam bloqueados pelo status operacional do segredo Telegram e pelo provisioning do ambiente.
+
 O modelo de contas possui suporte inicial a pais e moeda por conta. Os paises suportados sao `UnitedKingdom`, `Portugal` e `Brazil`; as moedas suportadas sao `GBP`, `EUR` e `BRL`. O sistema nao faz conversao cambial. Totais com moedas diferentes devem ser agrupados por moeda.
 
 A interface possui resumo por pais e moeda baseado nos vencimentos do mes selecionado. Esse resumo e apenas demonstrativo/operacional: ele separa os valores por moeda e nao calcula conversao.

@@ -24,9 +24,12 @@ var multiFamilyOptions = builder.Configuration
     .GetSection(MultiFamilyOptions.SectionName)
     .Get<MultiFamilyOptions>() ?? new MultiFamilyOptions();
 
-if (multiFamilyOptions.Enabled && !builder.Environment.IsDevelopment() && !builder.Environment.IsEnvironment("Testing"))
+if (multiFamilyOptions.Enabled
+    && !builder.Environment.IsDevelopment()
+    && !builder.Environment.IsEnvironment("Testing")
+    && !builder.Environment.IsEnvironment("Pilot"))
 {
-    throw new InvalidOperationException("MultiFamily may only be enabled in Development or Testing during phase 2.1.");
+    throw new InvalidOperationException("MultiFamily may only be enabled in Development, Testing or Pilot.");
 }
 
 builder.Logging.AddFilter("System.Net.Http.HttpClient.Telegram", LogLevel.Warning);
@@ -344,6 +347,26 @@ app.MapGet("/health", () =>
         status = "ok"
     });
 });
+
+if (multiFamilyOptions.Enabled)
+{
+    app.MapGet("/health/ready", async (AgendadorDbContext db, CancellationToken cancellationToken) =>
+    {
+        try
+        {
+            var databaseReachable = await db.Database.CanConnectAsync(cancellationToken);
+            var migrationsCurrent = databaseReachable
+                && !(await db.Database.GetPendingMigrationsAsync(cancellationToken)).Any();
+            return databaseReachable && migrationsCurrent
+                ? Results.Ok(new { status = "ready" })
+                : Results.Json(new { status = "not-ready" }, statusCode: StatusCodes.Status503ServiceUnavailable);
+        }
+        catch
+        {
+            return Results.Json(new { status = "not-ready" }, statusCode: StatusCodes.Status503ServiceUnavailable);
+        }
+    });
+}
 
 if (multiFamilyOptions.Enabled)
 {

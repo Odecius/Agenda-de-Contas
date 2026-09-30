@@ -1,6 +1,13 @@
 ﻿# CHANGELOG
 
 
+## 2026-09-11 - Pilot environment readiness safeguards
+
+- Added an explicit fail-safe Pilot configuration profile and sanitized database readiness probe.
+- Added a disposable PostgreSQL migration, reconciliation, backup, destruction, restore and application-validation rehearsal.
+- Documented RPO/RTO, retention, cutover/rollback, observability, alerts, incidents and tester workflow.
+- Kept production, real data, external delivery and MultiFamily activation unchanged.
+
 ## 2026-09-10 - Pilot-ready onboarding and Family administration
 
 - Added fail-safe public registration with `Registration:Enabled=false` by default.

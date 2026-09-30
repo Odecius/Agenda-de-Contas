@@ -45,6 +45,8 @@ O desenho relacional esta documentado em `multi-family-postgresql-plan.md` e imp
 
 O onboarding para piloto adiciona cadastro independente e fail-safe. Quando explicitamente habilitado, ele cria `AppUser`, uma nova `Family`, `FamilySettings` e a primeira membership `Owner` numa transacao serializavel. O modelo suporta multiplos Owners; alteracoes de membership sao tenant-aware, revalidam o Owner ator dentro da transacao e impedem zero Owners. Consulte `family-administration.md`.
 
+O ambiente `Pilot` e uma composicao explicita e isolada: uma instancia, PostgreSQL dedicado e storage/backup separados do runtime JSON publicado. O perfil versionado nao contem connection string e mantem registration, delivery e Telegram desligados. `/health` indica liveness; `/health/ready` verifica banco e migrations sem expor detalhes. Consulte `pilot-runbook.md`.
+
 Convites pertencem obrigatoriamente a uma familia e ao Owner criador. Apenas o hash do token e persistido; aceite e revogacao usam filtros tenant-aware e constraints relacionais. Consulte `multi-family-invitations.md`.
 
 Password recovery atua somente sobre a identidade global, usa os token providers Identity e nao seleciona tenant; consulte `password-recovery.md`.
