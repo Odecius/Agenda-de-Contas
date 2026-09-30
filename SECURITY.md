@@ -23,6 +23,8 @@
 - [x] Perfil Pilot falha fechado sem connection string e mantem registration/delivery desabilitados.
 - [x] Readiness nao revela connection string, hostname, versao ou topologia.
 - [x] Rehearsal de backup/restore usa somente credenciais e dados sinteticos descartaveis.
+- [x] Design PostgreSQL usa dump nativo, catalogo, SHA-256, destinos marcados, publicacao atomica e falha fechada.
+- [ ] Backup diario, storage off-host criptografado, monitoramento e restore real provisionados no ambiente isolado.
 - [x] Delivery externo e fail-safe, HTTPS-only quando habilitado e nao registra destino, URL, token ou credential.
 - [x] Backups do arquivo JSON de dados.
 - [x] Logs sem segredos conhecidos.

@@ -41,16 +41,18 @@ The committed script has no production default, hostname or credential. Do not a
 
 ## Backup, retention and integrity
 
-Proposed pilot policy, pending environment provisioning:
+Proposed pilot policy, pending environment provisioning. The executable design and safety contract are in `off-host-backup.md`:
 
 - automated PostgreSQL backup at least every 24 hours: proposed RPO `<= 24h`;
-- keep 14 daily restore points on the pilot host;
-- copy at least one verified backup off-host after each successful run and retain eight weekly restore points;
+- keep 30 daily restore points on the pilot host, with a minimum of seven;
+- copy every verified backup off-host and retain 30 daily restore points, with a minimum of seven;
 - encrypt off-host copies, restrict access and record a checksum and completion status;
 - perform a disposable restore test before onboarding and at least monthly during the pilot;
 - alert on backup failure, missing off-host copy, checksum failure or restore failure.
 
 Retention values are targets, not claims about any current server. Provisioning must verify available capacity and the actual scheduler.
+
+Repository status is `BACKUP DESIGN READY`; operational status remains `OFF-HOST BACKUP NOT PROVISIONED` until the scheduler, encrypted destination, monitoring and a real isolated restore drill are evidenced.
 
 ## Recovery objectives
 

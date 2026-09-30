@@ -1,5 +1,13 @@
 ﻿# DECISIONS
 
+## 2026-09-30 - Backup do piloto usa dump nativo e destino off-host montado
+
+**Decisao:** Usar `pg_dump` custom diario, catalogo `pg_restore`, SHA-256 e publicacao atomica. Manter 30 pontos diarios em cada destino, com minimo de sete. O script aceita somente diretorios absolutos preexistentes e marcados; a infraestrutura fornece um destino criptografado montado e autenticacao por chave.
+
+**Motivo:** Separar criacao/verificacao do backup do transporte evita credenciais e topologia no repositorio, permite retry de copias pendentes e impede que sync bem-sucedido seja confundido com backup restauravel.
+
+**Impacto:** O desenho e o rehearsal estao prontos, mas nenhum timer, storage, chave, alerta ou restore real foi provisionado. RPO `<= 24h` e RTO `<= 30 min` continuam objetivos condicionais.
+
 ## 2026-09-11 - Pilot e um ambiente explicito, isolado e fail-safe
 
 **Decisao:** Permitir `MultiFamily` no ambiente nomeado `Pilot`, mantendo o default global desligado e um perfil sem connection string, registration, delivery, Telegram ou backup legado ativos. Readiness consulta somente conectividade e migrations e retorna estado generico. O rehearsal usa recursos gerados e descartaveis.

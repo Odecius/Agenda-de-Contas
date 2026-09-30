@@ -2,7 +2,7 @@
 
 ## Alta prioridade
 
-- Provisionar o ambiente isolado de piloto e a rotina diaria/off-host conforme `docs/pilot-runbook.md`.
+- Provisionar no ambiente isolado a rotina diaria e off-host ja desenhada em `docs/off-host-backup.md`; comprovar timer, criptografia, monitoramento, checksum e restore real.
 - Configurar e homologar o provider externo de delivery com secrets e origem publica aprovados, sem habilita-lo por default.
 - Reavaliar outbox e rate limits distribuidos antes de multiplas replicas.
 - Revisar e aprovar a Fase 4 antes de qualquer ensaio com copia de dados reais.

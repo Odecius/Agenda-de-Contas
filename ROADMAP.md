@@ -234,3 +234,10 @@ O plano detalhado esta em `docs/multi-family-postgresql-plan.md`. A fundacao e o
 - RPO `<= 24h` e RTO `<= 30 min` propostos, condicionados ao ambiente isolado futuro.
 - Runbook, alertas, incident response, stop conditions e roteiro de testers preparados.
 - Estado: `NO-GO` para usuarios reais ate resolver o status do segredo Telegram historico e provisionar backups/off-host no ambiente piloto.
+
+### Etapa 32.10 - Off-host backup design readiness
+
+- Script PostgreSQL fail-closed com dump custom, catalogo, SHA-256, publicacao atomica e destinos explicitamente marcados.
+- Retencao de 30 dias com minimo de sete pontos, retry de copias locais pendentes e conflito sem overwrite.
+- Rehearsal descartavel cobre falhas, copia corrompida, destruicao, restore e validacao da aplicacao.
+- Estado: `BACKUP DESIGN READY`, mas `OFF-HOST BACKUP NOT PROVISIONED` ate autorizacao e prova no ambiente isolado real.

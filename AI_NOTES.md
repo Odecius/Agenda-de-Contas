@@ -26,6 +26,8 @@ Na branch `agent/pilot-ready-family-management`, cadastro publico permanece desl
 
 Na branch `agent/pilot-environment-readiness`, o ambiente `Pilot` passa a ser explicitamente permitido, mas falha fechado sem connection string externa e mantem registration/delivery desligados. O rehearsal usa dois PostgreSQL 16 descartaveis para provar importacao sintetica, reconciliacao, backup, destruicao, restore e smoke tests. O runbook define RPO/RTO, rollback, observabilidade e incidentes; usuarios reais continuam bloqueados pelo status operacional do segredo Telegram e pelo provisioning do ambiente.
 
+Na branch `agent/off-host-backup-readiness`, o backup PostgreSQL ganha design executavel e fail-closed: dump custom, catalogo, SHA-256, destinos marcados, copia atomica, retry, retencao e status sanitizado. O rehearsal e exclusivamente descartavel. O estado e `BACKUP DESIGN READY`, nao `PROVISIONED`; HP, Lenovo, timer, chave, alertas e dados reais nao foram acessados.
+
 O modelo de contas possui suporte inicial a pais e moeda por conta. Os paises suportados sao `UnitedKingdom`, `Portugal` e `Brazil`; as moedas suportadas sao `GBP`, `EUR` e `BRL`. O sistema nao faz conversao cambial. Totais com moedas diferentes devem ser agrupados por moeda.
 
 A interface possui resumo por pais e moeda baseado nos vencimentos do mes selecionado. Esse resumo e apenas demonstrativo/operacional: ele separa os valores por moeda e nao calcula conversao.
