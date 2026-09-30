@@ -34,6 +34,14 @@ O rehearsal operacional completo e executado somente com confirmacao explicita:
 
 Ele importa JSON sintetico, reconcilia contagens/totais, repete a importacao, testa falha, cria e valida backup, destroi o banco fonte, restaura em PostgreSQL 16 novo e executa smoke tests da aplicacao. Todos os recursos usam label exclusiva, tmpfs e cleanup em `finally`.
 
+O gate especifico do desenho off-host e:
+
+```powershell
+.\tests\run-off-host-backup-rehearsal.ps1 -ConfirmDisposable
+```
+
+Ele valida dump/catalogo/hash, copia e duplicidade, retencao, falhas de banco/destino/permissao/path, corrupcao/checksum, destruicao da origem, restore em PostgreSQL 16 novo e validacao da aplicacao. Nenhum host, volume ou dado real e usado.
+
 Em 2026-08-29, o gate foi executado em PostgreSQL 16 real descartável e concluiu com 59/59 testes. Concorrência, rollback, constraints, isolamento e cleanup passaram; nenhum recurso Docker residual permaneceu e nenhum ambiente ou dado de produção foi acessado.
 
 ## Teste manual
