@@ -22,6 +22,8 @@ Implemented and tested a sanitized candidate for the existing HP-to-Lenovo bundl
 - PowerShell commands use encoded input after validation;
 - manifests reject absolute paths, traversal, separators, empty names, malformed hashes, duplicates, symlinks and unlisted payloads;
 - destination root, bundle directory, manifest and payload reparse points are rejected;
+- zero discovered source bundles fail closed with a non-zero exit and failure status;
+- complete bundles reject every unexpected direct entry, including directories and junctions, without deleting evidence;
 - partial bundles receive a remote preflight before SCP; unexpected or stale files fail closed and remain for manual investigation;
 - logs and status exclude hostnames, usernames, paths, keys, credentials and file contents;
 - a complete corrupt remote bundle is preserved for investigation and causes non-zero exit.

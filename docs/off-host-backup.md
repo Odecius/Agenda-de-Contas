@@ -37,6 +37,8 @@ The verified existing HP-to-Lenovo architecture uses timestamp-named bundles, SS
 
 The Bash transport validates the flat GNU manifest locally, rejects unsafe names and symlinks, verifies local hashes, copies only manifested payloads, invokes the remote verifier, transfers `BACKUP_OK` under a temporary name and atomically renames it after verification. A complete existing bundle is reverified instead of blindly skipped. A corrupt complete bundle fails without overwrite; an incomplete bundle may be recopied and verified.
 
+The transport fails closed when no source backup bundles are discovered. An empty source can indicate a configuration, mount, storage or upstream backup-generation failure and is never reported as a successful no-op. Complete remote bundles must remain flat: every direct entry must be the manifest, completion marker or a manifested payload; unexpected directories, junctions, links and unlisted entries are rejected without deleting evidence.
+
 `IMPLEMENTATION HARDENED` means the candidate and synthetic evidence exist in Git. It does not mean the real HP script, timer, service, Lenovo destination or monitoring was changed.
 
 If the destination is unavailable, unmarked, read-only or corrupt, the run fails non-zero and retains the verified local dump. At the next run, every valid local dump missing from the destination is copied again. There is no infinite retry. A matching destination is accepted idempotently; a conflicting or corrupted file stops the run rather than being overwritten.

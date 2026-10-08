@@ -324,6 +324,9 @@ log_event 'remote-root-validation' 'pass' 'none' 0
 mapfile -d '' bundle_directories < <(find "$SYNC_SOURCE_ROOT" -mindepth 1 -maxdepth 1 -type d -name "$bundle_pattern" -print0 | sort -z)
 status_bundles_discovered="${#bundle_directories[@]}"
 log_event 'bundles-discovered' 'pass' 'none' "$status_bundles_discovered"
+if [ "$status_bundles_discovered" -eq 0 ]; then
+    fail 'no-source-bundles' 'none'
+fi
 
 for bundle_dir in "${bundle_directories[@]}"; do
     bundle_name="$(basename -- "$bundle_dir")"

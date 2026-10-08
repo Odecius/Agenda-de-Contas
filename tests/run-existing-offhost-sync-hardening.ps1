@@ -339,6 +339,30 @@ esac
         Assert-True ($result.ExitCode -ne 0) 'Complete bundle with extra payload unexpectedly succeeded.'
     }
 
+    Complete-Test 'COMPLETE_BUNDLE_WITH_EXTRA_DIRECTORY_FAILS' {
+        Reset-State
+        $bundle = New-Bundle
+        $unexpected = Join-Path $bundle 'unexpected-directory'
+        New-Item -ItemType Directory -Path $unexpected | Out-Null
+        Write-Utf8NoBomLf -Path (Join-Path $unexpected 'evidence.txt') -Content 'preserve-evidence'
+        $result = Invoke-Verifier -Bundle $bundle
+        Assert-True ($result.ExitCode -ne 0) 'Complete bundle with an extra directory unexpectedly succeeded.'
+        Assert-True (Test-Path -LiteralPath (Join-Path $unexpected 'evidence.txt') -PathType Leaf) 'Unexpected directory evidence was modified or removed.'
+    }
+
+    Complete-Test 'COMPLETE_BUNDLE_WITH_EXTRA_JUNCTION_FAILS' {
+        Reset-State
+        $bundle = New-Bundle
+        $target = Join-Path $testRoot 'complete-extra-junction-target'
+        New-Item -ItemType Directory -Path $target -Force | Out-Null
+        Write-Utf8NoBomLf -Path (Join-Path $target 'evidence.txt') -Content 'preserve-junction-evidence'
+        $junction = Join-Path $bundle 'unexpected-junction'
+        New-Item -ItemType Junction -Path $junction -Target $target | Out-Null
+        $result = Invoke-Verifier -Bundle $bundle
+        Assert-True ($result.ExitCode -ne 0) 'Complete bundle with an extra junction unexpectedly succeeded.'
+        Assert-True (Test-Path -LiteralPath (Join-Path $target 'evidence.txt') -PathType Leaf) 'Junction target evidence was modified or removed.'
+    }
+
     Complete-Test 'MALICIOUS_MANIFEST_PATHS_FAIL' {
         foreach ($unsafeName in @('../../file', 'C:\outside', '/absolute/path', '\\network\share', "file';exit 0;#", '$(expression)', 'name;command', 'name|command', 'name&command', 'name with space')) {
             Reset-State
@@ -476,11 +500,14 @@ esac
         Assert-True ($markers.Count -eq 1) 'Idempotent run created unexpected markers.'
     }
 
-    Complete-Test 'NO_SOURCE_BUNDLES_IS_SUCCESS' {
+    Complete-Test 'NO_SOURCE_BUNDLES_FAILS' {
         Reset-State
         $result = Invoke-Sync
-        Assert-True ($result.ExitCode -eq 0) $result.Output
-        Assert-True ($result.Output -match 'bundles-discovered.*count=0') 'No-work behavior was not reported.'
+        Assert-True ($result.ExitCode -ne 0) 'No-source run unexpectedly succeeded.'
+        Assert-True ($result.Output -match 'event=no-source-bundles result=failure bundle=none') 'No-source failure was not reported safely.'
+        $status = Get-Content -Raw -LiteralPath (Join-Path $statusRoot 'sync.env')
+        Assert-True ($status -match '(?m)^result=failure$') 'No-source status did not record failure.'
+        Assert-True ($status -match '(?m)^bundles_discovered=0$') 'No-source status did not record zero discovered bundles.'
     }
 
     Complete-Test 'STATUS_FILE_WRITE_FAILURE_FAILS_RUN' {

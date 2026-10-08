@@ -129,12 +129,15 @@ try {
         }
     }
 
-    foreach ($file in Get-ChildItem -LiteralPath $resolvedBundle -File -Force) {
-        if ($file.Name -in @('SHA256SUMS', 'BACKUP_OK')) {
+    foreach ($entry in Get-ChildItem -LiteralPath $resolvedBundle -Force) {
+        if ($entry.PSIsContainer -or (Test-UnsafeLink $entry)) {
+            Fail-Verification 'bundle contains an unsafe or unexpected entry'
+        }
+        if ($entry.Name -in @('SHA256SUMS', 'BACKUP_OK')) {
             continue
         }
-        if (-not $seen.Contains($file.Name)) {
-            Fail-Verification 'bundle contains an unlisted file'
+        if (-not $seen.Contains($entry.Name)) {
+            Fail-Verification 'bundle contains an unlisted entry'
         }
     }
 
