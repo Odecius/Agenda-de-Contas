@@ -1,5 +1,13 @@
 ﻿# DECISIONS
 
+## 2026-10-08 - Reutilizar e endurecer o sync HP-Lenovo existente
+
+**Decisao:** Manter a arquitetura existente de bundles, Bash, SSH/SCP, `SHA256SUMS` e `BACKUP_OK`. Recalcular SHA-256 no destino Windows antes de publicar o marker por rename atomico. Revalidar bundles ja marcados e falhar fechado sem sobrescrever evidencia de corrupcao.
+
+**Motivo:** O pipeline real possui baseline saudavel e nao deve ser duplicado. A lacuna material e integridade pos-transporte, nao ausencia de transporte.
+
+**Impacto:** A implementacao versionada pode substituir controladamente o script existente em milestone separado. Ate instalacao e prova em hardware real, o estado e `HARDENING IMPLEMENTED / NOT YET DEPLOYED`.
+
 ## 2026-09-30 - Backup do piloto usa dump nativo e destino off-host montado
 
 **Decisao:** Usar `pg_dump` custom diario, catalogo `pg_restore`, SHA-256 e publicacao atomica. Manter 30 pontos diarios em cada destino, com minimo de sete. O script aceita somente diretorios absolutos preexistentes e marcados; a infraestrutura fornece um destino criptografado montado e autenticacao por chave.

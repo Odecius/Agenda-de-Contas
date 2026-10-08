@@ -1,6 +1,15 @@
 ﻿# CHANGELOG
 
 
+## 2026-10-08 - Existing off-host sync hardening
+
+- Added a generic Bash transport that preserves the existing hourly SSH/SCP bundle architecture.
+- Added a Windows PowerShell verifier for strict GNU `SHA256SUMS` parsing and remote SHA-256 recomputation.
+- Changed publication semantics so `BACKUP_OK` is atomically published only after remote verification succeeds.
+- Added fail-closed revalidation of already published bundles and retry-safe recovery of incomplete remote bundles.
+- Added a fully synthetic harness for transport, corruption, manifest-security, marker and idempotency scenarios.
+- Kept the real HP/Lenovo pipeline unchanged; controlled deployment and real-hardware proof remain separate.
+
 ## 2026-09-11 - Pilot environment readiness safeguards
 
 - Added an explicit fail-safe Pilot configuration profile and sanitized database readiness probe.
