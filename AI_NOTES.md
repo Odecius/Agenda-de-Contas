@@ -28,6 +28,8 @@ Na branch `agent/pilot-environment-readiness`, o ambiente `Pilot` passa a ser ex
 
 Na branch `agent/off-host-backup-readiness`, o backup PostgreSQL ganha design executavel e fail-closed: dump custom, catalogo, SHA-256, destinos marcados, copia atomica, retry, retencao e status sanitizado. O rehearsal e exclusivamente descartavel. O estado e `BACKUP DESIGN READY`, nao `PROVISIONED`; HP, Lenovo, timer, chave, alertas e dados reais nao foram acessados.
 
+Na branch `agent/pilot-backup-provisioning`, a auditoria real confirmou que `postgres-lenovo-sync.timer` esta ativo, habilitado e executa aproximadamente de hora em hora. O transporte existente descobre bundles de backup por timestamp, valida `BACKUP_OK` e `SHA256SUMS` localmente, copia por SSH/SCP e publica `BACKUP_OK` por ultimo. O systemd registrou 167 execucoes bem-sucedidas e uma interrupcao por `SIGTERM` durante reboot, seguida de operacao normal. A baseline e saudavel, mas requer checksum remoto antes da publicacao, monitoramento e rehearsal sintetico. Decisao: reutilizar e endurecer o sync existente, sem criar um segundo pipeline. Nenhum banco real foi identificado como piloto; estado permanece `NO-GO`.
+
 O modelo de contas possui suporte inicial a pais e moeda por conta. Os paises suportados sao `UnitedKingdom`, `Portugal` e `Brazil`; as moedas suportadas sao `GBP`, `EUR` e `BRL`. O sistema nao faz conversao cambial. Totais com moedas diferentes devem ser agrupados por moeda.
 
 A interface possui resumo por pais e moeda baseado nos vencimentos do mes selecionado. Esse resumo e apenas demonstrativo/operacional: ele separa os valores por moeda e nao calcula conversao.
