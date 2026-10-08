@@ -103,3 +103,15 @@ This plan is documentation only and must not be executed without explicit author
 11. if any gate fails, stop the timer if necessary, restore the saved script with its original ownership/mode, validate syntax, run one controlled verification and preserve all backup evidence.
 
 Do not delete bundles during rollback. Do not integrate a pilot source until its isolated PostgreSQL database exists and is explicitly identified.
+
+### Configuration migration requirement
+
+The observed real unit did not expose an `EnvironmentFile`, while the hardened candidate requires external `SYNC_*` configuration. Direct script replacement is therefore unsafe.
+
+`CONFIG MIGRATION REQUIRED: YES`.
+
+A controlled deployment must extract the existing private values locally without logging them, migrate them into a root-owned/root-readable configuration mechanism, update the unit to load that configuration, validate permissions and run `systemctl daemon-reload` only in the authorized maintenance window. Rollback must restore the previous script, unit and configuration together, followed by another daemon reload and a controlled one-shot validation.
+
+The PowerShell verifier must also be installed separately on the Windows destination in a restricted directory. Record its checksum and ACL, and make it non-modifiable by the backup identity where practical. The configured verifier path remains private. Rollback must preserve or remove that verifier according to the approved change record without touching backup bundles.
+
+`REMOTE VERIFIER: CODE READY / NOT DEPLOYED`.

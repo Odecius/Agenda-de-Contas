@@ -24,6 +24,7 @@ log_event() {
 }
 
 write_status() {
+    local status_directory status_tmp
     [ -n "${SYNC_STATUS_FILE:-}" ] || return 0
     case "$SYNC_STATUS_FILE" in
         /*) ;;
@@ -31,7 +32,7 @@ write_status() {
     esac
     status_directory="$(dirname -- "$SYNC_STATUS_FILE")"
     [ -d "$status_directory" ] || { printf 'Status directory does not exist.\n' >&2; return 1; }
-    status_tmp="$(mktemp "$status_directory/.sync-status.XXXXXX")"
+    status_tmp="$(mktemp "$status_directory/.sync-status.XXXXXX")" || return 1
     temporary_files+=("$status_tmp")
     {
         printf 'timestamp=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -49,19 +50,25 @@ write_status() {
 }
 
 cleanup() {
+    local path
     for path in "${temporary_files[@]:-}"; do
         [ -z "$path" ] || [ ! -e "$path" ] || rm -f -- "$path"
     done
 }
 
 finish() {
-    exit_code=$?
+    local exit_code="$?"
     cleanup
     if [ "$exit_code" -eq 0 ]; then
         status_result='success'
         status_operation='completed'
     fi
-    write_status || exit_code=1
+    if ! write_status; then
+        exit_code=1
+        status_result='failure'
+        status_operation='status-write'
+    fi
+    cleanup
     log_event 'run-finished' "$status_result" 'none' "$status_bundles_discovered"
     trap - EXIT
     exit "$exit_code"
@@ -69,12 +76,16 @@ finish() {
 trap finish EXIT
 
 fail() {
-    status_operation="$1"
-    log_event "$1" 'failure' "${2:-none}" 0 >&2
-    return 1
+    local operation bundle
+    operation="$1"
+    bundle="${2:-none}"
+    status_operation="$operation"
+    log_event "$operation" 'failure' "$bundle" 0 >&2
+    exit 1
 }
 
 require_safe_identifier() {
+    local value label
     value="$1"
     label="$2"
     case "$value" in
@@ -83,6 +94,7 @@ require_safe_identifier() {
 }
 
 require_safe_windows_path() {
+    local value label path_tail
     value="$1"
     label="$2"
     case "$value" in
@@ -92,9 +104,14 @@ require_safe_windows_path() {
     case "$value" in
         *[!A-Za-z0-9._:/-]*|*..*) printf '%s contains unsupported path content.\n' "$label" >&2; return 1 ;;
     esac
+    path_tail="${value:3}"
+    case "$path_tail" in
+        ''|*:*|*//*|*/) printf '%s contains an unsafe Windows path form.\n' "$label" >&2; return 1 ;;
+    esac
 }
 
 require_local_file() {
+    local value label
     value="$1"
     label="$2"
     case "$value" in
@@ -112,14 +129,17 @@ validate_bundle_name() {
 }
 
 validate_manifest() {
+    local bundle_dir manifest names_file normalized_manifest line_number entry_count line hash remainder file_name local_entry base
     bundle_dir="$1"
     manifest="$bundle_dir/$manifest_name"
     names_file="$(mktemp)"
-    temporary_files+=("$names_file")
+    normalized_manifest="$(mktemp)"
+    temporary_files+=("$names_file" "$normalized_manifest")
     line_number=0
     entry_count=0
 
     while IFS= read -r line || [ -n "$line" ]; do
+        line="${line%$'\r'}"
         line_number=$((line_number + 1))
         hash="${line%% *}"
         remainder="${line#"$hash"}"
@@ -139,6 +159,10 @@ validate_manifest() {
                 return 1
                 ;;
         esac
+        case "$file_name" in
+            [A-Za-z0-9]*) ;;
+            *) printf 'Manifest filename must start with an alphanumeric character.\n' >&2; return 1 ;;
+        esac
         [ -f "$bundle_dir/$file_name" ] || { printf 'Manifest file is missing.\n' >&2; return 1; }
         [ ! -L "$bundle_dir/$file_name" ] || { printf 'Manifest symlink is not allowed.\n' >&2; return 1; }
         if grep -Fqx -- "$file_name" "$names_file"; then
@@ -146,6 +170,7 @@ validate_manifest() {
             return 1
         fi
         printf '%s\n' "$file_name" >> "$names_file"
+        printf '%s\n' "$line" >> "$normalized_manifest"
         entry_count=$((entry_count + 1))
     done < "$manifest"
 
@@ -170,14 +195,19 @@ validate_manifest() {
     done < <(find "$bundle_dir" -mindepth 1 -maxdepth 1 -print0)
 
     VALIDATED_NAMES_FILE="$names_file"
+    VALIDATED_MANIFEST_FILE="$normalized_manifest"
 }
 
 encode_powershell() {
-    printf '%s' "$1" | iconv -f UTF-8 -t UTF-16LE | base64 | tr -d '\r\n'
+    local script_text
+    script_text="$1"
+    printf '%s' "$script_text" | iconv -f UTF-8 -t UTF-16LE | base64 | tr -d '\r\n'
 }
 
 escape_powershell_literal() {
-    printf '%s' "$1" | sed "s/'/''/g"
+    local value
+    value="$1"
+    printf '%s' "$value" | sed "s/'/''/g"
 }
 
 remote_adapter() {
@@ -185,19 +215,25 @@ remote_adapter() {
 }
 
 remote_powershell() {
+    local action bundle_name remote_bundle names_file remote_bundle_ps remote_root_ps verifier_ps script_text encoded expected_ps expected_name
     action="$1"
     bundle_name="${2:-none}"
     remote_bundle="${3:-none}"
+    names_file="${4:-}"
 
     if [ -n "${SYNC_TEST_ADAPTER:-}" ]; then
-        remote_adapter "$action" "$bundle_name" "$remote_bundle"
+        remote_adapter "$action" "$bundle_name" "$remote_bundle" "$names_file"
         return
     fi
 
     remote_bundle_ps="$(escape_powershell_literal "$remote_bundle")"
+    remote_root_ps="$(escape_powershell_literal "$SYNC_REMOTE_DIR")"
     verifier_ps="$(escape_powershell_literal "$SYNC_REMOTE_VERIFIER")"
     case "$action" in
         connectivity) script_text='exit 0' ;;
+        validate-root)
+            script_text="& '$verifier_ps' -DestinationRoot '$remote_root_ps' -ValidateRoot; exit \$LASTEXITCODE"
+            ;;
         marker-exists)
             script_text="if (Test-Path -LiteralPath '$remote_bundle_ps/$marker_name' -PathType Leaf) { exit 0 } else { exit 3 }"
             ;;
@@ -210,8 +246,17 @@ remote_powershell() {
         clear-pending)
             script_text="Remove-Item -LiteralPath '$remote_bundle_ps/$pending_marker' -Force -ErrorAction SilentlyContinue; exit 0"
             ;;
+        preflight)
+            expected_ps=''
+            while IFS= read -r expected_name; do
+                [ -n "$expected_name" ] || continue
+                if [ -n "$expected_ps" ]; then expected_ps="$expected_ps,"; fi
+                expected_ps="$expected_ps'$expected_name'"
+            done < "$names_file"
+            script_text="& '$verifier_ps' -DestinationRoot '$remote_root_ps' -BundleDirectory '$remote_bundle_ps' -Preflight -ExpectedFileName @($expected_ps); exit \$LASTEXITCODE"
+            ;;
         verify)
-            script_text="& '$verifier_ps' -BundleDirectory '$remote_bundle_ps'; exit \$LASTEXITCODE"
+            script_text="& '$verifier_ps' -DestinationRoot '$remote_root_ps' -BundleDirectory '$remote_bundle_ps'; exit \$LASTEXITCODE"
             ;;
         publish-marker)
             script_text="[IO.File]::Move('$remote_bundle_ps/$pending_marker', '$remote_bundle_ps/$marker_name'); exit 0"
@@ -226,6 +271,7 @@ remote_powershell() {
 }
 
 copy_remote() {
+    local source_file bundle_name remote_file remote_bundle
     source_file="$1"
     bundle_name="$2"
     remote_file="$3"
@@ -272,6 +318,8 @@ log_event 'run-started' 'started' 'none' 0
 status_operation='connectivity'
 remote_powershell 'connectivity' || fail 'connectivity' 'none'
 log_event 'connectivity' 'pass' 'none' 0
+remote_powershell 'validate-root' || fail 'remote-root-validation' 'none'
+log_event 'remote-root-validation' 'pass' 'none' 0
 
 mapfile -d '' bundle_directories < <(find "$SYNC_SOURCE_ROOT" -mindepth 1 -maxdepth 1 -type d -name "$bundle_pattern" -print0 | sort -z)
 status_bundles_discovered="${#bundle_directories[@]}"
@@ -293,7 +341,8 @@ for bundle_dir in "${bundle_directories[@]}"; do
     status_operation='local-manifest-validation'
     validate_manifest "$bundle_dir" || fail 'local-manifest-validation' "$bundle_name"
     names_file="$VALIDATED_NAMES_FILE"
-    (cd -- "$bundle_dir" && sha256sum -c -- "$manifest_name" >/dev/null 2>&1) || fail 'local-checksum' "$bundle_name"
+    validated_manifest="$VALIDATED_MANIFEST_FILE"
+    (cd -- "$bundle_dir" && sha256sum -c -- "$validated_manifest" >/dev/null 2>&1) || fail 'local-checksum' "$bundle_name"
     status_bundles_verified=$((status_bundles_verified + 1))
     log_event 'local-verified' 'pass' "$bundle_name" 1
 
@@ -323,10 +372,11 @@ for bundle_dir in "${bundle_directories[@]}"; do
 
     status_operation='remote-prepare'
     remote_powershell 'prepare' "$bundle_name" "$remote_bundle" || fail 'remote-prepare' "$bundle_name"
+    remote_powershell 'preflight' "$bundle_name" "$remote_bundle" "$names_file" || fail 'remote-preflight' "$bundle_name"
     remote_powershell 'clear-pending' "$bundle_name" "$remote_bundle" || fail 'remote-clear-pending' "$bundle_name"
 
     status_operation='copy'
-    copy_remote "$bundle_dir/$manifest_name" "$bundle_name" "$manifest_name" "$remote_bundle" || fail 'scp-manifest' "$bundle_name"
+    copy_remote "$validated_manifest" "$bundle_name" "$manifest_name" "$remote_bundle" || fail 'scp-manifest' "$bundle_name"
     while IFS= read -r payload_name; do
         copy_remote "$bundle_dir/$payload_name" "$bundle_name" "$payload_name" "$remote_bundle" || fail 'scp-payload' "$bundle_name"
     done < "$names_file"

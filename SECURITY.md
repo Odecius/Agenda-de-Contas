@@ -25,6 +25,7 @@
 - [x] Rehearsal de backup/restore usa somente credenciais e dados sinteticos descartaveis.
 - [x] Hardening versionado valida manifesto e SHA-256 no destino antes de publicar `BACKUP_OK`.
 - [x] Manifestos rejeitam paths absolutos, traversal, separadores, hashes invalidos e entradas duplicadas.
+- [x] Preflight remoto rejeita destination/bundle reparse points e conteudo parcial inesperado antes do SCP.
 - [ ] Hardening do sync instalado e comprovado no HP/Lenovo real.
 - [x] Design PostgreSQL usa dump nativo, catalogo, SHA-256, destinos marcados, publicacao atomica e falha fechada.
 - [ ] Backup diario, storage off-host criptografado, monitoramento e restore real provisionados no ambiente isolado.
