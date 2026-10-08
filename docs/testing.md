@@ -1,5 +1,15 @@
 ﻿# Testing
 
+## Existing off-host sync hardening
+
+Run the fully synthetic transport and Windows-verifier suite with:
+
+```powershell
+pwsh ./tests/run-existing-offhost-sync-hardening.ps1 -ConfirmDisposable
+```
+
+The harness uses temporary data, a network-disabled local container and mocked transport. It must not be pointed at HP, Lenovo, a real SSH endpoint or real backups.
+
 ## Testes atuais
 
 Existe um test runner automatizado em `tests/AgendadorContas.Tests`.

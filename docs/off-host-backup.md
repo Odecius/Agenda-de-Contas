@@ -33,6 +33,12 @@ Thirty days provides a monthly investigation window without introducing weekly/m
 
 The script writes to a mounted destination. The mount may be provided by a restricted SSH/SFTP/rsync-backed mechanism or equivalent managed storage, but transport setup remains an infrastructure responsibility. Use a dedicated key and account restricted to the approved backup target; never embed credentials in the repository, unit file or command line.
 
+The verified existing HP-to-Lenovo architecture uses timestamp-named bundles, SSH/SCP, `SHA256SUMS` and `BACKUP_OK`. The hardened reusable implementation is [`deploy/sync-backup-bundles-offhost.sh`](../deploy/sync-backup-bundles-offhost.sh), with destination verification in [`deploy/verify-backup-bundle.ps1`](../deploy/verify-backup-bundle.ps1). Operational values are mandatory external configuration and are not committed.
+
+The Bash transport validates the flat GNU manifest locally, rejects unsafe names and symlinks, verifies local hashes, copies only manifested payloads, invokes the remote verifier, transfers `BACKUP_OK` under a temporary name and atomically renames it after verification. A complete existing bundle is reverified instead of blindly skipped. A corrupt complete bundle fails without overwrite; an incomplete bundle may be recopied and verified.
+
+`IMPLEMENTATION HARDENED` means the candidate and synthetic evidence exist in Git. It does not mean the real HP script, timer, service, Lenovo destination or monitoring was changed.
+
 If the destination is unavailable, unmarked, read-only or corrupt, the run fails non-zero and retains the verified local dump. At the next run, every valid local dump missing from the destination is copied again. There is no infinite retry. A matching destination is accepted idempotently; a conflicting or corrupted file stops the run rather than being overwritten.
 
 ## Verification and monitoring contract
@@ -54,6 +60,8 @@ Run only against generated Docker resources:
 ```
 
 The harness seeds synthetic multi-family data, creates and verifies local/off-host backups, tests idempotency and retention, simulates database failure, unavailable/invalid/read-only destinations and corruption/checksum mismatch, destroys the source database, restores into fresh PostgreSQL 16 and runs application validation. It uses tmpfs, random credentials, loopback-only ports, labels and `finally` cleanup.
+
+The transport-specific harness is `tests/run-existing-offhost-sync-hardening.ps1 -ConfirmDisposable`. It uses temporary directories, a network-disabled local container and mocked SSH/SCP actions. It exercises new, incomplete, partial, existing, corrupted and idempotent bundles plus malformed and malicious manifests. The PowerShell verifier itself runs locally against synthetic Windows directories.
 
 ## Scheduling template
 
@@ -77,3 +85,21 @@ The target RTO is `<= 30 minutes`. The disposable rehearsal demonstrates feasibi
 Real provisioning requires separate explicit authorization for both machines. It will create or change backup directories/markers, a dedicated account and key, encrypted off-host storage, a restricted mount/transport, an external database credential reference, a `systemd` service/timer and monitoring. The first run must prove backup, copy, checksum and a restore into a separate database.
 
 No application or database restart should be required. Expected risk is temporary database/disk/network I/O; schedule the first run in a maintenance window. Rollback is to disable the timer, unmount/disable the transport and remove new unit/configuration files while preserving every verified backup and leaving the application/database unchanged.
+
+## Controlled deployment and rollback plan
+
+This plan is documentation only and must not be executed without explicit authorization:
+
+1. stop before mutation and record the current service/timer state;
+2. copy the current transport script to a root-only timestamped rollback file on the same host;
+3. record SHA-256 and ownership/mode of the current script without publishing paths or values;
+4. install the reviewed Bash candidate and Windows verifier while preserving all external private configuration;
+5. restore privileged ownership and mode, then run Bash and PowerShell syntax validation;
+6. use a new synthetic timestamp bundle to prove copy, remote SHA-256 and marker-last publication;
+7. corrupt a separate synthetic copy and prove non-zero exit with no final marker;
+8. restore the synthetic verified bundle into an isolated disposable database and validate it;
+9. run one manually authorized one-shot service execution, without invoking the timer or touching unrelated bundles;
+10. confirm sanitized status and monitoring, then observe the next scheduled execution;
+11. if any gate fails, stop the timer if necessary, restore the saved script with its original ownership/mode, validate syntax, run one controlled verification and preserve all backup evidence.
+
+Do not delete bundles during rollback. Do not integrate a pilot source until its isolated PostgreSQL database exists and is explicitly identified.

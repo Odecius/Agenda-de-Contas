@@ -241,3 +241,14 @@ O plano detalhado esta em `docs/multi-family-postgresql-plan.md`. A fundacao e o
 - Retencao de 30 dias com minimo de sete pontos, retry de copias locais pendentes e conflito sem overwrite.
 - Rehearsal descartavel cobre falhas, copia corrompida, destruicao, restore e validacao da aplicacao.
 - Estado: `BACKUP DESIGN READY`, mas `OFF-HOST BACKUP NOT PROVISIONED` ate autorizacao e prova no ambiente isolado real.
+
+### Etapa 32.11 - Existing off-host sync hardening
+
+- [x] Preservar o transporte existente baseado em Bash, SSH/SCP, bundles, `SHA256SUMS` e marker-last.
+- [x] Implementar verifier PowerShell fail-closed com validacao estrita de manifesto e SHA-256 remoto.
+- [x] Revalidar bundles completos existentes e recusar corrupcao sem overwrite automatico.
+- [x] Recuperar bundles parciais e publicar `BACKUP_OK` atomicamente somente apos verificacao remota.
+- [x] Cobrir falhas de transporte, corrupcao, traversal, manifesto, marker e idempotencia em harness sintetico.
+- [ ] Revisar e instalar no pipeline real em janela controlada, com backup do script anterior e rollback.
+- [ ] Executar transferencia/corrupcao/restore sinteticos em hardware real e observar uma execucao agendada.
+- [ ] Integrar somente o futuro banco piloto isolado.

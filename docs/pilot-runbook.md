@@ -50,6 +50,8 @@ Proposed pilot policy, pending environment provisioning. The executable design a
 - perform a disposable restore test before onboarding and at least monthly during the pilot;
 - alert on backup failure, missing off-host copy, checksum failure or restore failure.
 
+The existing HP-to-Lenovo transport must be reused rather than duplicated. The repository now contains a hardened candidate that verifies `SHA256SUMS` on the Windows destination and publishes `BACKUP_OK` only after remote validation. `IMPLEMENTATION HARDENED` does not mean the real pipeline was updated: installation, synthetic real-hardware tests, monitoring and a restore drill require a separate authorized milestone.
+
 Retention values are targets, not claims about any current server. Provisioning must verify available capacity and the actual scheduler.
 
 Repository status is `BACKUP DESIGN READY`; operational status remains `OFF-HOST BACKUP NOT PROVISIONED` until the scheduler, encrypted destination, monitoring and a real isolated restore drill are evidenced.
