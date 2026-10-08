@@ -1,115 +1,142 @@
-# Checkpoint - Pilot backup provisioning blocked - 2026-09-30
+# Checkpoint - Verified existing off-host backup pipeline - 2026-09-30
 
 ## Scope
 
-A read-only inventory was performed on the authorized HP host and Lenovo off-host candidate. No application, database, backup, firewall, account, key, mount, scheduler or production configuration was changed. No secret value, private address, username, hostname, personal path or backup content was collected or committed.
+A read-only inventory and authorized privileged inspection were performed on the existing HP-to-Lenovo backup transport. No application, database, backup, firewall, account, key, scheduler, Telegram configuration or production data was changed. No secret value, private address, username, hostname, personal path or remote destination was collected or committed.
 
-## Corrected sanitized findings
+## Verified timer and service
 
-- the HP runs a supported Ubuntu release with healthy free capacity, active Docker and existing PostgreSQL containers;
-- the published legacy Agenda-de-Contas application still uses JSON and no database was identified unequivocally as its isolated pilot PostgreSQL database;
-- the ABC Prospect database has an active daily local-backup timer with dump, checksum, retention and restore capabilities; its most recent observed execution succeeded;
-- `postgres-lenovo-sync.timer` exists, is enabled and active, starts after boot and runs approximately hourly;
-- the previous HP-to-Lenovo TCP/22 failure was a false negative caused by testing `/dev/tcp` under `sh`; a corrected `bash` test confirmed TCP/22 is reachable;
-- the Lenovo has sufficient capacity, active OpenSSH and private-overlay connectivity;
-- the HP SSH identity available to this session does not have non-interactive administrative elevation;
-- the sync script is protected, so its destination, source scope, transport, checksum and retention remain `UNKNOWN` pending privileged read-only inspection;
-- no dedicated pilot backup marker, isolated pilot database or proven end-to-end pilot backup and restore was established.
+- `postgres-lenovo-sync.timer` is active and enabled;
+- it starts five minutes after boot and runs approximately every hour;
+- persistent scheduling is enabled;
+- `postgres-lenovo-sync.service` is a one-shot system service;
+- the service uses the default privileged system identity;
+- the transport script is owned by the privileged system account and has mode `750`;
+- the latest inspected execution completed successfully with exit status `0`.
 
-## Existing pipeline map
+The real paths, remote host, remote user, SSH identity and destination remain intentionally omitted.
+
+## Verified transport behavior
+
+The script fails closed, applies a restrictive file-creation mask and defines separate source-root, source-directory, remote-host, remote-user, remote-directory, SSH-key and known-hosts settings.
+
+Transport capabilities:
+
+- SSH: `YES`;
+- SCP: `YES`;
+- SHA-256: `YES`;
+- rsync: `NO`;
+- SFTP: `NO`;
+- `pg_dump`: `NO`;
+- `pg_restore`: `NO`.
+
+The script does not create PostgreSQL backups. It transports previously generated backup bundles.
+
+## Source discovery and local validation
+
+The transport discovers timestamp-named backup directories directly below its configured source root. It is not hardcoded to a specific database in the inspected transport logic.
+
+For each candidate bundle, the script:
+
+1. requires a `BACKUP_OK` completion marker;
+2. requires `SHA256SUMS`;
+3. ignores incomplete bundles;
+4. validates the local bundle with `sha256sum -c` before transfer.
+
+Local checksum validation: `CONFIRMED`.
+
+## Remote publication safeguard
+
+Before copying, the script checks over SSH whether the remote bundle already has `BACKUP_OK`. An already published bundle is skipped. Otherwise it:
+
+1. creates the remote bundle directory;
+2. copies all bundle files except `BACKUP_OK` using SCP;
+3. copies `BACKUP_OK` last.
+
+Consequently, a partial copy does not receive the completion marker. This is a valid publication safeguard, but it is not equivalent to remote checksum verification.
+
+## Seven-day execution health
+
+The systemd result fields, rather than keyword matching of message text, show:
+
+- successful completions: `167`;
+- failed service results: `1`;
+- non-zero process exits: `1`.
+
+The single observed failure was termination by `SIGTERM` during an authorized server reboot. Normal executions preceded the reboot and resumed successfully after boot. The current service result is successful with exit status `0`.
+
+The previously reported `318` failure markers came from broad keyword matching and did not represent 318 failed service executions. That metric is superseded by the verified systemd results.
+
+Existing sync health: `HEALTHY BASELINE / HARDENING REQUIRED`.
+
+## Remaining integrity gap
+
+The script verifies SHA-256 locally before SCP, but remote checksum recomputation after transfer was not evidenced. The current publication sequence is therefore:
 
 ```text
-ABC Prospect
-  -> abc-prospect-backup.timer
-  -> backup-postgres.sh
-  -> local dumps
-  -> UNKNOWN
-  -> postgres-lenovo-sync.timer
-  -> sync-postgres-backups-to-lenovo.sh
-  -> UNKNOWN
-  -> Lenovo
+local checksum PASS
+  -> SCP data
+  -> SCP BACKUP_OK
+  -> published
 ```
 
-The diagram records observed components only. It does not prove that the sync timer consumes ABC Prospect dumps, that Lenovo is its actual destination, or that it provides the pilot backup. The existing pipeline must be inspected for safe reuse before any second pipeline is designed or provisioned.
+The required hardened sequence is:
 
-## Sync failure-pattern analysis
+```text
+local checksum PASS
+  -> SCP data
+  -> remote checksum verification
+  -> PASS
+  -> BACKUP_OK publication
+```
 
-The seven-day journal was analyzed locally on the host and only aggregate statistics were returned:
+Remote checksum hardening: `REQUIRED`.
 
-- journal entries inspected: `669`;
-- success markers: `8`;
-- failure markers: `318`;
-- event windows grouped by minute: `167`;
-- success-only windows: `8`;
-- failure-only windows: `159`;
-- mixed success/failure windows: `0`;
-- authentication, connection, missing-path and checksum-specific markers recognized by the sanitized classifier: `0` each;
-- failures occurred on every day inspected and across all hours, consistent with repeated hourly failure windows rather than a single isolated burst;
-- last failure marker: `2026-09-30 07:35 BST`;
-- last success marker: `2026-09-30 12:37 BST`;
-- the latest observed service result was `success` with exit status `0`, and five success markers occurred after the last observed failure.
+## Architecture decision
 
-The failure text and protected script were not exposed. Therefore the historical failures cannot yet be correlated with Lenovo availability or assigned to authentication, transport, source, destination or another cause. The recent successful sequence suggests improvement, but it does not outweigh 159 failure-only windows in seven days.
+Do not create a second HP-to-Lenovo sync pipeline.
 
-Provisional sync health: `DEGRADED`.
+Decision: `REUSE EXISTING SYNC - APPROVED WITH HARDENING`.
+
+Minimum future hardening:
+
+1. recompute and validate SHA-256 at the remote destination before publication;
+2. publish `BACKUP_OK` only after remote validation passes;
+3. improve status reporting and monitoring;
+4. run synthetic transfer, failure and restore tests;
+5. integrate the future isolated pilot backup source without disturbing existing workloads.
+
+No hardening was implemented in this documentation-only change.
 
 ## Telegram checkpoint
 
 - configured: `YES`;
 - enabled: `YES`;
 - runtime: `ACTIVE`;
-- recent successful-send markers: `YES`;
+- recent successful sends: `YES`;
 - credential defined: `YES`;
-- credential exposed by this audit: `NO`;
+- credential exposed: `NO`;
 - status: `ROTATION REQUIRED`.
 
-Do not rotate the token without simultaneously updating the runtime secret because Telegram notifications are currently active. Rotation was not performed and no Telegram API call or message was made.
+Do not revoke or rotate the token without simultaneously updating the active runtime secret. No Telegram configuration, API call or message was performed.
 
 ## Database map
 
 - ABC Prospect: `abc_prospect`, owned by the ABC Prospect workload;
 - shared/other platform: `abcserver`;
 - Agenda legacy runtime: `JSON`;
-- isolated pilot PostgreSQL database: `NOT YET IDENTIFIED`.
+- isolated pilot PostgreSQL database: `NOT YET CREATED / IDENTIFIED`.
 
-Neither `abc_prospect` nor `abcserver` may be treated as the pilot target. No timer may be configured for the pilot until an isolated target is identified and authorized.
+Neither `abc_prospect` nor `abcserver` may be used as the pilot target.
 
-## Stop conditions applied
+## State and remaining blockers
 
-Provisioning remains stopped before mutation because:
-
-1. the protected sync implementation requires privileged read-only inspection before reuse can be evaluated;
-2. the seven-day history contains repeated failure windows whose cause is still unknown;
-3. existing PostgreSQL backup timers must be reconciled before another pipeline can be installed;
-4. there is no clearly isolated real pilot database, so a daily pilot timer cannot be safely targeted;
-5. no backup/restore rehearsal has established that the existing sync satisfies the pilot RPO, integrity, retention and recovery requirements.
-
-No attempt was made to bypass privileges, expose credentials, reuse a personal credential as a backup identity, dump an unidentified database or create a duplicate timer.
-
-## State
-
-- backup design: `READY`;
-- backup infrastructure: `NOT PROVISIONED` for the pilot;
-- HP-to-Lenovo TCP/22: `REACHABLE`;
-- existing sync timer: `ACTIVE`, approximately hourly, provisional health `DEGRADED`;
-- existing sync destination/scope/checksum/retention: `UNKNOWN`;
-- pilot systemd service/timer: not installed;
-- synthetic hardware rehearsal: not started;
-- Telegram runtime: `ACTIVE`;
-- Telegram credential status: `ROTATION REQUIRED`;
+- existing off-host transport: `VERIFIED`;
+- existing sync health: `HEALTHY BASELINE / HARDENING REQUIRED`;
+- remote checksum: `NOT EVIDENCED`;
+- pilot backup target: `NOT YET CREATED / IDENTIFIED`;
+- synthetic transfer/restore rehearsal: `NOT YET COMPLETED`;
+- Telegram credential: `ROTATION REQUIRED`;
 - pilot environment readiness: `NO-GO`.
 
-## Required privileged read-only facts
-
-Before a reuse decision, confirm without printing secret values:
-
-1. exact service identity and executable path;
-2. environment-file paths only, not their contents;
-3. script ownership and permissions;
-4. source backup directory and workload/database scope;
-5. destination class and transport method;
-6. checksum verification and atomic-copy behavior;
-7. local and remote retention behavior;
-8. the cause of historical failures and whether the successful sequence is sustained.
-
-Until those facts are established, do not install a service, enable a new timer, create keys/accounts, copy backups, rotate Telegram credentials or run `pg_dump` against any existing database.
+Until separately authorized, do not alter the real script or timer, create a pilot database, use another workload's database, execute a real backup or restore, rotate Telegram credentials, activate MultiFamily or deploy.
