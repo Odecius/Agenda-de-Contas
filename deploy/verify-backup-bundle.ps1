@@ -27,6 +27,40 @@ function Test-UnsafeLink {
     return $null -ne $linkTypeProperty -and $null -ne $linkTypeProperty.Value
 }
 
+function Convert-ManifestEntryToSafeBasename {
+    param([Parameter(Mandatory = $true)][string]$ManifestEntry)
+
+    if ($ManifestEntry.StartsWith('/', [StringComparison]::Ordinal)) {
+        if ($ManifestEntry.Length -eq 1 -or
+            $ManifestEntry.StartsWith('//', [StringComparison]::Ordinal) -or
+            $ManifestEntry.EndsWith('/', [StringComparison]::Ordinal) -or
+            $ManifestEntry.Contains('//') -or
+            $ManifestEntry.Contains('\')) {
+            Fail-Verification 'manifest contains an ambiguous legacy path'
+        }
+
+        $segments = $ManifestEntry.Substring(1).Split('/')
+        foreach ($segment in $segments) {
+            if ($segment -in @('', '.', '..')) {
+                Fail-Verification 'manifest contains an unsafe legacy path segment'
+            }
+        }
+        $fileName = $segments[$segments.Length - 1]
+    }
+    else {
+        if ($ManifestEntry.Contains('/') -or $ManifestEntry.Contains('\')) {
+            Fail-Verification 'relative manifest paths are not allowed'
+        }
+        $fileName = $ManifestEntry
+    }
+
+    if ($fileName -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]*$' -or
+        $fileName -in @('.', '..', 'BACKUP_OK', 'SHA256SUMS', '.BACKUP_OK.pending')) {
+        Fail-Verification 'manifest contains an unsafe filename'
+    }
+    return $fileName
+}
+
 try {
     $rootItem = Get-Item -LiteralPath $DestinationRoot -Force -ErrorAction Stop
     if (-not $rootItem.PSIsContainer -or (Test-UnsafeLink $rootItem)) {
@@ -99,14 +133,8 @@ try {
         }
 
         $expectedHash = $Matches.hash
-        $fileName = $Matches.name
-        if ($fileName -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]*$' -or
-            $fileName -in @('.', '..', 'BACKUP_OK', 'SHA256SUMS') -or
-            [IO.Path]::IsPathRooted($fileName) -or
-            $fileName.Contains('/') -or
-            $fileName.Contains('\')) {
-            Fail-Verification 'manifest contains an unsafe filename'
-        }
+        $manifestEntry = $Matches.name
+        $fileName = Convert-ManifestEntryToSafeBasename -ManifestEntry $manifestEntry
         if (-not $seen.Add($fileName)) {
             Fail-Verification 'manifest contains duplicate filenames'
         }
