@@ -1,5 +1,13 @@
 ﻿# DECISIONS
 
+## 2026-11-17 - Reset administrativo Pilot usa somente APIs Identity
+
+**Decisao:** Permitir `reset-pilot-password` somente como comando CLI. Pilot exige `MultiFamily:Enabled=true` e o gate temporario `PilotPasswordReset:Enabled=true`; Development/Testing preservam uso local e Production/ambientes desconhecidos rejeitam sempre.
+
+**Motivo:** Recuperar uma identidade existente sem abrir endpoint, cadastro publico ou manipulacao direta de hashes. O reset gera token internamente com `UserManager` e o consome imediatamente via `ResetPasswordAsync`.
+
+**Impacto:** O default versionado e desabilitado, nao ha schema/migration e Family/membership permanecem inalterados. Email e nova password sao inputs privados temporarios; logs e output permanecem genericos.
+
 ## 2026-11-17 - Bootstrap Pilot permanece CLI-only e temporariamente habilitado
 
 **Decisao:** Permitir o comando `bootstrap-multi-family` no ambiente Pilot somente quando `MultiFamily:Enabled=true` e `PilotBootstrap:Enabled=true`. Development/Testing preservam o comportamento anterior; Production e ambientes desconhecidos sempre rejeitam. O default versionado e desabilitado.

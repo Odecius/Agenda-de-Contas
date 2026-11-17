@@ -18,6 +18,18 @@ Em Development/Testing, o comportamento existente permanece disponivel com `Mult
 
 No Pilot, `PilotBootstrap__Enabled` e os valores `Bootstrap__*` devem existir somente durante a execucao administrativa explicita. Depois do sucesso, o operador deve remover/desabilitar a flag e remover as credenciais temporarias antes do startup normal. O startup da aplicacao nunca executa bootstrap automaticamente e `Registration:Enabled=false` continua independente. Nao existe endpoint HTTP de bootstrap.
 
+## Reset administrativo de password
+
+O reset de password de uma identidade existente tambem e exclusivamente CLI:
+
+```text
+dotnet run -- reset-pilot-password
+```
+
+Development/Testing preservam o uso administrativo local com `MultiFamily:Enabled=true`. Em Pilot, o comando exige adicionalmente `PilotPasswordReset__Enabled=true`; o default versionado e `false`. Production e ambientes desconhecidos sempre rejeitam. O email alvo e a nova password devem vir apenas de `PasswordReset__Email` e `PasswordReset__NewPassword` em configuracao privada temporaria.
+
+O servico localiza somente usuario ativo e usa `UserManager.GeneratePasswordResetTokenAsync` seguido de `UserManager.ResetPasswordAsync`; nunca manipula `PasswordHash`. Falhas de policy retornam apenas codes Identity e usuario ausente/inativo recebe erro generico. Email, password, token e UserId nao sao logados nem impressos. Depois do sucesso, a flag e os valores temporarios devem ser removidos antes do startup normal. Nao existe endpoint HTTP administrativo de reset e `Registration:Enabled=false` permanece independente.
+
 ## Login e familia ativa
 
 `login.js` detecta `/api/multi-family/mode`, busca antiforgery e usa Identity. A senha e limpa antes do redirecionamento e nada sensivel e armazenado em localStorage. A pagina operacional lista familias autorizadas, usa selecao server-side e limpa o estado em memoria antes de recarregar outro tenant.

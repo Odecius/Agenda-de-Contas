@@ -107,6 +107,9 @@ var tests = new List<(string Name, Func<Task> Run)>
     ("Bootstrap rejeita identidades conflitantes sem alterar estado", MultiFamilyBootstrapRejectsConflictsAsync),
     ("Bootstrap administrativo aplica gate explicito por ambiente", PilotBootstrapPolicyIsFailClosed),
     ("Pilot startup nao executa bootstrap nem habilita cadastro", PilotStartupDoesNotBootstrapOrEnableRegistrationAsync),
+    ("Reset administrativo aplica gate explicito por ambiente", PilotPasswordResetPolicyIsFailClosed),
+    ("Reset administrativo usa Identity e preserva familia", PilotPasswordResetUsesIdentityAndPreservesFamilyAsync),
+    ("Pilot startup nao executa reset nem habilita cadastro", PilotPasswordResetStartupIsInertAsync),
     ("Cadastro publico e fail-safe e cria familia com Owner atomicamente", FamilyRegistrationFlowWorksOnSqliteAsync),
     ("Cadastro faz rollback de usuario quando criacao familiar falha", FamilyRegistrationRollsBackAsync),
     ("Convite cria membership sem confiar em tenant do cliente", FamilyInvitationCreatesMembershipSecurelyAsync),
@@ -1457,6 +1460,140 @@ static async Task PilotStartupDoesNotBootstrapOrEnableRegistrationAsync()
     AssertEqual(0, await db.FamilyUsers.CountAsync(), "Startup Pilot nao pode criar membership automaticamente.");
 }
 
+static async Task PilotPasswordResetPolicyIsFailClosed()
+{
+    static Task Run(Action action)
+    {
+        action();
+        return Task.CompletedTask;
+    }
+
+    PilotPasswordResetPolicy.EnsureAllowed("Development", multiFamilyEnabled: true, pilotPasswordResetEnabled: false);
+    PilotPasswordResetPolicy.EnsureAllowed("Testing", multiFamilyEnabled: true, pilotPasswordResetEnabled: false);
+    PilotPasswordResetPolicy.EnsureAllowed("Pilot", multiFamilyEnabled: true, pilotPasswordResetEnabled: true);
+
+    var absentFlagConfiguration = new ConfigurationBuilder().AddInMemoryCollection().Build();
+    var absentFlagOptions = absentFlagConfiguration.GetSection(PilotPasswordResetOptions.SectionName)
+        .Get<PilotPasswordResetOptions>() ?? new PilotPasswordResetOptions();
+    AssertTrue(!absentFlagOptions.Enabled, "Pilot password reset deve ficar desabilitado quando a flag esta ausente.");
+    var missingFlag = await CaptureExceptionAsync(() => Run(() =>
+        PilotPasswordResetPolicy.EnsureAllowed("Pilot", multiFamilyEnabled: true, absentFlagOptions.Enabled)));
+    AssertContains("PilotPasswordReset:Enabled=true", missingFlag.Message, "Pilot sem flag deve rejeitar reset.");
+    var explicitFalse = await CaptureExceptionAsync(() => Run(() =>
+        PilotPasswordResetPolicy.EnsureAllowed("Pilot", multiFamilyEnabled: true, pilotPasswordResetEnabled: false)));
+    AssertContains("PilotPasswordReset:Enabled=true", explicitFalse.Message, "Pilot com flag false deve rejeitar reset.");
+    var production = await CaptureExceptionAsync(() => Run(() =>
+        PilotPasswordResetPolicy.EnsureAllowed("Production", multiFamilyEnabled: true, pilotPasswordResetEnabled: true)));
+    AssertContains("not allowed", production.Message, "Production deve rejeitar reset mesmo com flag.");
+    var unknown = await CaptureExceptionAsync(() => Run(() =>
+        PilotPasswordResetPolicy.EnsureAllowed("Unknown", multiFamilyEnabled: true, pilotPasswordResetEnabled: true)));
+    AssertContains("not allowed", unknown.Message, "Ambiente desconhecido deve rejeitar reset.");
+    var disabledMultiFamily = await CaptureExceptionAsync(() => Run(() =>
+        PilotPasswordResetPolicy.EnsureAllowed("Pilot", multiFamilyEnabled: false, pilotPasswordResetEnabled: true)));
+    AssertContains("MultiFamily:Enabled=true", disabledMultiFamily.Message, "Reset exige MultiFamily ativo.");
+
+    var missingEmail = await CaptureExceptionAsync(() => Run(() =>
+        PilotPasswordResetPolicy.RequireConfigurationValue(absentFlagConfiguration, "PasswordReset:Email")));
+    AssertEqual("PasswordReset:Email is required.", missingEmail.Message, "Erro deve identificar somente a chave de email ausente.");
+    var missingPassword = await CaptureExceptionAsync(() => Run(() =>
+        PilotPasswordResetPolicy.RequireConfigurationValue(absentFlagConfiguration, "PasswordReset:NewPassword")));
+    AssertEqual("PasswordReset:NewPassword is required.", missingPassword.Message, "Erro deve identificar somente a chave de password ausente.");
+}
+
+static async Task PilotPasswordResetUsesIdentityAndPreservesFamilyAsync()
+{
+    await using var scope = await IdentityTestScope.CreateAsync();
+    var logger = new RecordingLogger<PilotPasswordResetService>();
+    var service = new PilotPasswordResetService(scope.UserManager, logger);
+    const string email = "reset-owner@example.test";
+    var oldPassword = NewDisposablePassword("old");
+    var newPassword = NewDisposablePassword("new");
+    var user = await CreateUserAsync(scope.UserManager, email, oldPassword);
+    var family = NewFamily("Password Reset Family");
+    scope.Db.Families.Add(family);
+    scope.Db.FamilyUsers.Add(new FamilyUser { FamilyId = family.Id, UserId = user.Id, Role = FamilyRole.Owner });
+    scope.Db.FamilySettings.Add(new FamilySettings { FamilyId = family.Id });
+    await scope.Db.SaveChangesAsync();
+
+    await service.ResetAsync(email, newPassword);
+    AssertTrue(!await scope.UserManager.CheckPasswordAsync(user, oldPassword), "Senha anterior deveria falhar depois do reset.");
+    AssertTrue(await scope.UserManager.CheckPasswordAsync(user, newPassword), "Senha nova deveria funcionar depois do reset.");
+    var membership = await scope.Db.FamilyUsers.SingleAsync();
+    AssertEqual(family.Id, membership.FamilyId, "Reset alterou Family da membership.");
+    AssertEqual(user.Id, membership.UserId, "Reset alterou User da membership.");
+    AssertEqual(FamilyRole.Owner, membership.Role, "Reset alterou role familiar.");
+    AssertEqual(1, await scope.Db.Families.CountAsync(), "Reset alterou Families.");
+    AssertEqual(1, await scope.Db.FamilyUsers.CountAsync(), "Reset alterou memberships.");
+    AssertEqual(1, await scope.Db.FamilySettings.CountAsync(), "Reset alterou settings.");
+
+    var invalidPassword = new string('x', 3);
+    var invalid = await CaptureExceptionAsync(() => service.ResetAsync(email, invalidPassword));
+    AssertContains("PasswordTooShort", invalid.Message, "Password invalido deve retornar somente codigo Identity.");
+    AssertTrue(!invalid.ToString().Contains(invalidPassword, StringComparison.Ordinal), "Falha Identity expos password invalido.");
+    AssertTrue(await scope.UserManager.CheckPasswordAsync(user, newPassword), "Falha de validacao nao pode alterar senha valida.");
+
+    var unknown = await CaptureExceptionAsync(() => service.ResetAsync("unknown-reset@example.test", NewDisposablePassword("unknown")));
+    var inactive = await CreateUserAsync(scope.UserManager, "inactive-reset@example.test", NewDisposablePassword("inactive-old"));
+    inactive.IsActive = false;
+    AssertTrue((await scope.UserManager.UpdateAsync(inactive)).Succeeded, "Fixture inativa nao foi persistida.");
+    var inactiveFailure = await CaptureExceptionAsync(() => service.ResetAsync(inactive.Email!, NewDisposablePassword("inactive-new")));
+    AssertEqual(unknown.Message, inactiveFailure.Message, "Usuario desconhecido e inativo devem falhar de forma generica equivalente.");
+
+    var logText = string.Join("\n", logger.Messages);
+    AssertTrue(!logText.Contains(email, StringComparison.OrdinalIgnoreCase), "Log de reset expos email.");
+    AssertTrue(!logText.Contains(oldPassword, StringComparison.Ordinal), "Log de reset expos password anterior.");
+    AssertTrue(!logText.Contains(newPassword, StringComparison.Ordinal), "Log de reset expos password novo.");
+    AssertTrue(!logText.Contains(user.Id.ToString(), StringComparison.OrdinalIgnoreCase), "Log de reset expos UserId.");
+    AssertEqual("Pilot password reset completed successfully.", logger.Messages.Single(), "Log de sucesso deve ser generico.");
+}
+
+static async Task PilotPasswordResetStartupIsInertAsync()
+{
+    const string email = "startup-reset-owner@example.test";
+    var oldPassword = NewDisposablePassword("startup-old");
+    var configuredNewPassword = NewDisposablePassword("startup-new");
+    await using var factory = new MultiFamilySqliteWebFactory(
+        registrationEnabled: false,
+        environmentName: "Pilot",
+        pilotPasswordResetEnabled: true,
+        passwordResetEmail: email,
+        passwordResetNewPassword: configuredNewPassword);
+    AppUser user;
+    using (var scope = factory.Services.CreateScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<AgendadorDbContext>();
+        await db.Database.EnsureCreatedAsync();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+        user = await CreateUserAsync(users, email, oldPassword);
+    }
+
+    using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+    {
+        BaseAddress = new Uri("https://localhost"),
+        HandleCookies = true
+    });
+    AssertEqual(HttpStatusCode.OK, (await client.GetAsync("/api/multi-family/mode")).StatusCode, "Startup Pilot deveria servir modo multi-family.");
+    foreach (var path in new[] { "/reset-password-admin", "/admin/password-reset", "/api/admin/password-reset", "/api/pilot/password-reset" })
+    {
+        using var endpoint = await client.PostAsJsonAsync(path, new { });
+        AssertEqual(HttpStatusCode.NotFound, endpoint.StatusCode, $"Reset administrativo HTTP nao deve existir em {path}.");
+    }
+
+    var csrf = await GetAntiforgeryTokenAsync(client);
+    using var registration = await PostWithTokenAsync(
+        client,
+        "/api/multi-family/auth/register",
+        new FamilyRegistrationRequest("startup-registration@example.test", NewDisposablePassword("registration"), "Startup Family"),
+        csrf);
+    AssertEqual(HttpStatusCode.NotFound, registration.StatusCode, "Gate de reset nao pode habilitar cadastro publico.");
+
+    using var verificationScope = factory.Services.CreateScope();
+    var verificationUsers = verificationScope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+    var persistedUser = await verificationUsers.FindByIdAsync(user.Id.ToString()) ?? throw new InvalidOperationException("Fixture de reset ausente.");
+    AssertTrue(await verificationUsers.CheckPasswordAsync(persistedUser, oldPassword), "Startup normal nao pode alterar senha anterior.");
+    AssertTrue(!await verificationUsers.CheckPasswordAsync(persistedUser, configuredNewPassword), "Startup normal nao pode aplicar reset configurado.");
+}
+
 static async Task FamilyRegistrationFlowWorksOnSqliteAsync()
 {
     await using var disabledFactory = new MultiFamilySqliteWebFactory(registrationEnabled: false);
@@ -2784,6 +2921,8 @@ static Task<HttpResponseMessage> PostWithTokenAsync<T>(HttpClient client, string
 
 static Family NewFamily(string name) => new() { Id = Guid.NewGuid(), Name = name };
 
+static string NewDisposablePassword(string marker) => $"Aa1!{marker}-{Guid.NewGuid():N}";
+
 static ContaEntity NewConta(Guid familyId, string name) => new()
 {
     Id = Guid.NewGuid(), FamilyId = familyId, Nome = name, Valor = 10,
@@ -3260,15 +3399,24 @@ internal sealed class MultiFamilySqliteWebFactory : WebApplicationFactory<Applic
     private readonly bool _registrationEnabled;
     private readonly string _environmentName;
     private readonly bool _pilotBootstrapEnabled;
+    private readonly bool _pilotPasswordResetEnabled;
+    private readonly string? _passwordResetEmail;
+    private readonly string? _passwordResetNewPassword;
 
     public MultiFamilySqliteWebFactory(
         bool registrationEnabled = false,
         string environmentName = "Testing",
-        bool pilotBootstrapEnabled = false)
+        bool pilotBootstrapEnabled = false,
+        bool pilotPasswordResetEnabled = false,
+        string? passwordResetEmail = null,
+        string? passwordResetNewPassword = null)
     {
         _registrationEnabled = registrationEnabled;
         _environmentName = environmentName;
         _pilotBootstrapEnabled = pilotBootstrapEnabled;
+        _pilotPasswordResetEnabled = pilotPasswordResetEnabled;
+        _passwordResetEmail = passwordResetEmail;
+        _passwordResetNewPassword = passwordResetNewPassword;
         _connection.Open();
         SetEnvironment("MultiFamily__Enabled", "true");
         SetEnvironment("MultiFamily__ConnectionString", "Host=localhost;Database=unused");
@@ -3278,6 +3426,9 @@ internal sealed class MultiFamilySqliteWebFactory : WebApplicationFactory<Applic
         SetEnvironment("AccessProtection__Enabled", "false");
         SetEnvironment("Registration__Enabled", registrationEnabled.ToString());
         SetEnvironment("PilotBootstrap__Enabled", pilotBootstrapEnabled.ToString());
+        SetEnvironment("PilotPasswordReset__Enabled", pilotPasswordResetEnabled.ToString());
+        if (passwordResetEmail is not null) SetEnvironment("PasswordReset__Email", passwordResetEmail);
+        if (passwordResetNewPassword is not null) SetEnvironment("PasswordReset__NewPassword", passwordResetNewPassword);
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -3296,6 +3447,9 @@ internal sealed class MultiFamilySqliteWebFactory : WebApplicationFactory<Applic
                 ["AccessProtection:Enabled"] = "false"
                 ,["Registration:Enabled"] = _registrationEnabled.ToString()
                 ,["PilotBootstrap:Enabled"] = _pilotBootstrapEnabled.ToString()
+                ,["PilotPasswordReset:Enabled"] = _pilotPasswordResetEnabled.ToString()
+                ,["PasswordReset:Email"] = _passwordResetEmail
+                ,["PasswordReset:NewPassword"] = _passwordResetNewPassword
             }));
         builder.ConfigureServices(services =>
         {

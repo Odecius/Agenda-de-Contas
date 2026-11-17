@@ -26,6 +26,9 @@ var multiFamilyOptions = builder.Configuration
 var pilotBootstrapOptions = builder.Configuration
     .GetSection(PilotBootstrapOptions.SectionName)
     .Get<PilotBootstrapOptions>() ?? new PilotBootstrapOptions();
+var pilotPasswordResetOptions = builder.Configuration
+    .GetSection(PilotPasswordResetOptions.SectionName)
+    .Get<PilotPasswordResetOptions>() ?? new PilotPasswordResetOptions();
 
 if (multiFamilyOptions.Enabled
     && !builder.Environment.IsDevelopment()
@@ -177,6 +180,7 @@ if (multiFamilyOptions.Enabled)
     if (multiFamilyOptions.Enabled)
     {
         builder.Services.AddScoped<MultiFamilyBootstrapService>();
+        builder.Services.AddScoped<PilotPasswordResetService>();
         builder.Services.AddScoped<IMultiFamilyReminderProcessor, MultiFamilyReminderProcessor>();
         builder.Services.AddScoped<IFamilyTelegramSender, FamilyTelegramSender>();
         builder.Services.AddSingleton(TimeProvider.System);
@@ -302,6 +306,23 @@ if (args.Contains("bootstrap-multi-family", StringComparer.OrdinalIgnoreCase))
     await bootstrapScope.ServiceProvider.GetRequiredService<MultiFamilyBootstrapService>()
         .BootstrapAsync(email, password, familyName);
     Console.WriteLine("Pilot bootstrap completed successfully.");
+    return;
+}
+
+if (args.Contains("reset-pilot-password", StringComparer.OrdinalIgnoreCase))
+{
+    PilotPasswordResetPolicy.EnsureAllowed(
+        app.Environment.EnvironmentName,
+        multiFamilyOptions.Enabled,
+        pilotPasswordResetOptions.Enabled);
+
+    var email = PilotPasswordResetPolicy.RequireConfigurationValue(app.Configuration, "PasswordReset:Email");
+    var newPassword = PilotPasswordResetPolicy.RequireConfigurationValue(app.Configuration, "PasswordReset:NewPassword");
+
+    using var passwordResetScope = app.Services.CreateScope();
+    await passwordResetScope.ServiceProvider.GetRequiredService<PilotPasswordResetService>()
+        .ResetAsync(email, newPassword);
+    Console.WriteLine("Pilot password reset completed successfully.");
     return;
 }
 

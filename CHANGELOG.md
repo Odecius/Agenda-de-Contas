@@ -1,6 +1,12 @@
 ﻿# CHANGELOG
 
 
+## 2026-11-17 - Controlled Pilot password reset
+
+- Added a CLI-only administrative password reset using ASP.NET Identity token generation and `ResetPasswordAsync`.
+- Required a temporary Pilot gate disabled by default; Production and unknown environments fail closed.
+- Added tests for policy, Identity validation, old/new login, inactive/unknown users, inert startup, registration safety and unchanged Family data.
+
 ## 2026-11-17 - Controlled Pilot bootstrap
 
 - Allowed the existing explicit `bootstrap-multi-family` CLI command in Pilot only behind `PilotBootstrap:Enabled=true`, disabled by default.

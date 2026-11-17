@@ -18,6 +18,8 @@ The committed `appsettings.Pilot.json` is deliberately incomplete and fails clos
 
 The bootstrap gate defaults to `PilotBootstrap:Enabled=false`. A later separately authorized operator action may temporarily supply `PilotBootstrap__Enabled=true` and the three private `Bootstrap__*` values to the explicit `bootstrap-multi-family` CLI command. Normal startup never bootstraps, no HTTP bootstrap endpoint exists, and the temporary flag and values must be removed immediately after a successful command.
 
+Administrative password reset follows the same temporary CLI-only model. `PilotPasswordReset:Enabled=false` is the committed default. A separately authorized operator may temporarily provide `PilotPasswordReset__Enabled=true`, `PasswordReset__Email` and `PasswordReset__NewPassword` to `reset-pilot-password`, then must delete/disable all three inputs before normal startup. The command uses ASP.NET Identity reset APIs, exposes no reset token or identity data and does not alter Family state. No HTTP administrative reset endpoint exists.
+
 ## Preconditions
 
 - approved image digest mapped to a reviewed Git commit;
