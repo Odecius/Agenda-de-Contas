@@ -1,6 +1,14 @@
 ﻿# CHANGELOG
 
 
+## 2026-11-17 - Isolated Pilot PostgreSQL preparation
+
+- Added a dedicated PostgreSQL 16 Compose definition with no host port, an internal network and an isolated labelled volume.
+- Added separate external administrator and application password files and a least-privilege application role.
+- Added fail-closed database identity and role verification before migrations or application use.
+- Added a private-input contract and checkpoint without real infrastructure metadata.
+- Enforced LF endings for shell scripts so Linux backup and transport gates remain executable.
+
 ## 2026-10-08 - Existing off-host sync hardening
 
 - Added a generic Bash transport that preserves the existing hourly SSH/SCP bundle architecture.

@@ -1,5 +1,16 @@
 ﻿# ROADMAP
 
+## Pilot PostgreSQL isolation
+
+- [x] Definir cluster, rede, volume, role e secrets dedicados.
+- [x] Provar a composicao e least privilege em ambiente local descartavel.
+- [x] Revalidar PostgreSQL 16, backup, restore e transporte sinteticos.
+- [ ] Identificar e aprovar os nomes/targets reais sem colisao com infraestrutura existente.
+- [ ] Provisionar secrets e recursos reais com elevacao legitima.
+- [ ] Aplicar migrations somente apos verificacao da identidade piloto.
+- [ ] Executar backup/restore real isolado e registrar evidencia sanitizada.
+- [ ] Validar a aplicacao no ambiente piloto sem onboarding real.
+
 ## Fase 2.2 - Repositories tenant-aware e autorizacao familiar
 
 - [x] Criar repositories scoped de Conta e Pagamento com tenant obtido de `ICurrentFamilyContext`.

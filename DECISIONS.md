@@ -1,5 +1,13 @@
 ﻿# DECISIONS
 
+## 2026-11-17 - Pilot PostgreSQL usa cluster e lifecycle dedicados
+
+**Decisao:** Preparar o piloto em um container PostgreSQL 16 separado, sem porta no host, com rede interna, volume identificado, administrador de bootstrap e role de aplicacao sem privilegios elevados. A identidade `agenda-pilot-v1` deve ser verificada antes de migrations ou conexao da aplicacao.
+
+**Motivo:** Um database ou schema em cluster existente nao satisfaz o isolamento exigido e poderia criar ambiguidade com sistemas reais. O cluster dedicado torna volume, credentials, backup e restore lifecycle independentes.
+
+**Impacto:** Nenhum PostgreSQL existente pode ser reutilizado. Provisioning real, secret paths, backup target e app deployment continuam gates operacionais separados. Os defaults JSON de producao nao mudam.
+
 ## 2026-10-08 - Reutilizar e endurecer o sync HP-Lenovo existente
 
 **Decisao:** Manter a arquitetura existente de bundles, Bash, SSH/SCP, `SHA256SUMS` e `BACKUP_OK`. Recalcular SHA-256 no destino Windows antes de publicar o marker por rename atomico. Revalidar bundles ja marcados e falhar fechado sem sobrescrever evidencia de corrupcao.
