@@ -50,7 +50,7 @@ public sealed class MultiFamilyBootstrapService(
             db.FamilySettings.Add(new FamilySettings { FamilyId = family.Id });
             await db.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
-            logger.LogInformation("Multi-family bootstrap created user {UserId} and family {FamilyId}.", user.Id, family.Id);
+            logger.LogInformation("Multi-family bootstrap completed successfully.");
             return new BootstrapResult(user.Id, family.Id, true, true, true);
         }
 
@@ -83,7 +83,7 @@ public sealed class MultiFamilyBootstrapService(
         }
 
         await transaction.CommitAsync(cancellationToken);
-        logger.LogInformation("Multi-family bootstrap confirmed user {UserId} and family {FamilyId}.", user.Id, family.Id);
+        logger.LogInformation("Multi-family bootstrap confirmed the existing valid state.");
         return new BootstrapResult(user.Id, family.Id, false, false, false);
     }
 }

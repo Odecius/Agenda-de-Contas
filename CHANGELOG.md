@@ -1,6 +1,12 @@
 ﻿# CHANGELOG
 
 
+## 2026-11-17 - Controlled Pilot bootstrap
+
+- Allowed the existing explicit `bootstrap-multi-family` CLI command in Pilot only behind `PilotBootstrap:Enabled=true`, disabled by default.
+- Kept Production and unknown environments fail-closed, public registration disabled and normal startup free of bootstrap side effects.
+- Removed user and Family identifiers from bootstrap logs and added Pilot gate/startup/registration tests without schema changes.
+
 ## 2026-11-17 - Isolated Pilot PostgreSQL preparation
 
 - Added a dedicated PostgreSQL 16 Compose definition with no host port, an internal network and an isolated labelled volume.

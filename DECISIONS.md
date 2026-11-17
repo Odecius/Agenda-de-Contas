@@ -1,5 +1,13 @@
 ﻿# DECISIONS
 
+## 2026-11-17 - Bootstrap Pilot permanece CLI-only e temporariamente habilitado
+
+**Decisao:** Permitir o comando `bootstrap-multi-family` no ambiente Pilot somente quando `MultiFamily:Enabled=true` e `PilotBootstrap:Enabled=true`. Development/Testing preservam o comportamento anterior; Production e ambientes desconhecidos sempre rejeitam. O default versionado e desabilitado.
+
+**Motivo:** O primeiro Owner e Family precisam ser criados sem abrir cadastro publico, endpoint administrativo ou efeito colateral no startup. A flag e os valores `Bootstrap:*` sao inputs privados e temporarios do operador.
+
+**Impacto:** Nao ha schema ou migration nova. Depois do comando, a flag e as credenciais temporarias devem ser removidas antes do runtime normal. Logs registram apenas sucesso generico, sem email, IDs ou secrets.
+
 ## 2026-11-17 - Pilot PostgreSQL usa cluster e lifecycle dedicados
 
 **Decisao:** Preparar o piloto em um container PostgreSQL 16 separado, sem porta no host, com rede interna, volume identificado e tres identidades segregadas: administrador somente para bootstrap, migrator proprietario do database/schema e runtime sem ownership ou CREATE. A identidade `agenda-pilot-v1` e o modo da role devem ser verificados antes de migrations ou conexao da aplicacao.

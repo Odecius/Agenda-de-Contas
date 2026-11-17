@@ -9,12 +9,14 @@ The target is one isolated application instance running with `ASPNETCORE_ENVIRON
 Required state:
 
 - `MultiFamily:Enabled=true`, with its connection string supplied externally;
-- `Registration:Enabled=false` initially; enable only for the controlled signup window and disable immediately afterwards;
+- `Registration:Enabled=false`; the initial Owner and Family use only the explicit administrative bootstrap command under its temporary private gate;
 - `Delivery:Enabled=false` until a provider passes its separate security gate;
 - legacy JSON is read-only migration input and rollback evidence, never a concurrent writer;
 - `/health` is liveness; `/health/ready` verifies database connectivity and migration currency without exposing topology or versions.
 
 The committed `appsettings.Pilot.json` is deliberately incomplete and fails closed without an external connection string. Secrets, hostnames and private paths never belong in the repository.
+
+The bootstrap gate defaults to `PilotBootstrap:Enabled=false`. A later separately authorized operator action may temporarily supply `PilotBootstrap__Enabled=true` and the three private `Bootstrap__*` values to the explicit `bootstrap-multi-family` CLI command. Normal startup never bootstraps, no HTTP bootstrap endpoint exists, and the temporary flag and values must be removed immediately after a successful command.
 
 ## Preconditions
 

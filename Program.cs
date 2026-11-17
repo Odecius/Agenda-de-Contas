@@ -23,6 +23,9 @@ var builder = WebApplication.CreateBuilder(args);
 var multiFamilyOptions = builder.Configuration
     .GetSection(MultiFamilyOptions.SectionName)
     .Get<MultiFamilyOptions>() ?? new MultiFamilyOptions();
+var pilotBootstrapOptions = builder.Configuration
+    .GetSection(PilotBootstrapOptions.SectionName)
+    .Get<PilotBootstrapOptions>() ?? new PilotBootstrapOptions();
 
 if (multiFamilyOptions.Enabled
     && !builder.Environment.IsDevelopment()
@@ -286,23 +289,19 @@ var app = builder.Build();
 
 if (args.Contains("bootstrap-multi-family", StringComparer.OrdinalIgnoreCase))
 {
-    if (!multiFamilyOptions.Enabled || (!app.Environment.IsDevelopment() && !app.Environment.IsEnvironment("Testing")))
-    {
-        throw new InvalidOperationException("Multi-family bootstrap is allowed only with MultiFamily enabled in Development or Testing.");
-    }
+    PilotBootstrapPolicy.EnsureAllowed(
+        app.Environment.EnvironmentName,
+        multiFamilyOptions.Enabled,
+        pilotBootstrapOptions.Enabled);
 
-    var email = app.Configuration["Bootstrap:Email"];
-    var password = app.Configuration["Bootstrap:Password"];
-    var familyName = app.Configuration["Bootstrap:FamilyName"];
-    if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password) || string.IsNullOrWhiteSpace(familyName))
-    {
-        throw new InvalidOperationException("Bootstrap email, password and family name must be supplied through configuration.");
-    }
+    var email = PilotBootstrapPolicy.RequireConfigurationValue(app.Configuration, "Bootstrap:Email");
+    var password = PilotBootstrapPolicy.RequireConfigurationValue(app.Configuration, "Bootstrap:Password");
+    var familyName = PilotBootstrapPolicy.RequireConfigurationValue(app.Configuration, "Bootstrap:FamilyName");
 
     using var bootstrapScope = app.Services.CreateScope();
-    var result = await bootstrapScope.ServiceProvider.GetRequiredService<MultiFamilyBootstrapService>()
+    await bootstrapScope.ServiceProvider.GetRequiredService<MultiFamilyBootstrapService>()
         .BootstrapAsync(email, password, familyName);
-    Console.WriteLine($"Bootstrap complete. UserCreated={result.UserCreated}; FamilyCreated={result.FamilyCreated}; MembershipCreated={result.MembershipCreated}.");
+    Console.WriteLine("Pilot bootstrap completed successfully.");
     return;
 }
 

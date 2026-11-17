@@ -2,7 +2,7 @@
 
 ## Status e isolamento de runtime
 
-A Fase 4 torna o modo relacional utilizavel somente em Development/Testing. `MultiFamily:Enabled=false` continua default e registra exclusivamente `ContaStore`, AccessProtection, Telegram global, `DailyReminderService` e `AutomaticBackupService`. Nenhum DbContext, Identity, bootstrap ou worker relacional e exigido nesse modo.
+A Fase 4 torna o modo relacional utilizavel em Development/Testing e no ambiente Pilot isolado. `MultiFamily:Enabled=false` continua default e registra exclusivamente `ContaStore`, AccessProtection, Telegram global, `DailyReminderService` e `AutomaticBackupService`. Nenhum DbContext, Identity, bootstrap ou worker relacional e exigido nesse modo. O Pilot nao executa bootstrap no startup; somente o comando administrativo explicito pode usa-lo sob o gate temporario descrito abaixo.
 
 Com a flag ativa, PostgreSQL e obrigatorio, APIs JSON sao bloqueadas e o frontend redireciona para `multi-family.html`.
 
@@ -14,7 +14,9 @@ Nao existe cadastro publico ou endpoint de bootstrap. O comando explicito e:
 dotnet run -- bootstrap-multi-family
 ```
 
-Ele somente funciona com a flag ativa em Development/Testing. Email, senha e nome da familia devem vir de `Bootstrap__Email`, `Bootstrap__Password` e `Bootstrap__FamilyName` no ambiente/secret local. A senha nao e impressa nem logada. O comando cria AppUser, Family, membership Owner e FamilySettings somente quando usuario e familia ainda nao existem. Repetir exatamente a mesma identidade e idempotente. Familia ou usuario preexistente sem a mesma membership Owner falha fechado e exige intervencao administrativa explicita; o bootstrap nunca cria um Owner adicional. Uma membership Owner esperada, mas inativa, so e reativada quando nao existe outro Owner ativo.
+Em Development/Testing, o comportamento existente permanece disponivel com `MultiFamily:Enabled=true`. Em Pilot, o comando exige adicionalmente `PilotBootstrap__Enabled=true`; o default versionado e `false`. Production e ambientes desconhecidos sempre rejeitam o comando. Email, senha e nome da familia devem vir de `Bootstrap__Email`, `Bootstrap__Password` e `Bootstrap__FamilyName` no ambiente/secret privado. A senha e os identificadores criados nao sao impressos nem logados. O comando cria AppUser, Family, membership Owner e FamilySettings somente quando usuario e familia ainda nao existem. Repetir exatamente a mesma identidade e idempotente. Familia ou usuario preexistente sem a mesma membership Owner falha fechado e exige intervencao administrativa explicita; o bootstrap nunca cria um Owner adicional. Uma membership Owner esperada, mas inativa, so e reativada quando nao existe outro Owner ativo.
+
+No Pilot, `PilotBootstrap__Enabled` e os valores `Bootstrap__*` devem existir somente durante a execucao administrativa explicita. Depois do sucesso, o operador deve remover/desabilitar a flag e remover as credenciais temporarias antes do startup normal. O startup da aplicacao nunca executa bootstrap automaticamente e `Registration:Enabled=false` continua independente. Nao existe endpoint HTTP de bootstrap.
 
 ## Login e familia ativa
 
