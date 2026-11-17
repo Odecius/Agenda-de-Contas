@@ -9,7 +9,19 @@ publish/
 TestResults/
 tests/
 
-data/
+# Runtime/private data stays excluded. Only reviewed C# sources required by
+# dotnet publish are admitted to the Docker build context.
+data/*
+!data/*.cs
+!data/Entities/
+data/Entities/*
+!data/Entities/*.cs
+!data/Repositories/
+data/Repositories/*
+!data/Repositories/*.cs
+!data/Migrations/
+data/Migrations/*
+!data/Migrations/*.cs
 logs/
 *.log
 
