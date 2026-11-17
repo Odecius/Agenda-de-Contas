@@ -2,6 +2,8 @@
 
 ## Resumo técnico
 
+Na branch `ops/pilot-postgres-isolation`, a preparacao do PostgreSQL piloto adiciona somente infraestrutura isolada e documentacao: PostgreSQL 16 separado, rede interna sem host port, volume dedicado, secrets externos e identity marker fail-closed. Bootstrap, migrations e runtime usam roles separadas. Somente o migrator possui database/schema e executa migrations; o runtime nao possui objetos nem CREATE e recebe apenas DML/sequence grants. Nao ha migration nova nem mudanca no runtime JSON. A prova local descartavel passou, mas nenhum alvo real foi identificado ou provisionado.
+
 Agendador de Contas é uma aplicação ASP.NET Core .NET 8 com frontend estático em `wwwroot`, APIs mínimas em `Program.cs`, armazenamento local em JSON e lembretes diários via Hosted Service.
 
 O baseline atual e pos-producao: branch `master`, tag `v1.0.4`, commit `e06d30e`. A aplicacao esta funcional em um servidor Linux via Docker Compose. Dados, `settings.json`, backups e chaves Data Protection ficam em armazenamento persistente fora do container. AccessProtection, backups automaticos e health check estao ativos. O timezone de producao usa um identificador IANA configurado externamente.

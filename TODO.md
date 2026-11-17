@@ -1,5 +1,13 @@
 ﻿# TODO
 
+## Pilot PostgreSQL preparation
+
+- [ ] Obter aprovacao operacional para os identificadores reais do cluster, volume, network e backup namespace.
+- [ ] Criar secrets reais e distintos para bootstrap, migrator e runtime fora do repositorio com permissoes restritas.
+- [ ] Provisionar o cluster dedicado e verificar separadamente as identidades migrator/runtime antes de uso.
+- [ ] Executar migrations explicitas somente como migrator e backup/restore proof com a credencial runtime no ambiente isolado.
+- [ ] Manter Telegram, delivery, registration e real-user onboarding desabilitados.
+
 ## Alta prioridade
 
 - Revisar e instalar controladamente o hardening do sync existente; comprovar checksum remoto antes do marker, monitoramento, transferencia/corrupcao sinteticas e restore em hardware real.

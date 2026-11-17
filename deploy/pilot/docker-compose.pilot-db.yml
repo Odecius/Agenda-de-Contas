@@ -1,0 +1,58 @@
+name: agenda-pilot-db
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    env_file:
+      - ${PILOT_DB_ENV_FILE:?PILOT_DB_ENV_FILE must reference a private root-readable environment file}
+    environment:
+      POSTGRES_DB: agenda_pilot
+      POSTGRES_USER: pilot_cluster_admin
+      POSTGRES_PASSWORD_FILE: /run/secrets/pilot_admin_password
+      PILOT_MIGRATOR_PASSWORD_FILE: /run/secrets/pilot_migrator_password
+      PILOT_APP_PASSWORD_FILE: /run/secrets/pilot_app_password
+      PILOT_DB_IDENTITY: agenda-pilot-v1
+    secrets:
+      - pilot_admin_password
+      - pilot_migrator_password
+      - pilot_app_password
+    volumes:
+      - pilot_postgres_data:/var/lib/postgresql/data
+      - ./init/10-create-app-role.sh:/docker-entrypoint-initdb.d/10-create-app-role.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready --username pilot_cluster_admin --dbname agenda_pilot"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    networks:
+      - pilot_database
+    security_opt:
+      - no-new-privileges:true
+    labels:
+      com.abc.agendador.scope: pilot-postgresql
+      com.abc.agendador.identity: agenda-pilot-v1
+
+volumes:
+  pilot_postgres_data:
+    name: ${PILOT_DB_VOLUME_NAME:-agenda_pilot_postgres_data}
+    labels:
+      com.abc.agendador.scope: pilot-postgresql
+      com.abc.agendador.identity: agenda-pilot-v1
+
+networks:
+  pilot_database:
+    name: ${PILOT_DB_NETWORK_NAME:-agenda_pilot_database}
+    internal: true
+    labels:
+      com.abc.agendador.scope: pilot-postgresql
+      com.abc.agendador.identity: agenda-pilot-v1
+
+secrets:
+  pilot_admin_password:
+    file: ${PILOT_DB_ADMIN_PASSWORD_FILE:?PILOT_DB_ADMIN_PASSWORD_FILE must reference a private secret file}
+  pilot_app_password:
+    file: ${PILOT_DB_APP_PASSWORD_FILE:?PILOT_DB_APP_PASSWORD_FILE must reference a private secret file}
+  pilot_migrator_password:
+    file: ${PILOT_DB_MIGRATOR_PASSWORD_FILE:?PILOT_DB_MIGRATOR_PASSWORD_FILE must reference a private secret file}

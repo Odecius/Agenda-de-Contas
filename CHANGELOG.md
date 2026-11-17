@@ -1,6 +1,16 @@
 ﻿# CHANGELOG
 
 
+## 2026-11-17 - Isolated Pilot PostgreSQL preparation
+
+- Added a dedicated PostgreSQL 16 Compose definition with no host port, an internal network and an isolated labelled volume.
+- Added separate external bootstrap-administrator, migrator and runtime password files.
+- Restricted database/schema ownership and explicit migrations to the non-elevated migrator role; the runtime role receives DML/sequence grants only and cannot run DDL.
+- Added fail-closed database identity, ownership, privilege and role-mode verification before migrations or application use.
+- Added a disposable role-hardening harness covering rejected runtime migrations/DDL plus runtime CRUD, backup and restore.
+- Added a private-input contract and checkpoint without real infrastructure metadata.
+- Enforced LF endings for shell scripts so Linux backup and transport gates remain executable.
+
 ## 2026-10-08 - Existing off-host sync hardening
 
 - Added a generic Bash transport that preserves the existing hourly SSH/SCP bundle architecture.
