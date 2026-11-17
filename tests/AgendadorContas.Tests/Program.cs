@@ -105,6 +105,8 @@ var tests = new List<(string Name, Func<Task> Run)>
     ("Migracao invalida e falha atomica nao deixam escrita parcial", JsonMigrationValidationAndRollbackAsync),
     ("Bootstrap multi-family e idempotente", MultiFamilyBootstrapIsIdempotentAsync),
     ("Bootstrap rejeita identidades conflitantes sem alterar estado", MultiFamilyBootstrapRejectsConflictsAsync),
+    ("Bootstrap administrativo aplica gate explicito por ambiente", PilotBootstrapPolicyIsFailClosed),
+    ("Pilot startup nao executa bootstrap nem habilita cadastro", PilotStartupDoesNotBootstrapOrEnableRegistrationAsync),
     ("Cadastro publico e fail-safe e cria familia com Owner atomicamente", FamilyRegistrationFlowWorksOnSqliteAsync),
     ("Cadastro faz rollback de usuario quando criacao familiar falha", FamilyRegistrationRollsBackAsync),
     ("Convite cria membership sem confiar em tenant do cliente", FamilyInvitationCreatesMembershipSecurelyAsync),
@@ -1377,6 +1379,84 @@ static async Task MultiFamilyBootstrapRejectsConflictsAsync()
     AssertEqual(0, await rollbackScope.Db.FamilyUsers.CountAsync(), "Rollback deixou membership parcial.");
 }
 
+static async Task PilotBootstrapPolicyIsFailClosed()
+{
+    static Task Run(Action action)
+    {
+        action();
+        return Task.CompletedTask;
+    }
+
+    PilotBootstrapPolicy.EnsureAllowed("Development", multiFamilyEnabled: true, pilotBootstrapEnabled: false);
+    PilotBootstrapPolicy.EnsureAllowed("Testing", multiFamilyEnabled: true, pilotBootstrapEnabled: false);
+    PilotBootstrapPolicy.EnsureAllowed("Pilot", multiFamilyEnabled: true, pilotBootstrapEnabled: true);
+
+    var absentFlagConfiguration = new ConfigurationBuilder().AddInMemoryCollection().Build();
+    var absentFlagOptions = absentFlagConfiguration.GetSection(PilotBootstrapOptions.SectionName)
+        .Get<PilotBootstrapOptions>() ?? new PilotBootstrapOptions();
+    AssertTrue(!absentFlagOptions.Enabled, "Pilot bootstrap deve ficar desabilitado quando a flag esta ausente.");
+    var missingFlag = await CaptureExceptionAsync(() => Run(() =>
+        PilotBootstrapPolicy.EnsureAllowed("Pilot", multiFamilyEnabled: true, absentFlagOptions.Enabled)));
+    AssertContains("PilotBootstrap:Enabled=true", missingFlag.Message, "Pilot sem flag deve ser rejeitado.");
+    var explicitFalse = await CaptureExceptionAsync(() => Run(() =>
+        PilotBootstrapPolicy.EnsureAllowed("Pilot", multiFamilyEnabled: true, pilotBootstrapEnabled: false)));
+    AssertContains("PilotBootstrap:Enabled=true", explicitFalse.Message, "Pilot com flag false deve ser rejeitado.");
+    var production = await CaptureExceptionAsync(() => Run(() =>
+        PilotBootstrapPolicy.EnsureAllowed("Production", multiFamilyEnabled: true, pilotBootstrapEnabled: true)));
+    AssertContains("not allowed", production.Message, "Production deve ser rejeitado mesmo com flag.");
+    var unknown = await CaptureExceptionAsync(() => Run(() =>
+        PilotBootstrapPolicy.EnsureAllowed("Unknown", multiFamilyEnabled: true, pilotBootstrapEnabled: true)));
+    AssertContains("not allowed", unknown.Message, "Ambiente desconhecido deve ser rejeitado.");
+    var disabledMultiFamily = await CaptureExceptionAsync(() => Run(() =>
+        PilotBootstrapPolicy.EnsureAllowed("Pilot", multiFamilyEnabled: false, pilotBootstrapEnabled: true)));
+    AssertContains("MultiFamily:Enabled=true", disabledMultiFamily.Message, "Bootstrap exige MultiFamily ativo.");
+
+    var absentConfiguration = new ConfigurationBuilder().AddInMemoryCollection().Build();
+    var absentError = await CaptureExceptionAsync(() => Run(() =>
+        PilotBootstrapPolicy.RequireConfigurationValue(absentConfiguration, "Bootstrap:Password")));
+    AssertEqual("Bootstrap:Password is required.", absentError.Message, "Erro deve identificar somente a chave ausente.");
+
+    const string syntheticSecret = "Synthetic-bootstrap-secret-123!";
+    var presentConfiguration = new ConfigurationBuilder().AddInMemoryCollection(
+        new Dictionary<string, string?> { ["Bootstrap:Password"] = syntheticSecret }).Build();
+    AssertEqual(syntheticSecret, PilotBootstrapPolicy.RequireConfigurationValue(presentConfiguration, "Bootstrap:Password"), "Valor configurado deveria ser retornado sem log.");
+    AssertTrue(!absentError.ToString().Contains(syntheticSecret, StringComparison.Ordinal), "Erro de configuracao expos secret.");
+}
+
+static async Task PilotStartupDoesNotBootstrapOrEnableRegistrationAsync()
+{
+    await using var factory = new MultiFamilySqliteWebFactory(
+        registrationEnabled: false,
+        environmentName: "Pilot",
+        pilotBootstrapEnabled: true);
+    using (var scope = factory.Services.CreateScope())
+        await scope.ServiceProvider.GetRequiredService<AgendadorDbContext>().Database.EnsureCreatedAsync();
+
+    using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+    {
+        BaseAddress = new Uri("https://localhost"),
+        HandleCookies = true
+    });
+    var csrf = await GetAntiforgeryTokenAsync(client);
+    using var registration = await PostWithTokenAsync(
+        client,
+        "/api/multi-family/auth/register",
+        new FamilyRegistrationRequest("pilot-owner@example.test", "Synthetic-registration-123!", "Pilot Synthetic Family"),
+        csrf);
+    AssertEqual(HttpStatusCode.NotFound, registration.StatusCode, "Pilot bootstrap flag nao pode habilitar cadastro publico.");
+    foreach (var path in new[] { "/bootstrap", "/admin/bootstrap", "/api/bootstrap", "/api/multi-family/bootstrap" })
+    {
+        using var bootstrapEndpoint = await client.PostAsJsonAsync(path, new { });
+        AssertEqual(HttpStatusCode.NotFound, bootstrapEndpoint.StatusCode, $"Bootstrap HTTP nao deve existir em {path}.");
+    }
+
+    using var verificationScope = factory.Services.CreateScope();
+    var db = verificationScope.ServiceProvider.GetRequiredService<AgendadorDbContext>();
+    AssertEqual(0, await db.Users.CountAsync(), "Startup Pilot nao pode criar usuario automaticamente.");
+    AssertEqual(0, await db.Families.CountAsync(), "Startup Pilot nao pode criar familia automaticamente.");
+    AssertEqual(0, await db.FamilyUsers.CountAsync(), "Startup Pilot nao pode criar membership automaticamente.");
+}
+
 static async Task FamilyRegistrationFlowWorksOnSqliteAsync()
 {
     await using var disabledFactory = new MultiFamilySqliteWebFactory(registrationEnabled: false);
@@ -1690,6 +1770,7 @@ static async Task TenantAwareBusinessFlowWorksOnPostgresAsync()
     Guid contaA1Id;
     Guid contaA2Id;
     Guid contaB1Id;
+    Guid pagamentoA1Id;
     Guid pagamentoB1Id;
     Guid ownerAId;
     Guid userCId;
@@ -1729,6 +1810,7 @@ static async Task TenantAwareBusinessFlowWorksOnPostgresAsync()
         contaA1Id = contaA1.Id;
         contaA2Id = contaA2.Id;
         contaB1Id = contaB1.Id;
+        pagamentoA1Id = pagamentoA1.Id;
         pagamentoB1Id = pagamentoB1.Id;
     }
 
@@ -1827,13 +1909,22 @@ static async Task TenantAwareBusinessFlowWorksOnPostgresAsync()
         AssertEqual(HttpStatusCode.Forbidden, (await PutWithTokenAsync(memberAClient, "/api/multi-family/settings", new FamilySettingsRequest(AccountCurrency.BRL, "Europe/London", 10, 0), memberAToken)).StatusCode, "Member nao deve alterar settings.");
     }
 
-    var (ownerBClient, _) = await CreateAuthenticatedClientAsync(factory, ownerBEmail, password);
+    var (ownerBClient, ownerBToken) = await CreateAuthenticatedClientAsync(factory, ownerBEmail, password);
     using (ownerBClient)
     {
         var ownerBList = await ownerBClient.GetStringAsync("/api/multi-family/contas");
         AssertTrue(ownerBList.Contains(contaB1Id.ToString(), StringComparison.OrdinalIgnoreCase), "Owner B deveria listar B1.");
         AssertTrue(!ownerBList.Contains(contaA1Id.ToString(), StringComparison.OrdinalIgnoreCase), "Owner B nunca deveria listar A1.");
         AssertEqual(HttpStatusCode.NotFound, (await ownerBClient.GetAsync($"/api/multi-family/contas/{contaA1Id}")).StatusCode, "Owner B pedindo A deve receber 404.");
+        AssertEqual(HttpStatusCode.NotFound, (await PutWithTokenAsync(ownerBClient, $"/api/multi-family/contas/{contaA1Id}", NewContaRequest("Cross family B"), ownerBToken)).StatusCode, "Owner B editando A deve receber 404.");
+        AssertEqual(HttpStatusCode.NotFound, (await DeleteWithTokenAsync(ownerBClient, $"/api/multi-family/contas/{contaA1Id}", ownerBToken)).StatusCode, "Owner B excluindo A deve receber 404.");
+        AssertEqual(HttpStatusCode.NotFound, (await ownerBClient.GetAsync($"/api/multi-family/contas/{contaA1Id}/pagamentos")).StatusCode, "Owner B listando pagamentos A deve receber 404.");
+        AssertEqual(HttpStatusCode.NotFound, (await PostWithTokenAsync(ownerBClient, $"/api/multi-family/contas/{contaA1Id}/pagamentos", new MultiFamilyPagamentoRequest(2026, 4), ownerBToken)).StatusCode, "Owner B criando pagamento A deve receber 404.");
+        AssertEqual(HttpStatusCode.NotFound, (await DeleteWithTokenAsync(ownerBClient, $"/api/multi-family/pagamentos/{pagamentoA1Id}", ownerBToken)).StatusCode, "Owner B excluindo pagamento A deve receber 404.");
+        AssertEqual(HttpStatusCode.NotFound, (await PostWithTokenAsync(ownerBClient, "/api/multi-family/family/select", new FamilySelectionRequest(familyAId), ownerBToken)).StatusCode, "Owner B nao pode selecionar A.");
+        var membersB = await ownerBClient.GetStringAsync("/api/multi-family/members?FamilyId=" + familyAId);
+        AssertTrue(membersB.Contains(ownerBEmail) && !membersB.Contains(ownerAEmail), "Owner B deve listar somente members B.");
+        AssertEqual(HttpStatusCode.OK, (await PutWithTokenAsync(ownerBClient, "/api/multi-family/settings?FamilyId=" + familyAId, new FamilySettingsRequest(AccountCurrency.EUR, "Europe/Lisbon", 9, 45), ownerBToken)).StatusCode, "FamilyId adulterado deve manter update em B.");
     }
 
     var (userCClient, userCToken) = await CreateAuthenticatedClientAsync(factory, userCEmail, password);
@@ -3167,10 +3258,17 @@ internal sealed class MultiFamilySqliteWebFactory : WebApplicationFactory<Applic
     private readonly Dictionary<string, string?> _previousEnvironment = new(StringComparer.Ordinal);
     private readonly SqliteConnection _connection = new("Data Source=:memory:");
     private readonly bool _registrationEnabled;
+    private readonly string _environmentName;
+    private readonly bool _pilotBootstrapEnabled;
 
-    public MultiFamilySqliteWebFactory(bool registrationEnabled = false)
+    public MultiFamilySqliteWebFactory(
+        bool registrationEnabled = false,
+        string environmentName = "Testing",
+        bool pilotBootstrapEnabled = false)
     {
         _registrationEnabled = registrationEnabled;
+        _environmentName = environmentName;
+        _pilotBootstrapEnabled = pilotBootstrapEnabled;
         _connection.Open();
         SetEnvironment("MultiFamily__Enabled", "true");
         SetEnvironment("MultiFamily__ConnectionString", "Host=localhost;Database=unused");
@@ -3179,12 +3277,13 @@ internal sealed class MultiFamilySqliteWebFactory : WebApplicationFactory<Applic
         SetEnvironment("Backup__AutomaticEnabled", "false");
         SetEnvironment("AccessProtection__Enabled", "false");
         SetEnvironment("Registration__Enabled", registrationEnabled.ToString());
+        SetEnvironment("PilotBootstrap__Enabled", pilotBootstrapEnabled.ToString());
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseContentRoot(Directory.GetCurrentDirectory());
-        builder.UseEnvironment("Testing");
+        builder.UseEnvironment(_environmentName);
         builder.ConfigureLogging(logging => logging.ClearProviders());
         builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(
             new Dictionary<string, string?>
@@ -3196,6 +3295,7 @@ internal sealed class MultiFamilySqliteWebFactory : WebApplicationFactory<Applic
                 ["Backup:AutomaticEnabled"] = "false",
                 ["AccessProtection:Enabled"] = "false"
                 ,["Registration:Enabled"] = _registrationEnabled.ToString()
+                ,["PilotBootstrap:Enabled"] = _pilotBootstrapEnabled.ToString()
             }));
         builder.ConfigureServices(services =>
         {
