@@ -6,11 +6,16 @@ Repository configuration only. This directory does not prove that a real pilot d
 
 ## Architecture
 
-The Pilot database runs in its own PostgreSQL 16 container, internal Docker network and named volume. It exposes no host port. The cluster administrator and application credentials come from separate files outside the repository. The application role owns only the dedicated Pilot database and has no superuser, database-creation, role-creation, replication or row-level-security bypass attribute.
+The Pilot database runs in its own PostgreSQL 16 container, internal Docker network and named volume. It exposes no host port. Bootstrap, migration and runtime credentials come from separate files outside the repository.
+
+The migration role owns the dedicated database and `public` schema and is used only for explicit EF Core migrations. It has no global elevated PostgreSQL attributes. Default privileges grant runtime DML on tables and required sequence access to the application role.
+
+The runtime application role owns neither the database nor schema, cannot create schema objects and has no superuser, database-creation, role-creation, replication or row-level-security bypass attribute.
 
 The committed identifiers are generic safety controls:
 
 - database: `agenda_pilot`;
+- migration role: `agenda_pilot_migrator`;
 - application role: `agenda_pilot_app`;
 - environment marker: `agenda-pilot-v1`.
 
@@ -22,6 +27,7 @@ The operator supplies these values outside the repository:
 
 - `PILOT_DB_ENV_FILE`: root-readable environment file derived from `pilot-db.env.template`;
 - `PILOT_DB_ADMIN_PASSWORD_FILE`: generated administrator password file;
+- `PILOT_DB_MIGRATOR_PASSWORD_FILE`: generated migration-role password file;
 - `PILOT_DB_APP_PASSWORD_FILE`: generated application password file;
 - optionally unique `PILOT_DB_VOLUME_NAME` and `PILOT_DB_NETWORK_NAME` values approved during deployment.
 
@@ -31,9 +37,9 @@ Password files must contain at least 32 URL-safe random characters and must neve
 
 Before creating resources, the operator must prove that the selected Compose project, volume and network do not already exist and that no existing PostgreSQL resource is being reused. If any name or target is ambiguous, stop.
 
-After initialisation, run `verify-pilot-database.sh` as the application role. It verifies the expected database, role, environment marker, least-privilege attributes and absence of unexpected non-template databases without printing credentials or topology.
+After initialisation, run `verify-pilot-database.sh` once as the migration role with `PILOT_VERIFY_MODE=migrator`, then after migrations as the application role with `PILOT_VERIFY_MODE=runtime`. It verifies identities, ownership, global attributes, schema creation denial, runtime DML grants and absence of unexpected non-template databases without printing credentials or topology.
 
-Migrations are applied explicitly only after the identity verifier passes. The application never runs migrations at startup. No migration is required beyond the three existing reviewed migrations.
+Migrations are applied explicitly with `agenda_pilot_migrator` only after the migration identity verifier passes. The runtime connection uses `agenda_pilot_app`; it must fail to initialise an empty schema or perform DDL. The application never runs migrations at startup. No migration is required beyond the three existing reviewed migrations.
 
 ## Backup and restore boundary
 

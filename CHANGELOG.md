@@ -4,8 +4,10 @@
 ## 2026-11-17 - Isolated Pilot PostgreSQL preparation
 
 - Added a dedicated PostgreSQL 16 Compose definition with no host port, an internal network and an isolated labelled volume.
-- Added separate external administrator and application password files and a least-privilege application role.
-- Added fail-closed database identity and role verification before migrations or application use.
+- Added separate external bootstrap-administrator, migrator and runtime password files.
+- Restricted database/schema ownership and explicit migrations to the non-elevated migrator role; the runtime role receives DML/sequence grants only and cannot run DDL.
+- Added fail-closed database identity, ownership, privilege and role-mode verification before migrations or application use.
+- Added a disposable role-hardening harness covering rejected runtime migrations/DDL plus runtime CRUD, backup and restore.
 - Added a private-input contract and checkpoint without real infrastructure metadata.
 - Enforced LF endings for shell scripts so Linux backup and transport gates remain executable.
 

@@ -3,9 +3,9 @@
 ## Pilot PostgreSQL preparation
 
 - [ ] Obter aprovacao operacional para os identificadores reais do cluster, volume, network e backup namespace.
-- [ ] Criar secrets reais fora do repositorio com permissoes restritas.
-- [ ] Provisionar o cluster dedicado e executar `verify-pilot-database.sh` antes de migrations.
-- [ ] Executar migrations explicitas, backup e restore proof no ambiente isolado.
+- [ ] Criar secrets reais e distintos para bootstrap, migrator e runtime fora do repositorio com permissoes restritas.
+- [ ] Provisionar o cluster dedicado e verificar separadamente as identidades migrator/runtime antes de uso.
+- [ ] Executar migrations explicitas somente como migrator e backup/restore proof com a credencial runtime no ambiente isolado.
 - [ ] Manter Telegram, delivery, registration e real-user onboarding desabilitados.
 
 ## Alta prioridade

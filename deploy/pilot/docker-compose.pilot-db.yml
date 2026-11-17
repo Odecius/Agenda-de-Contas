@@ -10,10 +10,12 @@ services:
       POSTGRES_DB: agenda_pilot
       POSTGRES_USER: pilot_cluster_admin
       POSTGRES_PASSWORD_FILE: /run/secrets/pilot_admin_password
+      PILOT_MIGRATOR_PASSWORD_FILE: /run/secrets/pilot_migrator_password
       PILOT_APP_PASSWORD_FILE: /run/secrets/pilot_app_password
       PILOT_DB_IDENTITY: agenda-pilot-v1
     secrets:
       - pilot_admin_password
+      - pilot_migrator_password
       - pilot_app_password
     volumes:
       - pilot_postgres_data:/var/lib/postgresql/data
@@ -52,3 +54,5 @@ secrets:
     file: ${PILOT_DB_ADMIN_PASSWORD_FILE:?PILOT_DB_ADMIN_PASSWORD_FILE must reference a private secret file}
   pilot_app_password:
     file: ${PILOT_DB_APP_PASSWORD_FILE:?PILOT_DB_APP_PASSWORD_FILE must reference a private secret file}
+  pilot_migrator_password:
+    file: ${PILOT_DB_MIGRATOR_PASSWORD_FILE:?PILOT_DB_MIGRATOR_PASSWORD_FILE must reference a private secret file}

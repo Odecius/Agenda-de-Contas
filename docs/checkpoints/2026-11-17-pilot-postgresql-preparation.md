@@ -13,9 +13,10 @@ Date: 2026-11-17
 ## Repository preparation
 
 - Added a PostgreSQL 16 Compose definition with no host port, a dedicated internal network and a dedicated labelled volume.
-- Added external file-based administrator and application credentials.
-- Added fail-closed initialisation for a non-superuser application role and an environment identity marker.
-- Added a verifier for database identity, role attributes and unexpected databases.
+- Added distinct external file-based bootstrap-administrator, migrator and runtime credentials.
+- Added fail-closed initialisation for a non-elevated migrator role, a non-owning runtime role and an environment identity marker.
+- Assigned database/schema ownership and explicit migrations only to the migrator; runtime receives DML and sequence privileges through migrator default privileges.
+- Added a mode-aware verifier for database identity, ownership, schema creation, runtime DML grants, role attributes and unexpected databases.
 - Documented dedicated backup namespace and disposable restore requirements.
 
 ## Real-environment boundary
@@ -28,8 +29,10 @@ No existing PostgreSQL database or container was accessed, restarted, migrated o
 
 - Compose configuration and shell syntax: PASS.
 - Dedicated volume, internal network and no host port: PASS.
-- Database identity marker and least-privilege role attributes: PASS.
-- Existing three migrations applied by the application role to a loopback-only disposable target: PASS.
+- Database identity marker, segregated credentials, ownership and least-privilege role attributes: PASS.
+- Existing three migrations applied only by the migrator role to a loopback-only disposable target: PASS.
+- Runtime migration, CREATE TABLE, ALTER TABLE and DROP TABLE attempts rejected: PASS.
+- Runtime CRUD, backup, restored-data validation and tenant-isolation paths: PASS.
 - Local application tests: 63/63 PASS.
 - PostgreSQL 16 gate: 73/73 PASS.
 - Pilot seed, backup, restore, application validation and rollback rehearsal: PASS.
