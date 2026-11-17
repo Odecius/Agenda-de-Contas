@@ -189,6 +189,7 @@ case "$action" in
         source_file="$4"
         remote_file="$5"
         [ ! -f "$flag_dir/scp-failure" ] || exit 41
+        printf '%s\n' "$remote_file" >> "$flag_dir/copy-names.log"
         cp -f -- "$source_file" "$bundle_dir/$remote_file"
         ;;
     verify)
@@ -224,6 +225,153 @@ esac
         $result = Invoke-Sync
         Assert-True ($result.ExitCode -eq 0) $result.Output
         Assert-True (Test-Path -LiteralPath (Join-Path $remoteRoot '2026-10-08_120000/BACKUP_OK')) 'Remote marker was not published.'
+    }
+
+    Complete-Test 'LEGACY_ABSOLUTE_PATH_NORMALIZES_TO_BASENAME' {
+        Reset-State
+        $bundle = New-Bundle
+        $payload = Join-Path $bundle 'database.dump'
+        $hash = (Get-FileHash -LiteralPath $payload -Algorithm SHA256).Hash.ToLowerInvariant()
+        Write-Utf8NoBomLf -Path (Join-Path $bundle 'SHA256SUMS') -Content "$hash  /historical/backup/location/database.dump`n"
+        $result = Invoke-Sync
+        Assert-True ($result.ExitCode -eq 0) $result.Output
+        $remoteManifest = Get-Content -Raw -LiteralPath (Join-Path $remoteRoot '2026-10-08_120000/SHA256SUMS')
+        Assert-True ($remoteManifest -eq "$hash  database.dump`n") 'Legacy manifest was not normalized to a basename-only entry.'
+        $copyNames = @(Get-Content -LiteralPath (Join-Path $flagsRoot 'copy-names.log'))
+        Assert-True ($copyNames -contains 'database.dump') 'Adapter did not receive the normalized payload basename.'
+        Assert-True (-not ($copyNames | Where-Object { $_ -match '/' })) 'Adapter received a path instead of a basename.'
+    }
+
+    Complete-Test 'MULTIPLE_LEGACY_PATHS_WITH_COMMON_PREFIX_PASS' {
+        Reset-State
+        $bundle = New-Bundle
+        Remove-Item -LiteralPath (Join-Path $bundle 'database.dump')
+        $entries = foreach ($name in @('accounts.sql', 'payments.sql', 'settings.json')) {
+            $path = Join-Path $bundle $name
+            Write-Utf8NoBomLf -Path $path -Content "payload-$name"
+            $hash = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  /historical/common/prefix/$name"
+        }
+        Write-Utf8NoBomLf -Path (Join-Path $bundle 'SHA256SUMS') -Content (($entries -join "`n") + "`n")
+        $result = Invoke-Sync
+        Assert-True ($result.ExitCode -eq 0) $result.Output
+        $remoteManifest = Get-Content -Raw -LiteralPath (Join-Path $remoteRoot '2026-10-08_120000/SHA256SUMS')
+        Assert-True ($remoteManifest -notmatch '/historical/') 'Remote manifest retained a historical absolute path.'
+        foreach ($name in @('accounts.sql', 'payments.sql', 'settings.json')) {
+            Assert-True ($remoteManifest -match "(?m)^[0-9a-f]{64}  $([regex]::Escape($name))$") "Normalized manifest is missing $name."
+        }
+    }
+
+    Complete-Test 'LEGACY_ABSOLUTE_PATH_IS_NEVER_ACCESSED' {
+        Reset-State
+        $bundle = New-Bundle -Payload 'trusted-direct-bundle-file'
+        $directPayload = Join-Path $bundle 'database.dump'
+        $hash = (Get-FileHash -LiteralPath $directPayload -Algorithm SHA256).Hash.ToLowerInvariant()
+        $outside = Join-Path $testRoot 'legacy-path/database.dump'
+        New-Item -ItemType Directory -Path (Split-Path -Parent $outside) -Force | Out-Null
+        Write-Utf8NoBomLf -Path $outside -Content 'different-untrusted-historical-file'
+        Write-Utf8NoBomLf -Path (Join-Path $bundle 'SHA256SUMS') -Content "$hash  /test/legacy-path/database.dump`n"
+        $result = Invoke-Sync
+        Assert-True ($result.ExitCode -eq 0) $result.Output
+        $remotePayload = Get-Content -Raw -LiteralPath (Join-Path $remoteRoot '2026-10-08_120000/database.dump')
+        Assert-True ($remotePayload -eq 'trusted-direct-bundle-file') 'The historical absolute path was accessed or transferred.'
+    }
+
+    Complete-Test 'UNSAFE_LEGACY_AND_RELATIVE_PATHS_FAIL' {
+        foreach ($unsafeName in @(
+            '/historical/../database.dump',
+            '/historical/./database.dump',
+            '/historical//database.dump',
+            'dir/database.dump',
+            './database.dump',
+            '../database.dump',
+            '/',
+            '/historical/.hidden',
+            '/historical/unsafe name.sql',
+            '/historical/name;command.sql'
+        )) {
+            Reset-State
+            $bundle = New-Bundle
+            $hash = (Get-FileHash -LiteralPath (Join-Path $bundle 'database.dump') -Algorithm SHA256).Hash.ToLowerInvariant()
+            Write-Utf8NoBomLf -Path (Join-Path $bundle 'SHA256SUMS') -Content "$hash  $unsafeName`n"
+            $result = Invoke-Sync
+            Assert-True ($result.ExitCode -ne 0) "Unsafe legacy/relative path unexpectedly succeeded: $unsafeName"
+        }
+    }
+
+    Complete-Test 'LEGACY_DUPLICATE_BASENAMES_FAIL' {
+        Reset-State
+        $bundle = New-Bundle
+        $hash = (Get-FileHash -LiteralPath (Join-Path $bundle 'database.dump') -Algorithm SHA256).Hash.ToLowerInvariant()
+        Write-Utf8NoBomLf -Path (Join-Path $bundle 'SHA256SUMS') -Content "$hash  /first/database.dump`n$hash  /second/database.dump`n"
+        $result = Invoke-Sync
+        Assert-True ($result.ExitCode -ne 0) 'Duplicate legacy basenames unexpectedly succeeded.'
+    }
+
+    Complete-Test 'LEGACY_CASE_INSENSITIVE_DUPLICATE_BASENAMES_FAIL' {
+        Reset-State
+        $bundle = New-Bundle
+        $hash = (Get-FileHash -LiteralPath (Join-Path $bundle 'database.dump') -Algorithm SHA256).Hash.ToLowerInvariant()
+        Write-Utf8NoBomLf -Path (Join-Path $bundle 'SHA256SUMS') -Content "$hash  /first/database.dump`n$hash  /second/DATABASE.DUMP`n"
+        $result = Invoke-Sync
+        Assert-True ($result.ExitCode -ne 0) 'Case-insensitive duplicate legacy basenames unexpectedly succeeded.'
+    }
+
+    Complete-Test 'MIXED_NATIVE_AND_LEGACY_COLLISION_FAILS' {
+        Reset-State
+        $bundle = New-Bundle
+        $hash = (Get-FileHash -LiteralPath (Join-Path $bundle 'database.dump') -Algorithm SHA256).Hash.ToLowerInvariant()
+        Write-Utf8NoBomLf -Path (Join-Path $bundle 'SHA256SUMS') -Content "$hash  database.dump`n$hash  /historical/database.dump`n"
+        $result = Invoke-Sync
+        Assert-True ($result.ExitCode -ne 0) 'Ambiguous native/legacy basename collision unexpectedly succeeded.'
+    }
+
+    Complete-Test 'LEGACY_MISSING_NORMALIZED_FILE_FAILS' {
+        Reset-State
+        $bundle = New-Bundle
+        $hash = 'a' * 64
+        Write-Utf8NoBomLf -Path (Join-Path $bundle 'SHA256SUMS') -Content "$hash  /historical/missing.sql`n"
+        $result = Invoke-Sync
+        Assert-True ($result.ExitCode -ne 0) 'Missing normalized legacy payload unexpectedly succeeded.'
+    }
+
+    Complete-Test 'LEGACY_NORMALIZED_SYMLINK_FAILS' {
+        Reset-State
+        $bundle = New-Bundle
+        Remove-Item -LiteralPath (Join-Path $bundle 'database.dump')
+        $outside = Join-Path $testRoot 'symlink-target.dump'
+        Write-Utf8NoBomLf -Path $outside -Content 'symlink-target'
+        $mountTest = "type=bind,source=$testRoot,target=/test"
+        & docker run --rm --network none --mount $mountTest postgres:16-alpine ln -s /test/symlink-target.dump /test/source/2026-10-08_120000/database.dump | Out-Null
+        Assert-True ($LASTEXITCODE -eq 0) 'Could not create the disposable Linux symlink fixture.'
+        $hash = (Get-FileHash -LiteralPath $outside -Algorithm SHA256).Hash.ToLowerInvariant()
+        Write-Utf8NoBomLf -Path (Join-Path $bundle 'SHA256SUMS') -Content "$hash  /historical/database.dump`n"
+        $result = Invoke-Sync
+        Assert-True ($result.ExitCode -ne 0) 'Legacy normalized symlink unexpectedly succeeded.'
+    }
+
+    Complete-Test 'LEGACY_CHECKSUM_MISMATCH_FAILS' {
+        Reset-State
+        $bundle = New-Bundle
+        Write-Utf8NoBomLf -Path (Join-Path $bundle 'SHA256SUMS') -Content "$('0' * 64)  /historical/database.dump`n"
+        $result = Invoke-Sync
+        Assert-True ($result.ExitCode -ne 0) 'Legacy checksum mismatch unexpectedly succeeded.'
+    }
+
+    Complete-Test 'LOCAL_UNLISTED_PAYLOAD_FAILS' {
+        Reset-State
+        $bundle = New-Bundle
+        Write-Utf8NoBomLf -Path (Join-Path $bundle 'unlisted.sql') -Content 'unlisted'
+        $result = Invoke-Sync
+        Assert-True ($result.ExitCode -ne 0) 'Bundle with an unlisted local payload unexpectedly succeeded.'
+    }
+
+    Complete-Test 'LOCAL_BUNDLE_DIRECTORY_FAILS' {
+        Reset-State
+        $bundle = New-Bundle
+        New-Item -ItemType Directory -Path (Join-Path $bundle 'unexpected-directory') | Out-Null
+        $result = Invoke-Sync
+        Assert-True ($result.ExitCode -ne 0) 'Bundle containing a directory unexpectedly succeeded.'
     }
 
     Complete-Test 'MISSING_LOCAL_MARKER_SKIPPED' {

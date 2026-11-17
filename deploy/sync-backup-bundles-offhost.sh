@@ -129,12 +129,13 @@ validate_bundle_name() {
 }
 
 validate_manifest() {
-    local bundle_dir manifest names_file normalized_manifest line_number entry_count line hash remainder file_name local_entry base
+    local bundle_dir manifest names_file casefold_names_file normalized_manifest line_number entry_count line hash remainder manifest_name_entry file_name casefold_name local_entry base
     bundle_dir="$1"
     manifest="$bundle_dir/$manifest_name"
     names_file="$(mktemp)"
+    casefold_names_file="$(mktemp)"
     normalized_manifest="$(mktemp)"
-    temporary_files+=("$names_file" "$normalized_manifest")
+    temporary_files+=("$names_file" "$casefold_names_file" "$normalized_manifest")
     line_number=0
     entry_count=0
 
@@ -146,13 +147,38 @@ validate_manifest() {
         [ "${#hash}" -eq 64 ] || { printf 'Manifest hash length is invalid.\n' >&2; return 1; }
         case "$hash" in *[!0-9A-Fa-f]*) printf 'Manifest hash is invalid.\n' >&2; return 1 ;; esac
         if [[ "$remainder" == '  '* ]]; then
-            file_name="${remainder:2}"
+            manifest_name_entry="${remainder:2}"
         elif [[ "$remainder" == ' *'* ]]; then
-            file_name="${remainder:2}"
+            manifest_name_entry="${remainder:2}"
         else
             printf 'Manifest separator is invalid.\n' >&2
             return 1
         fi
+
+        if [[ "$manifest_name_entry" == /* ]]; then
+            case "$manifest_name_entry" in
+                */|*//*|*\\*)
+                    printf 'Legacy manifest path is ambiguous.\n' >&2
+                    return 1
+                    ;;
+            esac
+            case "/${manifest_name_entry#/}/" in
+                */../*|*/./*)
+                    printf 'Legacy manifest path contains unsafe segments.\n' >&2
+                    return 1
+                    ;;
+            esac
+            file_name="${manifest_name_entry##*/}"
+        else
+            case "$manifest_name_entry" in
+                */*)
+                    printf 'Relative manifest paths are not allowed.\n' >&2
+                    return 1
+                    ;;
+            esac
+            file_name="$manifest_name_entry"
+        fi
+
         case "$file_name" in
             ''|.|..|*[!A-Za-z0-9._-]*|"$marker_name"|"$manifest_name")
                 printf 'Manifest filename is unsafe.\n' >&2
@@ -165,29 +191,31 @@ validate_manifest() {
         esac
         [ -f "$bundle_dir/$file_name" ] || { printf 'Manifest file is missing.\n' >&2; return 1; }
         [ ! -L "$bundle_dir/$file_name" ] || { printf 'Manifest symlink is not allowed.\n' >&2; return 1; }
-        if grep -Fqx -- "$file_name" "$names_file"; then
+        casefold_name="$(printf '%s' "$file_name" | LC_ALL=C tr '[:upper:]' '[:lower:]')"
+        if grep -Fqx -- "$casefold_name" "$casefold_names_file"; then
             printf 'Manifest contains duplicate filenames.\n' >&2
             return 1
         fi
         printf '%s\n' "$file_name" >> "$names_file"
-        printf '%s\n' "$line" >> "$normalized_manifest"
+        printf '%s\n' "$casefold_name" >> "$casefold_names_file"
+        printf '%s  %s\n' "$hash" "$file_name" >> "$normalized_manifest"
         entry_count=$((entry_count + 1))
     done < "$manifest"
 
-    [ "$line_number" -gt 0 ] && [ "$entry_count" -gt 0 ] || {
+    if [ "$line_number" -eq 0 ] || [ "$entry_count" -eq 0 ]; then
         printf 'Manifest must contain at least one entry.\n' >&2
         return 1
-    }
+    fi
 
     while IFS= read -r -d '' local_entry; do
         base="$(basename -- "$local_entry")"
         case "$base" in
             "$marker_name"|"$manifest_name") continue ;;
         esac
-        [ -f "$local_entry" ] && [ ! -L "$local_entry" ] || {
+        if [ ! -f "$local_entry" ] || [ -L "$local_entry" ]; then
             printf 'Bundle contains unsupported entries.\n' >&2
             return 1
-        }
+        fi
         grep -Fqx -- "$base" "$names_file" || {
             printf 'Bundle contains an unlisted payload.\n' >&2
             return 1
