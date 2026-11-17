@@ -2,7 +2,8 @@
 param(
     [Parameter(Mandatory = $true)]
     [switch]$ConfirmDisposable,
-    [switch]$SummaryOnly
+    [switch]$SummaryOnly,
+    [string]$VerifierEngine = 'pwsh'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -11,7 +12,7 @@ Set-StrictMode -Version Latest
 $repoPath = Split-Path -Parent $PSScriptRoot
 $syncScript = Join-Path $repoPath 'deploy/sync-backup-bundles-offhost.sh'
 $verifierScript = Join-Path $repoPath 'deploy/verify-backup-bundle.ps1'
-$pwsh = (Get-Command pwsh -ErrorAction Stop).Source
+$pwsh = (Get-Command $VerifierEngine -ErrorAction Stop).Source
 $testRoot = Join-Path ([IO.Path]::GetTempPath()) "agendador-sync-hardening-$([Guid]::NewGuid().ToString('N'))"
 $sourceRoot = Join-Path $testRoot 'source'
 $remoteRoot = Join-Path $testRoot 'remote'
@@ -664,6 +665,140 @@ esac
         Set-Flag 'status-failure'
         $result = Invoke-Sync
         Assert-True ($result.ExitCode -ne 0) 'Status-file write failure unexpectedly returned success.'
+    }
+
+    Complete-Test 'REMOTE_LEGACY_ABSOLUTE_MANIFEST_USES_DIRECT_BASENAME' {
+        Reset-State
+        $bundle = New-Bundle -Payload 'trusted-direct-remote-payload'
+        $payload = Join-Path $bundle 'database.dump'
+        $hash = (Get-FileHash -LiteralPath $payload -Algorithm SHA256).Hash.ToLowerInvariant()
+        $outside = Join-Path $testRoot 'historical/external/database.dump'
+        New-Item -ItemType Directory -Path (Split-Path -Parent $outside) -Force | Out-Null
+        Write-Utf8NoBomLf -Path $outside -Content 'different-untrusted-historical-payload'
+        $manifest = Join-Path $bundle 'SHA256SUMS'
+        $legacyContent = "$hash  /historical/external/database.dump`n"
+        Write-Utf8NoBomLf -Path $manifest -Content $legacyContent
+        $result = Invoke-Verifier -Bundle $bundle
+        Assert-True ($result.ExitCode -eq 0) $result.Output
+        Assert-True ((Get-Content -Raw -LiteralPath $manifest) -eq $legacyContent) 'Remote verifier rewrote the legacy manifest.'
+    }
+
+    Complete-Test 'REMOTE_MULTIPLE_LEGACY_ENTRIES_WITH_COMMON_PREFIX_PASS' {
+        Reset-State
+        $bundle = New-Bundle
+        Remove-Item -LiteralPath (Join-Path $bundle 'database.dump')
+        $entries = foreach ($name in @('accounts.sql', 'payments.sql', 'settings.json')) {
+            $path = Join-Path $bundle $name
+            Write-Utf8NoBomLf -Path $path -Content "payload-$name"
+            $hash = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  /historical/common/prefix/$name"
+        }
+        Write-Utf8NoBomLf -Path (Join-Path $bundle 'SHA256SUMS') -Content (($entries -join "`n") + "`n")
+        $result = Invoke-Verifier -Bundle $bundle
+        Assert-True ($result.ExitCode -eq 0) $result.Output
+    }
+
+    Complete-Test 'REMOTE_UNSAFE_LEGACY_AND_RELATIVE_PATHS_FAIL' {
+        foreach ($unsafeName in @(
+            '/historical/../database.dump',
+            '/historical/./database.dump',
+            '/historical//database.dump',
+            'dir/database.dump',
+            './database.dump',
+            '../database.dump',
+            '/historical/',
+            '/historical\database.dump',
+            '\historical\database.dump',
+            '/historical/.hidden',
+            '/historical/unsafe name.sql',
+            '/historical/BACKUP_OK',
+            '/historical/SHA256SUMS'
+        )) {
+            Reset-State
+            $bundle = New-Bundle
+            $hash = (Get-FileHash -LiteralPath (Join-Path $bundle 'database.dump') -Algorithm SHA256).Hash.ToLowerInvariant()
+            Write-Utf8NoBomLf -Path (Join-Path $bundle 'SHA256SUMS') -Content "$hash  $unsafeName`n"
+            $result = Invoke-Verifier -Bundle $bundle
+            Assert-True ($result.ExitCode -ne 0) "Unsafe remote manifest path unexpectedly succeeded: $unsafeName"
+        }
+    }
+
+    Complete-Test 'REMOTE_LEGACY_DUPLICATE_BASENAMES_FAIL' {
+        Reset-State
+        $bundle = New-Bundle
+        $hash = (Get-FileHash -LiteralPath (Join-Path $bundle 'database.dump') -Algorithm SHA256).Hash.ToLowerInvariant()
+        Write-Utf8NoBomLf -Path (Join-Path $bundle 'SHA256SUMS') -Content "$hash  /first/database.dump`n$hash  /second/database.dump`n"
+        $result = Invoke-Verifier -Bundle $bundle
+        Assert-True ($result.ExitCode -ne 0) 'Duplicate remote legacy basenames unexpectedly succeeded.'
+    }
+
+    Complete-Test 'REMOTE_LEGACY_CASE_INSENSITIVE_DUPLICATE_FAILS' {
+        Reset-State
+        $bundle = New-Bundle
+        $hash = (Get-FileHash -LiteralPath (Join-Path $bundle 'database.dump') -Algorithm SHA256).Hash.ToLowerInvariant()
+        Write-Utf8NoBomLf -Path (Join-Path $bundle 'SHA256SUMS') -Content "$hash  /first/database.dump`n$hash  /second/DATABASE.DUMP`n"
+        $result = Invoke-Verifier -Bundle $bundle
+        Assert-True ($result.ExitCode -ne 0) 'Case-insensitive remote legacy collision unexpectedly succeeded.'
+    }
+
+    Complete-Test 'REMOTE_NATIVE_LEGACY_COLLISION_FAILS' {
+        Reset-State
+        $bundle = New-Bundle
+        $hash = (Get-FileHash -LiteralPath (Join-Path $bundle 'database.dump') -Algorithm SHA256).Hash.ToLowerInvariant()
+        Write-Utf8NoBomLf -Path (Join-Path $bundle 'SHA256SUMS') -Content "$hash  database.dump`n$hash  /historical/database.dump`n"
+        $result = Invoke-Verifier -Bundle $bundle
+        Assert-True ($result.ExitCode -ne 0) 'Native/legacy remote basename collision unexpectedly succeeded.'
+    }
+
+    Complete-Test 'REMOTE_LEGACY_MISSING_PAYLOAD_FAILS' {
+        Reset-State
+        $bundle = New-Bundle
+        Write-Utf8NoBomLf -Path (Join-Path $bundle 'SHA256SUMS') -Content "$('a' * 64)  /historical/missing.sql`n"
+        $result = Invoke-Verifier -Bundle $bundle
+        Assert-True ($result.ExitCode -ne 0) 'Missing direct remote legacy payload unexpectedly succeeded.'
+    }
+
+    Complete-Test 'REMOTE_LEGACY_SYMLINK_PAYLOAD_FAILS' {
+        Reset-State
+        $bundle = New-Bundle
+        Remove-Item -LiteralPath (Join-Path $bundle 'database.dump')
+        $outside = Join-Path $testRoot 'remote-symlink-target.dump'
+        Write-Utf8NoBomLf -Path $outside -Content 'remote-symlink-target'
+        $mountTest = "type=bind,source=$testRoot,target=/test"
+        & docker run --rm --network none --mount $mountTest postgres:16-alpine ln -s /test/remote-symlink-target.dump /test/source/2026-10-08_120000/database.dump | Out-Null
+        Assert-True ($LASTEXITCODE -eq 0) 'Could not create the disposable remote symlink fixture.'
+        $hash = (Get-FileHash -LiteralPath $outside -Algorithm SHA256).Hash.ToLowerInvariant()
+        Write-Utf8NoBomLf -Path (Join-Path $bundle 'SHA256SUMS') -Content "$hash  /historical/database.dump`n"
+        $result = Invoke-Verifier -Bundle $bundle
+        Assert-True ($result.ExitCode -ne 0) 'Remote legacy symlink payload unexpectedly succeeded.'
+    }
+
+    Complete-Test 'REMOTE_LEGACY_HARDLINK_PAYLOAD_FAILS' {
+        Reset-State
+        $bundle = New-Bundle
+        Remove-Item -LiteralPath (Join-Path $bundle 'database.dump')
+        $outside = Join-Path $testRoot 'remote-hardlink-target.dump'
+        Write-Utf8NoBomLf -Path $outside -Content 'remote-hardlink-target'
+        New-Item -ItemType HardLink -Path (Join-Path $bundle 'database.dump') -Target $outside | Out-Null
+        $hash = (Get-FileHash -LiteralPath $outside -Algorithm SHA256).Hash.ToLowerInvariant()
+        Write-Utf8NoBomLf -Path (Join-Path $bundle 'SHA256SUMS') -Content "$hash  /historical/database.dump`n"
+        $result = Invoke-Verifier -Bundle $bundle
+        Assert-True ($result.ExitCode -ne 0) 'Remote legacy hardlink payload unexpectedly succeeded.'
+    }
+
+    Complete-Test 'REMOTE_LEGACY_CHECKSUM_MISMATCH_FAILS' {
+        Reset-State
+        $bundle = New-Bundle
+        Write-Utf8NoBomLf -Path (Join-Path $bundle 'SHA256SUMS') -Content "$('0' * 64)  /historical/database.dump`n"
+        $result = Invoke-Verifier -Bundle $bundle
+        Assert-True ($result.ExitCode -ne 0) 'Remote legacy checksum mismatch unexpectedly succeeded.'
+    }
+
+    Complete-Test 'PREFLIGHT_REMAINS_BASENAME_ONLY' {
+        Reset-State
+        $bundle = New-Bundle
+        $result = Invoke-Verifier -Bundle $bundle -Preflight -ExpectedFileName @('/historical/database.dump')
+        Assert-True ($result.ExitCode -ne 0) 'Preflight unexpectedly accepted a legacy absolute path.'
     }
 
     Complete-Test 'POWERSHELL_VERIFIER_VALID_BUNDLE' {
