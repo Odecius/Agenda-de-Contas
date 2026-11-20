@@ -4,7 +4,9 @@ A .NET 8 web application for managing recurring bills, monthly due dates, paymen
 
 ## Project Overview
 
-Agendador de Contas began as a small JSON-backed bill tracker and evolved into a more structured ASP.NET Core application. The current production runtime remains intentionally simple and stable, while a PostgreSQL, Identity and multi-family architecture is developed behind a disabled feature flag.
+Agendador de Contas began as a small JSON-backed bill tracker and evolved into a more structured ASP.NET Core application. The legacy production runtime remains intentionally simple and stable, while PostgreSQL, Identity and Multi-Family capabilities are available in a separately controlled Pilot environment.
+
+The isolated Multi-Family Pilot has reached its controlled GO gate. The sanitized [Pilot GO checkpoint](docs/checkpoints/2026-11-20-pilot-go.md), [technical readiness summary](docs/pilot-readiness-summary.md) and [evidence matrix](docs/evidence/pilot-go-evidence-matrix.md) distinguish repository evidence from operator-confirmed results and future operational work. This status does not authorize public rollout or change the legacy production runtime.
 
 ## Problem It Solves
 

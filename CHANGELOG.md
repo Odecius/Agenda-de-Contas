@@ -1,6 +1,13 @@
 ﻿# CHANGELOG
 
 
+## 2026-11-20 - Pilot GO documentation
+
+- Recorded the sanitized Pilot GO checkpoint without credentials, identities or private topology.
+- Added a publication evidence matrix that separates repository evidence, operator confirmation and remaining publication gaps.
+- Added a technical readiness summary, editorial story notes and a future article roadmap.
+- Kept TLS/external access, browser and transactional smoke tests, post-smoke backup and participant onboarding as future operational gates.
+
 ## 2026-11-17 - Controlled Pilot password reset
 
 - Added a CLI-only administrative password reset using ASP.NET Identity token generation and `ResetPasswordAsync`.
