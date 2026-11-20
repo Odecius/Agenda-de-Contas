@@ -2,6 +2,8 @@
 
 ## Resumo técnico
 
+Na branch `feature/pilot-controlled-password-reset`, o comando CLI `reset-pilot-password` usa exclusivamente `UserManager.GeneratePasswordResetTokenAsync` e `ResetPasswordAsync`. Pilot exige o gate privado temporario `PilotPasswordReset:Enabled=true`, desabilitado por default; Production/ambientes desconhecidos rejeitam, startup e HTTP nao executam reset, cadastro continua desligado e Family data nao muda.
+
 Na branch `feature/pilot-controlled-bootstrap`, o comando CLI existente pode operar no ambiente Pilot somente com `MultiFamily:Enabled=true` e o gate temporario privado `PilotBootstrap:Enabled=true`. O default permanece `false`; Production/ambientes desconhecidos rejeitam, startup nao cria dados, cadastro publico continua desligado e nao existe endpoint HTTP. Nenhum schema ou migration muda.
 
 Na branch `ops/pilot-postgres-isolation`, a preparacao do PostgreSQL piloto adiciona somente infraestrutura isolada e documentacao: PostgreSQL 16 separado, rede interna sem host port, volume dedicado, secrets externos e identity marker fail-closed. Bootstrap, migrations e runtime usam roles separadas. Somente o migrator possui database/schema e executa migrations; o runtime nao possui objetos nem CREATE e recebe apenas DML/sequence grants. Nao ha migration nova nem mudanca no runtime JSON. A prova local descartavel passou, mas nenhum alvo real foi identificado ou provisionado.
