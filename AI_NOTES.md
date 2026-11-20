@@ -2,6 +2,8 @@
 
 ## Resumo técnico
 
+O checkpoint `docs/checkpoints/2026-11-20-pilot-go.md` registra `PILOT ENVIRONMENT READINESS: GO` com conclusoes operacionais sanitizadas: PostgreSQL piloto isolado, tres migrations explicitas, role runtime least-privilege, backup com restore descartavel, health/readiness, bootstrap e reset CLI controlados, login e smoke autenticado. Evidencia versionada, confirmacao do operador e lacunas de publicacao permanecem separadas em `docs/evidence/pilot-go-evidence-matrix.md`. TLS/acesso externo, browser smoke, CRUD/pagamento, backup pos-smoke e onboarding continuam gates futuros; esta documentacao nao executa operacoes.
+
 Na branch `feature/pilot-controlled-password-reset`, o comando CLI `reset-pilot-password` usa exclusivamente `UserManager.GeneratePasswordResetTokenAsync` e `ResetPasswordAsync`. Pilot exige o gate privado temporario `PilotPasswordReset:Enabled=true`, desabilitado por default; Production/ambientes desconhecidos rejeitam, startup e HTTP nao executam reset, cadastro continua desligado e Family data nao muda.
 
 Na branch `feature/pilot-controlled-bootstrap`, o comando CLI existente pode operar no ambiente Pilot somente com `MultiFamily:Enabled=true` e o gate temporario privado `PilotBootstrap:Enabled=true`. O default permanece `false`; Production/ambientes desconhecidos rejeitam, startup nao cria dados, cadastro publico continua desligado e nao existe endpoint HTTP. Nenhum schema ou migration muda.

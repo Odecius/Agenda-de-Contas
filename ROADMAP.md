@@ -1,5 +1,15 @@
 ﻿# ROADMAP
 
+## Pilot GO - 2026-11-20
+
+- [x] Record sanitized GO evidence for the isolated Pilot database, explicit migrations, least-privilege runtime, controlled administration, backup/restore and authenticated readiness checks.
+- [x] Separate repository evidence, operator-confirmed evidence and publication gaps.
+- [ ] Verify controlled TLS and external access.
+- [ ] Complete browser and create/read/update/payment smoke checks.
+- [ ] Create and verify a post-smoke backup.
+- [ ] Onboard one or two approved external participants, then expand only after feedback review.
+- [ ] Decide separately whether to activate Telegram and establish the monitoring/feedback cycle.
+
 ## Pilot PostgreSQL isolation
 
 - [x] Definir cluster, rede, volume e secrets dedicados para bootstrap, migrator e runtime.
