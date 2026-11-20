@@ -32,6 +32,12 @@ The repository contains fail-closed backup and off-host integrity controls, incl
 - Temporary bootstrap and reset inputs must be removed before normal runtime.
 - Secrets and private deployment values remain outside the repository.
 
+## External validation
+
+The operator subsequently reported successful public HTTPS routing through a dedicated Cloudflare Tunnel, external readiness, Owner browser authentication and a controlled synthetic transactional smoke test. The tunnel was connected only to a dedicated ingress Docker network; the application bridged ingress and database networks; PostgreSQL remained only on the database network. This reduces unnecessary lateral access from ingress but is not a claim of complete network isolation.
+
+A new custom-format backup created after the smoke test was reported restored successfully into a disposable PostgreSQL 16 target. The restored public schema and all three EF migrations were present, and the disposable target was removed. These results are operator-confirmed; independently reviewable sanitized artifacts are not yet in Git.
+
 ## Readiness statement
 
-The current checkpoint records `PILOT ENVIRONMENT READINESS: GO` for the controlled Pilot sequence. External exposure, browser validation, transactional smoke testing, post-smoke backup and participant onboarding remain explicit future operational gates.
+The current checkpoints record `PILOT ENVIRONMENT READINESS: GO` and completion of the defined external-validation gates. Internal tracking is Multi-Family 100%, Pilot Environment Readiness 100% - GO and current Pilot scope 100%. These figures do not claim product completeness, a production SLA or security certification. Remaining work is controlled participant onboarding, monitoring and feedback, review before expansion, optional Telegram activation and any separately approved production-readiness work.

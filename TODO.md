@@ -7,9 +7,12 @@
 - [x] Provisionar o cluster dedicado e verificar separadamente as identidades migrator/runtime.
 - [x] Executar as tres migrations explicitamente e concluir backup/restore proof isolado.
 - [x] Manter delivery e registration desabilitados durante o gate GO.
-- [ ] Verificar TLS/acesso externo, browser e fluxo create/read/update/payment.
-- [ ] Criar backup pos-smoke antes de iniciar onboarding controlado.
+- [x] Registrar verificacao operator-confirmed de TLS/tunnel, acesso externo, browser e fluxo sintetico create/read/edit/payment.
+- [x] Registrar backup pos-smoke e restore descartavel PostgreSQL 16 com 3/3 migrations.
 - [ ] Iniciar com um ou dois participantes aprovados e ampliar somente apos feedback.
+- [ ] Monitorar o Pilot e registrar feedback antes de expandir para dois a cinco participantes.
+- [ ] Decidir separadamente sobre ativacao opcional do Telegram.
+- [ ] Preparar evidencias publicas sanitizadas e revisaveis, caso sejam necessarias alegacoes publicas mais fortes.
 
 ## Alta prioridade
 
@@ -46,6 +49,9 @@
 
 ## Concluído
 
+- Limite de rede ingress/database, tunnel HTTPS, readiness externa e login Owner registrados como resultados operator-confirmed.
+- Smoke sintetico create/read/edit/payment/unpayment/cleanup registrado como operator-confirmed.
+- Backup pos-smoke restaurado em alvo PostgreSQL 16 descartavel, com schema publico e 3/3 migrations, registrado como operator-confirmed.
 - Politica de multiplos Owners, handover, ultimo Owner e concorrencia validada.
 - UI multi-family validada em navegador com fluxos desktop/mobile.
 - Settings, lembretes e Telegram tenant-aware mantem secrets fora do banco.

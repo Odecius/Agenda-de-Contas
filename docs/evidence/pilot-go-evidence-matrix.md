@@ -4,6 +4,7 @@
 
 - **Repository-evidenced:** supported by versioned design, implementation notes, tests or checkpoints.
 - **Operator-confirmed:** reported from the controlled Pilot operation, but the underlying private evidence is intentionally not committed.
+- **Publication-evidenced:** a sanitized artifact is present in Git and supports the bounded claim made from it.
 - **Not yet publication-evidenced:** safe public evidence is not yet present in the repository.
 
 | Category | Claim | Repository evidence | Test/checkpoint/reference | Status | Publication-safe wording |
@@ -20,6 +21,11 @@
 | Application readiness | Liveness and migration-aware readiness endpoints are defined and sanitized. | `SECURITY.md`; `docs/pilot-runbook.md` | GO checkpoint | Repository-evidenced; real PASS operator-confirmed | “The controlled Pilot check reported passing liveness and readiness probes.” |
 | Registration protection | Public registration is independently disabled by default. | `appsettings.Pilot.json`; `docs/pilot-runbook.md` | Bootstrap and password-reset checkpoints | Repository-evidenced; runtime state operator-confirmed | “Public registration remained disabled during controlled administration.” |
 | Temporary-secret cleanup | Temporary bootstrap/reset inputs were removed before normal runtime. | Runbook requires cleanup. | GO checkpoint | Operator-confirmed; NOT YET PUBLICATION-EVIDENCED independently | “The operator reported removal of temporary administrative inputs before normal runtime.” |
+| Ingress boundary | Tunnel ingress and the database use separate Docker networks; the tunnel is not a database-network member. | Pilot runbook and network design; external-validation checkpoint | External validation checkpoint | Design repository-evidenced; real memberships operator-confirmed; independently NOT YET PUBLICATION-EVIDENCED | “The operator reported a dedicated ingress network separated from the database network.” |
+| Public HTTPS and readiness | A dedicated tunnel routed public HTTPS to the Pilot and external `/health/ready` returned ready. | Readiness endpoint and Pilot runbook | External validation checkpoint | Repository-evidenced capability; real route/result operator-confirmed; independently NOT YET PUBLICATION-EVIDENCED | “The operator reported successful public HTTPS routing and an external ready response.” |
+| Browser authentication | Owner authentication succeeded through the public HTTPS route. | Identity and authentication implementation | External validation checkpoint | Repository-evidenced capability; real result operator-confirmed; independently NOT YET PUBLICATION-EVIDENCED | “The operator reported successful Owner authentication through the public route.” |
+| Transactional smoke | Synthetic create/read/edit/payment/unpayment/cleanup completed through the browser flow. | Tenant-aware repositories and UI tests | External validation checkpoint | Repository-evidenced capability; real result operator-confirmed; independently NOT YET PUBLICATION-EVIDENCED | “The operator reported a completed synthetic transactional smoke test with cleanup.” |
+| Post-smoke recovery | A custom-format backup was restored into disposable PostgreSQL 16; exit code 0, public schema and 3/3 migrations were verified; target removed. | Backup/restore harnesses and runbook | External validation checkpoint | Repository-evidenced method; real result operator-confirmed; independently NOT YET PUBLICATION-EVIDENCED | “The operator reported a successful disposable restore of the post-smoke backup, including all three migrations.” |
 
 ## Publication gaps
 
@@ -29,6 +35,8 @@ The repository intentionally does not contain private operational logs, screensh
 - runtime-role denial/grant checks in the real Pilot;
 - backup and disposable restore completion;
 - administrative-input cleanup;
-- authenticated browser and transactional smoke tests.
+- external tunnel/network membership and readiness results;
+- authenticated browser and transactional smoke tests;
+- post-smoke backup/restore output and disposable-target cleanup.
 
 Until such artifacts are reviewed, these claims must retain the label **operator-confirmed** rather than being presented as independently reproducible public evidence.
