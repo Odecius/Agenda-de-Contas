@@ -1,6 +1,14 @@
 ﻿# CHANGELOG
 
 
+## 2026-11-20 - Pilot external validation documentation
+
+- Recorded sanitized operator-confirmed tunnel, HTTPS, ingress/database network-boundary and external readiness results.
+- Recorded successful Owner browser authentication and synthetic account/payment smoke validation with cleanup.
+- Recorded a post-smoke custom-format backup restored into disposable PostgreSQL 16 with exit code 0, public schema and 3/3 migrations present.
+- Preserved the distinction between repository evidence, operator confirmation, publication evidence and remaining independent publication-evidence gaps.
+- Updated the current Pilot-readiness scope to 100% without claiming product completeness, a production SLA or security certification.
+
 ## 2026-11-20 - Pilot GO documentation
 
 - Recorded the sanitized Pilot GO checkpoint without credentials, identities or private topology.

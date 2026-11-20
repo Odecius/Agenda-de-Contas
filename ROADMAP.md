@@ -4,22 +4,22 @@
 
 - [x] Record sanitized GO evidence for the isolated Pilot database, explicit migrations, least-privilege runtime, controlled administration, backup/restore and authenticated readiness checks.
 - [x] Separate repository evidence, operator-confirmed evidence and publication gaps.
-- [ ] Verify controlled TLS and external access.
-- [ ] Complete browser and create/read/update/payment smoke checks.
-- [ ] Create and verify a post-smoke backup.
+- [x] Record operator-confirmed controlled TLS/tunnel and external readiness validation.
+- [x] Record operator-confirmed browser authentication and synthetic create/read/edit/payment smoke checks.
+- [x] Record operator-confirmed post-smoke backup and disposable PostgreSQL 16 restore with 3/3 migrations.
 - [ ] Onboard one or two approved external participants, then expand only after feedback review.
-- [ ] Decide separately whether to activate Telegram and establish the monitoring/feedback cycle.
+- [ ] Establish monitoring and feedback before expansion.
+- [ ] Decide separately whether to activate Telegram.
+- [ ] Prepare independently reviewable sanitized public evidence where stronger publication claims are desired.
 
 ## Pilot PostgreSQL isolation
 
 - [x] Definir cluster, rede, volume e secrets dedicados para bootstrap, migrator e runtime.
 - [x] Provar ownership do migrator, runtime sem DDL e DML/backup/restore em ambiente local descartavel.
 - [x] Revalidar PostgreSQL 16, backup, restore e transporte sinteticos.
-- [ ] Identificar e aprovar os nomes/targets reais sem colisao com infraestrutura existente.
-- [ ] Provisionar secrets e recursos reais com elevacao legitima.
-- [ ] Aplicar migrations somente com a role migrator apos verificacao da identidade piloto.
-- [ ] Executar backup/restore real isolado e registrar evidencia sanitizada.
-- [ ] Validar a aplicacao no ambiente piloto sem onboarding real.
+- [x] Registrar, sem expor valores privados, que os recursos dedicados foram validados pelo operador.
+- [x] Registrar aplicacao explicita de 3/3 migrations e restore descartavel confirmados pelo operador.
+- [x] Registrar validacao da aplicacao no ambiente Pilot sem onboarding real.
 
 ## Fase 2.2 - Repositories tenant-aware e autorizacao familiar
 

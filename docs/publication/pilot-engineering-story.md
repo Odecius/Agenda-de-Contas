@@ -34,6 +34,10 @@ The first Owner cannot depend on public registration. Bootstrap is therefore an 
 
 Backup design includes native database dumps, checksums, guarded publication and off-host verification. Restore is treated as the proof that backup evidence is usable. Liveness and readiness are separate: readiness checks database access and migration currency while returning a generic response.
 
+### External ingress boundary and post-smoke recovery
+
+The operator reported a dedicated tunnel terminating into an ingress-only Docker network, with the application bridging that ingress boundary to a separate database network and PostgreSQL remaining off the ingress network. This reduces unnecessary lateral reach without claiming complete network isolation. The same external-validation sequence reported public readiness, browser authentication, a synthetic transactional smoke test and a successful disposable restore of a new post-smoke backup, including all three migrations. These remain operator-confirmed until independently reviewable sanitized artifacts are approved.
+
 ## Engineering principles
 
 - **Fail closed:** ambiguous environment, target or administrative state stops the operation.
@@ -63,10 +67,13 @@ Backup design includes native database dumps, checksums, guarded publication and
 4. Least-privilege PostgreSQL roles for a small application.
 5. Why backup completion is weaker evidence than a tested restore.
 6. CLI-only bootstrap and password recovery without public administrative endpoints.
+7. Operational readiness as a deliberate engineering deliverable.
+8. Network boundaries between ingress and database services.
 
 ## Editorial cautions
 
 - Do not publish private topology, identities, paths, screenshots or operational commands copied from audits.
 - Do not describe disposable testing as real-environment proof.
 - Do not claim scale, adoption or security certification that the evidence does not establish.
+- Preserve the distinction between a sanitized checkpoint that records operator confirmation and independently publication-evidenced operational proof.
 - Obtain author confirmation before publishing operational outcomes, timelines, personal contribution attribution or impact statements.
