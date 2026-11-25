@@ -93,6 +93,8 @@ var tests = new List<(string Name, Func<Task> Run)>
     ("Selecao familiar exige escolha entre duas familias", MultipleFamiliesRequireAuthorizedSelectionAsync),
     ("Membership e familia inativas sao rejeitadas", InactiveFamilyAccessIsRejectedAsync),
     ("Contexto familiar resolve Owner Admin e Member", CurrentFamilyContextResolvesRolesAsync),
+    ("Autorizacao de contas preserva matriz Owner Admin Member", FamilyAccountPermissionMatrixAsync),
+    ("Repositories e roles isolam familias em SQLite descartavel", TenantAwareBusinessFlowWorksOnSqliteAsync),
     ("Selecao existente e invalidada com membership", SelectedMembershipIsRevalidatedAsync),
     ("Sessao familiar nao atravessa usuarios", FamilySessionDoesNotCrossUsersAsync),
     ("Migracao JSON importa contas e pagamentos", JsonMigrationImportsAccountsAndPaymentsAsync),
@@ -1894,6 +1896,33 @@ static async Task TenantAwareBusinessFlowWorksOnPostgresAsync()
     var connectionString = Environment.GetEnvironmentVariable("AGENDADOR_TEST_POSTGRES")
         ?? throw new InvalidOperationException("Connection string descartavel de teste ausente.");
     await using var factory = new MultiFamilyWebFactory(connectionString);
+    await RunTenantAwareBusinessFlowAsync(factory, applyMigrations: true);
+}
+
+static async Task TenantAwareBusinessFlowWorksOnSqliteAsync()
+{
+    await using var factory = new MultiFamilySqliteWebFactory();
+    await RunTenantAwareBusinessFlowAsync(factory, applyMigrations: false);
+}
+
+static async Task FamilyAccountPermissionMatrixAsync()
+{
+    foreach (var role in Enum.GetValues<FamilyRole>())
+    {
+        var authorization = new FamilyAuthorizationService(new StaticCurrentFamilyContext(new CurrentFamily(Guid.NewGuid(), Guid.NewGuid(), role)));
+        foreach (var permission in Enum.GetValues<FamilyPermission>())
+        {
+            var expected = role == FamilyRole.Owner || permission is not (FamilyPermission.DeleteConta or FamilyPermission.DeletePagamento);
+            AssertEqual(expected, await authorization.IsAllowedAsync(permission), $"Permissao {permission} deve respeitar role {role}.");
+        }
+    }
+    var invalidRole = new FamilyAuthorizationService(new StaticCurrentFamilyContext(new CurrentFamily(Guid.NewGuid(), Guid.NewGuid(), (FamilyRole)999)));
+    foreach (var permission in Enum.GetValues<FamilyPermission>())
+        AssertTrue(!await invalidRole.IsAllowedAsync(permission), "Role desconhecida deve falhar fechada.");
+}
+
+static async Task RunTenantAwareBusinessFlowAsync(WebApplicationFactory<ApplicationMarker> factory, bool applyMigrations)
+{
     var suffix = Guid.NewGuid().ToString("N");
     const string password = "Tenant-test-123!";
     var ownerAEmail = $"owner-a-{suffix}@example.test";
@@ -1914,7 +1943,8 @@ static async Task TenantAwareBusinessFlowWorksOnPostgresAsync()
     using (var scope = factory.Services.CreateScope())
     {
         var db = scope.ServiceProvider.GetRequiredService<AgendadorDbContext>();
-        await db.Database.MigrateAsync();
+        if (applyMigrations) await db.Database.MigrateAsync();
+        else await db.Database.EnsureCreatedAsync();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
         var ownerA = await CreateUserAsync(userManager, ownerAEmail, password);
         var adminA = await CreateUserAsync(userManager, adminAEmail, password);
@@ -2025,9 +2055,32 @@ static async Task TenantAwareBusinessFlowWorksOnPostgresAsync()
     var (memberAClient, memberAToken) = await CreateAuthenticatedClientAsync(factory, memberAEmail, password);
     using (memberAClient)
     {
-        AssertEqual(HttpStatusCode.Forbidden, (await PostWithTokenAsync(memberAClient, "/api/multi-family/contas", NewContaRequest("Member proibido"), memberAToken)).StatusCode, "Member nao deve criar conta.");
-        AssertEqual(HttpStatusCode.Forbidden, (await PutWithTokenAsync(memberAClient, $"/api/multi-family/contas/{contaA2Id}", NewContaRequest("Member proibido"), memberAToken)).StatusCode, "Member nao deve editar conta propria.");
-        AssertEqual(HttpStatusCode.NotFound, (await PutWithTokenAsync(memberAClient, $"/api/multi-family/contas/{contaB1Id}", NewContaRequest("Cross family"), memberAToken)).StatusCode, "Member editando outra familia deve receber 404 antes de 403.");
+        var memberAccounts = await memberAClient.GetStringAsync("/api/multi-family/contas?FamilyId=" + familyBId);
+        AssertContains(contaA2Id.ToString(), memberAccounts, "Member deve listar contas da familia selecionada.");
+        AssertTrue(!memberAccounts.Contains(contaB1Id.ToString(), StringComparison.OrdinalIgnoreCase), "Member nao deve listar contas de outra familia.");
+        AssertEqual(HttpStatusCode.NotFound, (await memberAClient.GetAsync($"/api/multi-family/contas/{contaB1Id}")).StatusCode, "Member nao deve ler conta de outra familia.");
+        AssertEqual(HttpStatusCode.BadRequest, (await memberAClient.PostAsJsonAsync("/api/multi-family/contas", NewContaRequest("Sem CSRF"))).StatusCode, "Member precisa de antiforgery para criar conta.");
+        var memberBody = NewContaRequest("Member A criada");
+        using var memberCreate = await PostWithTokenAsync(memberAClient, "/api/multi-family/contas?FamilyId=" + familyBId, new
+        {
+            memberBody.Nome, memberBody.Valor, memberBody.Country, memberBody.Currency,
+            memberBody.DiaVencimento, memberBody.DataInicio, memberBody.DuracaoMeses,
+            memberBody.Ativa, memberBody.Observacoes, FamilyId = familyBId, FamilyRole = "Owner"
+        }, memberAToken);
+        AssertEqual(HttpStatusCode.Created, memberCreate.StatusCode, "Member deve criar conta na familia selecionada.");
+        using var memberCreatedJson = JsonDocument.Parse(await memberCreate.Content.ReadAsStringAsync());
+        var memberCreatedId = memberCreatedJson.RootElement.GetProperty("id").GetGuid();
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AgendadorDbContext>();
+            AssertEqual(familyAId, (await db.Contas.SingleAsync(x => x.Id == memberCreatedId)).FamilyId, "Criacao de Member deve ignorar FamilyId do cliente.");
+        }
+        AssertEqual(HttpStatusCode.OK, (await PutWithTokenAsync(memberAClient, $"/api/multi-family/contas/{contaA2Id}", NewContaRequest("Member atualizou conta compartilhada"), memberAToken)).StatusCode, "Member deve editar conta criada por outro membro da familia.");
+        using var memberEdit = await PutWithTokenAsync(memberAClient, $"/api/multi-family/contas/{memberCreatedId}", NewContaRequest("Member atualizou criada"), memberAToken);
+        AssertEqual(HttpStatusCode.OK, memberEdit.StatusCode, "Member deve editar conta criada na familia selecionada.");
+        AssertContains("Member atualizou criada", await memberAClient.GetStringAsync($"/api/multi-family/contas/{memberCreatedId}"), "Edicao deve persistir.");
+        AssertEqual(HttpStatusCode.Forbidden, (await DeleteWithTokenAsync(memberAClient, $"/api/multi-family/contas/{memberCreatedId}", memberAToken)).StatusCode, "Member nao deve excluir nem conta que criou.");
+        AssertEqual(HttpStatusCode.NotFound, (await PutWithTokenAsync(memberAClient, $"/api/multi-family/contas/{contaB1Id}", NewContaRequest("Cross family"), memberAToken)).StatusCode, "Member editando outra familia deve receber 404.");
         AssertEqual(HttpStatusCode.Forbidden, (await DeleteWithTokenAsync(memberAClient, $"/api/multi-family/contas/{contaA2Id}", memberAToken)).StatusCode, "Member nao deve excluir conta.");
         using var memberPayment = await PostWithTokenAsync(memberAClient, $"/api/multi-family/contas/{contaA1Id}/pagamentos", new { Ano = 2026, Mes = 2, FamilyId = familyBId }, memberAToken);
         AssertEqual(HttpStatusCode.Created, memberPayment.StatusCode, "Member deve registrar pagamento na propria familia.");
@@ -2044,6 +2097,12 @@ static async Task TenantAwareBusinessFlowWorksOnPostgresAsync()
         AssertEqual(HttpStatusCode.Forbidden, (await memberAClient.GetAsync("/api/multi-family/members")).StatusCode, "Member nao deve listar members.");
         AssertEqual(HttpStatusCode.OK, (await memberAClient.GetAsync("/api/multi-family/settings?FamilyId=" + familyBId)).StatusCode, "Member deve ler settings da propria familia.");
         AssertEqual(HttpStatusCode.Forbidden, (await PutWithTokenAsync(memberAClient, "/api/multi-family/settings", new FamilySettingsRequest(AccountCurrency.BRL, "Europe/London", 10, 0), memberAToken)).StatusCode, "Member nao deve alterar settings.");
+        AssertEqual(HttpStatusCode.Forbidden, (await memberAClient.GetAsync("/api/multi-family/invitations")).StatusCode, "Member nao deve listar convites.");
+        AssertEqual(HttpStatusCode.Forbidden, (await PostWithTokenAsync(memberAClient, "/api/multi-family/invitations", new FamilyInvitationCreateRequest($"forbidden-{suffix}@example.test", FamilyRole.Member), memberAToken)).StatusCode, "Member nao deve criar convites.");
+        AssertEqual(HttpStatusCode.Forbidden, (await DeleteWithTokenAsync(memberAClient, $"/api/multi-family/invitations/{Guid.NewGuid()}", memberAToken)).StatusCode, "Member nao deve revogar convites.");
+        AssertEqual(HttpStatusCode.Forbidden, (await PutWithTokenAsync(memberAClient, $"/api/multi-family/members/{userCId}/role", new FamilyMemberRoleRequest(FamilyRole.Owner), memberAToken)).StatusCode, "Member nao deve mudar roles.");
+        AssertEqual(HttpStatusCode.Forbidden, (await DeleteWithTokenAsync(memberAClient, $"/api/multi-family/members/{userCId}", memberAToken)).StatusCode, "Member nao deve remover membros.");
+        AssertEqual(HttpStatusCode.Forbidden, (await PutWithTokenAsync(memberAClient, "/api/multi-family/telegram-settings", new TelegramSettingsRequest(false, null, null), memberAToken)).StatusCode, "Member nao deve administrar Telegram.");
     }
 
     var (ownerBClient, ownerBToken) = await CreateAuthenticatedClientAsync(factory, ownerBEmail, password);
@@ -2062,6 +2121,7 @@ static async Task TenantAwareBusinessFlowWorksOnPostgresAsync()
         var membersB = await ownerBClient.GetStringAsync("/api/multi-family/members?FamilyId=" + familyAId);
         AssertTrue(membersB.Contains(ownerBEmail) && !membersB.Contains(ownerAEmail), "Owner B deve listar somente members B.");
         AssertEqual(HttpStatusCode.OK, (await PutWithTokenAsync(ownerBClient, "/api/multi-family/settings?FamilyId=" + familyAId, new FamilySettingsRequest(AccountCurrency.EUR, "Europe/Lisbon", 9, 45), ownerBToken)).StatusCode, "FamilyId adulterado deve manter update em B.");
+        AssertEqual(HttpStatusCode.NoContent, (await DeleteWithTokenAsync(ownerBClient, $"/api/multi-family/pagamentos/{pagamentoB1Id}", ownerBToken)).StatusCode, "Owner deve continuar podendo remover pagamento da propria familia.");
     }
 
     var (userCClient, userCToken) = await CreateAuthenticatedClientAsync(factory, userCEmail, password);
@@ -2075,8 +2135,19 @@ static async Task TenantAwareBusinessFlowWorksOnPostgresAsync()
         AssertTrue(listB.Contains(contaB1Id.ToString(), StringComparison.OrdinalIgnoreCase), "User C em B deve ver B.");
         AssertTrue(!listB.Contains(contaA1Id.ToString(), StringComparison.OrdinalIgnoreCase), "User C em B nao deve manter estado de A.");
         AssertEqual(HttpStatusCode.NotFound, (await userCClient.GetAsync($"/api/multi-family/contas/{contaA1Id}")).StatusCode, "ID de A em sessao B deve retornar 404.");
+        using var selectedCreate = await PostWithTokenAsync(userCClient, "/api/multi-family/contas", NewContaRequest("Member B selecionada"), userCToken);
+        AssertEqual(HttpStatusCode.Created, selectedCreate.StatusCode, "Member de duas familias deve criar na familia selecionada B.");
+        using var selectedJson = JsonDocument.Parse(await selectedCreate.Content.ReadAsStringAsync());
+        var selectedCreatedId = selectedJson.RootElement.GetProperty("id").GetGuid();
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AgendadorDbContext>();
+            AssertEqual(familyBId, (await db.Contas.SingleAsync(x => x.Id == selectedCreatedId)).FamilyId, "Troca de familia deve determinar tenant da nova conta.");
+        }
         AssertEqual(HttpStatusCode.NoContent, (await PostWithTokenAsync(userCClient, "/api/multi-family/family/select", new FamilySelectionRequest(familyAId), userCToken)).StatusCode, "User C deve retornar a A.");
         AssertEqual(HttpStatusCode.OK, (await userCClient.GetAsync($"/api/multi-family/contas/{contaA1Id}")).StatusCode, "Acesso A deve ser restaurado.");
+        AssertEqual(HttpStatusCode.NotFound, (await userCClient.GetAsync($"/api/multi-family/contas/{selectedCreatedId}")).StatusCode, "Conta criada pelo mesmo usuario em B nao deve ser acessivel em A.");
+        AssertEqual(HttpStatusCode.NotFound, (await PutWithTokenAsync(userCClient, $"/api/multi-family/contas/{selectedCreatedId}", NewContaRequest("Troca indevida"), userCToken)).StatusCode, "Mesmo criador nao pode editar conta fora da familia selecionada.");
     }
 
     using (var scope = factory.Services.CreateScope())

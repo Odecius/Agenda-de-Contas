@@ -32,6 +32,8 @@ public sealed class FamilyAuthorizationService(ICurrentFamilyContext currentFami
                 or FamilyPermission.ViewPagamentos
                 or FamilyPermission.CreatePagamento,
             FamilyRole.Member => permission is FamilyPermission.ViewContas
+                or FamilyPermission.CreateConta
+                or FamilyPermission.EditConta
                 or FamilyPermission.ViewPagamentos
                 or FamilyPermission.CreatePagamento,
             _ => false

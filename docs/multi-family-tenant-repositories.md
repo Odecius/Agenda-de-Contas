@@ -13,13 +13,15 @@ DTOs HTTP nao possuem `FamilyId`, `UserId`, `FamilyRole` ou `TenantId`. Propried
 | Operacao | Owner | Admin | Member |
 | --- | --- | --- | --- |
 | Visualizar contas e pagamentos | Sim | Sim | Sim |
-| Criar conta | Sim | Sim | Nao |
-| Editar/ativar/desativar conta | Sim | Sim | Nao |
+| Criar conta | Sim | Sim | Sim |
+| Editar/ativar/desativar conta | Sim | Sim | Sim |
 | Excluir conta | Sim | Nao | Nao |
 | Registrar pagamento | Sim | Sim | Sim |
 | Remover pagamento | Sim | Nao | Nao |
 
 A exclusao continua fisica, como no runtime legado, mas fica restrita a Owner no modo experimental. Cascades e FKs do schema continuam como protecao adicional.
+
+Pilot usability feedback: "Normal Members need to participate in account management within their Family while destructive and administrative actions remain restricted."
 
 ## Semantica HTTP
 
