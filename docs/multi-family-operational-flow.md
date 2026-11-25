@@ -39,7 +39,7 @@ O servico localiza somente usuario ativo e usa `UserManager.GeneratePasswordRese
 | Acao | Owner | Admin | Member |
 | --- | --- | --- | --- |
 | Ver contas/pagamentos/settings | sim | sim | sim |
-| Criar/editar/ativar conta | sim | sim | nao |
+| Criar/editar/ativar conta | sim | sim | sim |
 | Excluir conta/pagamento | sim | nao | nao |
 | Registrar pagamento | sim | sim | sim |
 | Listar members | sim | sim | nao |
